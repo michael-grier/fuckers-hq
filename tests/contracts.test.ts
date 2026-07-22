@@ -90,6 +90,13 @@ describe("environment contract", () => {
   test("rejects invalid Stripe Tax flag values", () => {
     expect(() => parseEnv({ NODE_ENV: "test", STRIPE_TAX_ENABLED: "sometimes" })).toThrow();
   });
+
+  test("requires a high-entropy cron secret when scheduled delivery is configured", () => {
+    expect(parseEnv({ NODE_ENV: "test", CRON_SECRET: "test_cron_secret_123456" }).CRON_SECRET).toBe(
+      "test_cron_secret_123456",
+    );
+    expect(() => parseEnv({ NODE_ENV: "test", CRON_SECRET: "too-short" })).toThrow();
+  });
 });
 
 describe("cart selectors", () => {

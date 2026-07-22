@@ -29,6 +29,13 @@
       "when": 1784783728369,
       "tag": "0003_long_boomerang",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784785904923,
+      "tag": "0004_chilly_talisman",
+      "breakpoints": true
     }
   ]
 }

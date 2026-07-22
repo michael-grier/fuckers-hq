@@ -5,6 +5,7 @@ import { OrderConfirmationEmail, type OrderConfirmationView } from "@/lib/email/
 
 export type OrderConfirmationDelivery = {
   orderId: string;
+  idempotencyKey: string;
   recipientEmail: string;
   order: OrderConfirmationView;
 };
@@ -45,7 +46,7 @@ export async function deliverOrderConfirmation(
       }),
     },
     {
-      idempotencyKey: `order-confirmation/${delivery.orderId}`,
+      idempotencyKey: delivery.idempotencyKey,
     },
   );
 

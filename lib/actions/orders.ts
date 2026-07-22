@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { attemptOrderConfirmationDelivery } from "@/lib/email/order-confirmation-delivery";
+import { orderConfirmationDeliveryRepository } from "@/lib/email/order-confirmation-delivery-repository";
+import { retryOrderConfirmationForAdmin } from "@/lib/email/retry-order-confirmation";
+import { sendOrderConfirmation } from "@/lib/email/send-order-confirmation";
 import { captureServerException } from "@/lib/observability/server";
 import { adminOrderRepository } from "@/lib/orders/admin-order-repository";
 import { markOrderShipped, OrderFulfillmentError } from "@/lib/orders/mark-order-shipped";
@@ -14,6 +18,7 @@ import {
 } from "@/lib/orders/resolve-inventory-exception";
 import {
   markOrderShippedSchema,
+  retryOrderConfirmationSchema,
   retryOrderInventoryAllocationSchema,
 } from "@/lib/validators/admin";
 
@@ -87,4 +92,35 @@ export async function retryOrderInventoryAllocation(input: unknown): Promise<Act
     success: true,
     data: undefined,
   };
+}
+
+export async function retryOrderConfirmation(input: unknown): Promise<ActionResult> {
+  const result = await retryOrderConfirmationForAdmin(input, {
+    authorize: requireAdmin,
+    attempt: (orderId) =>
+      attemptOrderConfirmationDelivery(
+        orderId,
+        orderConfirmationDeliveryRepository,
+        sendOrderConfirmation,
+        { force: true },
+      ),
+    reportError: (error) => {
+      captureServerException(error, {
+        area: "admin",
+        operation: "admin.retry-order-confirmation",
+      });
+    },
+  });
+
+  if (result.success) {
+    revalidatePath("/admin/orders");
+
+    const parsed = retryOrderConfirmationSchema.safeParse(input);
+
+    if (parsed.success) {
+      revalidatePath(`/admin/orders/${parsed.data.orderId}`);
+    }
+  }
+
+  return result;
 }

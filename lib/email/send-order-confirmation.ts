@@ -9,7 +9,10 @@ import { getResend } from "@/lib/email/resend";
 import { requireEnv } from "@/lib/env";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 
-export async function sendOrderConfirmation(orderId: string): Promise<string> {
+export async function sendOrderConfirmation(
+  orderId: string,
+  idempotencyKey: string,
+): Promise<string> {
   const order = await getDb().query.orders.findFirst({
     where: (orders, { eq }) => eq(orders.id, orderId),
     with: {
@@ -23,6 +26,7 @@ export async function sendOrderConfirmation(orderId: string): Promise<string> {
 
   const delivery: OrderConfirmationDelivery = {
     orderId: order.id,
+    idempotencyKey,
     recipientEmail: order.email,
     order: {
       orderNumber: order.orderNumber,

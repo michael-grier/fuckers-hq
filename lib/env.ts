@@ -10,6 +10,11 @@ const optionalUrl = z.preprocess(
   z.string().url().optional(),
 );
 
+const optionalSecret = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(16).optional(),
+);
+
 const optionalIntegerString = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().nonnegative().optional(),
@@ -36,6 +41,7 @@ const envSchema = z.object({
   RESEND_API_KEY: optionalString,
   EMAIL_FROM: optionalString,
   SUPPORT_EMAIL: optionalString,
+  CRON_SECRET: optionalSecret,
   R2_ACCOUNT_ID: optionalString,
   R2_ACCESS_KEY_ID: optionalString,
   R2_SECRET_ACCESS_KEY: optionalString,

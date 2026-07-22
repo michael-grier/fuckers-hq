@@ -4,15 +4,18 @@ import { notFound } from "next/navigation";
 
 import { MarkOrderShippedButton } from "@/components/admin/mark-order-shipped-button";
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
+import { RetryOrderConfirmationButton } from "@/components/admin/retry-order-confirmation-button";
 import {
   DisputeStatusBadge,
   OrderInventoryStatusBadge,
   OrderStatusBadge,
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatAdminDate } from "@/lib/admin/format";
 import { getAdminOrderById } from "@/lib/admin/queries";
+import type { OrderConfirmationDelivery } from "@/lib/db/schema";
 import { formatMoney } from "@/lib/money";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
@@ -115,6 +118,51 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         </section>
       </div>
 
+      <section
+        aria-labelledby="confirmation-delivery-heading"
+        className="rounded-lg border bg-background p-6"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="font-bold text-xl" id="confirmation-delivery-heading">
+                Confirmation email
+              </h2>
+              {order.confirmationDelivery ? (
+                <ConfirmationDeliveryBadge status={order.confirmationDelivery.status} />
+              ) : null}
+            </div>
+            {order.confirmationDelivery ? (
+              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                <DeliveryDetail
+                  label="Attempts"
+                  value={order.confirmationDelivery.attemptCount.toString()}
+                />
+                <DeliveryDetail
+                  label="Last attempt"
+                  value={formatOptionalDate(order.confirmationDelivery.lastAttemptAt)}
+                />
+                <DeliveryDetail
+                  label="Delivered"
+                  value={formatOptionalDate(order.confirmationDelivery.deliveredAt)}
+                />
+                <DeliveryDetail
+                  label="Last error"
+                  value={formatDeliveryError(order.confirmationDelivery.lastErrorCode)}
+                />
+              </dl>
+            ) : (
+              <p className="mt-3 text-muted-foreground text-sm">
+                No confirmation delivery record exists for this order.
+              </p>
+            )}
+          </div>
+          {order.confirmationDelivery?.status !== "sent" && order.confirmationDelivery ? (
+            <RetryOrderConfirmationButton orderId={order.id} />
+          ) : null}
+        </div>
+      </section>
+
       <section aria-labelledby="items-heading" className="space-y-4">
         <h2 className="font-bold text-2xl" id="items-heading">
           Items
@@ -192,6 +240,48 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
       </div>
     </div>
   );
+}
+
+type ConfirmationDeliveryStatus = OrderConfirmationDelivery["status"];
+
+const confirmationDeliveryLabels: Record<ConfirmationDeliveryStatus, string> = {
+  pending: "Pending",
+  processing: "Sending",
+  retry: "Retry scheduled",
+  sent: "Sent",
+  failed: "Needs attention",
+};
+
+function ConfirmationDeliveryBadge({ status }: { status: ConfirmationDeliveryStatus }) {
+  return <Badge variant="outline">{confirmationDeliveryLabels[status]}</Badge>;
+}
+
+function DeliveryDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="font-medium text-muted-foreground">{label}</dt>
+      <dd className="mt-1">{value}</dd>
+    </div>
+  );
+}
+
+function formatOptionalDate(value: Date | null): string {
+  return value ? formatAdminDate(value) : "Not yet";
+}
+
+function formatDeliveryError(errorCode: string | null): string {
+  if (!errorCode) {
+    return "None";
+  }
+
+  const labels: Record<string, string> = {
+    configuration_error: "Email configuration",
+    delivery_error: "Delivery unavailable",
+    legacy_delivery_unknown: "Pre-outbox delivery unknown",
+    provider_error: "Provider rejected delivery",
+  };
+
+  return labels[errorCode] ?? "Delivery unavailable";
 }
 
 function TableHeading({ children }: { children: React.ReactNode }) {

@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
 
+import { attemptOrderConfirmationDelivery } from "@/lib/email/order-confirmation-delivery";
+import { orderConfirmationDeliveryRepository } from "@/lib/email/order-confirmation-delivery-repository";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
 import { sendOrderConfirmation } from "@/lib/email/send-order-confirmation";
 import { requireEnv } from "@/lib/env";
@@ -32,12 +34,22 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const result = await processStripeEvent(event, paidOrderRepository, paymentLifecycleRepository);
 
-    await sendConfirmationAfterOrderCommit(result, sendOrderConfirmation, (error) => {
-      captureServerException(error, {
-        area: "email",
-        operation: "email.send-order-confirmation",
-      });
-    });
+    await sendConfirmationAfterOrderCommit(
+      result,
+      (orderId) =>
+        attemptOrderConfirmationDelivery(
+          orderId,
+          orderConfirmationDeliveryRepository,
+          sendOrderConfirmation,
+          { force: true },
+        ),
+      (error) => {
+        captureServerException(error, {
+          area: "email",
+          operation: "email.send-order-confirmation",
+        });
+      },
+    );
 
     return new Response("ok");
   } catch (error) {

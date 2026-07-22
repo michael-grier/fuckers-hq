@@ -9,3 +9,4 @@ export const markOrderShippedSchema = z
   .strict();
 
 export const retryOrderInventoryAllocationSchema = markOrderShippedSchema;
+export const retryOrderConfirmationSchema = markOrderShippedSchema;

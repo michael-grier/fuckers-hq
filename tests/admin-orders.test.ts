@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from "bun:test";
 
 import type { Order } from "@/lib/db/schema";
+import { retryOrderConfirmationForAdmin } from "@/lib/email/retry-order-confirmation";
 import {
   markOrderShipped,
   OrderFulfillmentError,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/orders/resolve-inventory-exception";
 import {
   markOrderShippedSchema,
+  retryOrderConfirmationSchema,
   retryOrderInventoryAllocationSchema,
 } from "@/lib/validators/admin";
 
@@ -205,5 +207,45 @@ describe("inventory exception resolution", () => {
         "invalid_status",
       ),
     );
+  });
+});
+
+describe("retry order confirmation authorization", () => {
+  test("rejects unauthorized retries before attempting delivery", async () => {
+    const attempt = mock(async () => ({ status: "sent" as const }));
+
+    await expect(
+      retryOrderConfirmationForAdmin(
+        { orderId },
+        {
+          authorize: async () => {
+            throw new Error("Not authorized");
+          },
+          attempt,
+          reportError: () => {},
+        },
+      ),
+    ).rejects.toThrow("Not authorized");
+    expect(attempt).not.toHaveBeenCalled();
+  });
+
+  test("validates input and permits an authorized retry", async () => {
+    const authorize = mock(async () => ({ userId: "user_admin123" }));
+    const attempt = mock(async () => ({ status: "sent" as const }));
+
+    expect(retryOrderConfirmationSchema.parse({ orderId })).toEqual({ orderId });
+    expect(() => retryOrderConfirmationSchema.parse({ orderId: "invalid" })).toThrow();
+    await expect(
+      retryOrderConfirmationForAdmin(
+        { orderId },
+        {
+          authorize,
+          attempt,
+          reportError: () => {},
+        },
+      ),
+    ).resolves.toEqual({ success: true, data: undefined });
+    expect(authorize).toHaveBeenCalledTimes(1);
+    expect(attempt).toHaveBeenCalledWith(orderId);
   });
 });

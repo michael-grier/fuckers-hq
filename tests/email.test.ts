@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { render } from "@react-email/components";
 import { createElement } from "react";
 import type { CreateEmailOptions } from "resend";
@@ -9,11 +9,18 @@ import {
   OrderConfirmationDeliveryError,
 } from "@/lib/email/deliver-order-confirmation";
 import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
+import {
+  attemptOrderConfirmationDelivery,
+  deliverDueOrderConfirmations,
+  makeOrderConfirmationIdempotencyKey,
+  type OrderConfirmationDeliveryRepository,
+} from "@/lib/email/order-confirmation-delivery";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 
 const delivery: OrderConfirmationDelivery = {
   orderId: "9c786325-fb57-46e3-b3ed-a60b653b3ad8",
+  idempotencyKey: "order-confirmation/9c786325-fb57-46e3-b3ed-a60b653b3ad8",
   recipientEmail: "skater@example.com",
   order: {
     orderNumber: "SK8-20260713-ABC12345",
@@ -101,7 +108,7 @@ describe("order confirmation delivery", () => {
       replyTo: "support@example.com",
       subject: "Order SK8-20260713-ABC12345 confirmed",
     });
-    expect(idempotencyKey).toBe(`order-confirmation/${delivery.orderId}`);
+    expect(idempotencyKey).toBe(delivery.idempotencyKey);
   });
 
   test("turns Resend API errors into catchable delivery errors", async () => {
@@ -129,26 +136,27 @@ describe("order confirmation delivery", () => {
 });
 
 describe("post-commit email boundary", () => {
-  test("sends only for newly created orders", async () => {
+  test("attempts delivery for new orders and idempotent webhook replays", async () => {
     const sentOrderIds: string[] = [];
-    const send = async (orderId: string) => {
+    const attempt = async (orderId: string) => {
       sentOrderIds.push(orderId);
+      return { status: "sent" } as const;
     };
 
     expect(
       await sendConfirmationAfterOrderCommit(
         { handled: true, created: true, orderId: delivery.orderId },
-        send,
+        attempt,
         () => {},
       ),
     ).toBe(true);
     expect(
       await sendConfirmationAfterOrderCommit(
         { handled: true, created: false, orderId: delivery.orderId },
-        send,
+        attempt,
         () => {},
       ),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       await sendConfirmationAfterOrderCommit(
         {
@@ -157,21 +165,21 @@ describe("post-commit email boundary", () => {
           changed: true,
           orderId: delivery.orderId,
         },
-        send,
+        attempt,
         () => {},
       ),
     ).toBe(false);
-    expect(await sendConfirmationAfterOrderCommit({ handled: false }, send, () => {})).toBe(false);
-    expect(sentOrderIds).toEqual([delivery.orderId]);
+    expect(await sendConfirmationAfterOrderCommit({ handled: false }, attempt, () => {})).toBe(
+      false,
+    );
+    expect(sentOrderIds).toEqual([delivery.orderId, delivery.orderId]);
   });
 
   test("reports email failure without rejecting the persisted webhook result", async () => {
     const reportedErrors: unknown[] = [];
     const result = await sendConfirmationAfterOrderCommit(
       { handled: true, created: true, orderId: delivery.orderId },
-      async () => {
-        throw new Error("Resend unavailable");
-      },
+      async () => ({ status: "failed", error: new Error("Resend unavailable"), terminal: false }),
       (error) => {
         reportedErrors.push(error);
       },
@@ -180,5 +188,83 @@ describe("post-commit email boundary", () => {
     expect(result).toBe(false);
     expect(reportedErrors).toHaveLength(1);
     expect(reportedErrors[0]).toBeInstanceOf(Error);
+  });
+});
+
+describe("durable order confirmation retries", () => {
+  test("records a first failure and succeeds later with the same idempotency key", async () => {
+    const idempotencyKey = makeOrderConfirmationIdempotencyKey(delivery.orderId);
+    let attemptCount = 0;
+    const failedAttempts: number[] = [];
+    const completedAttempts: number[] = [];
+    const repository: OrderConfirmationDeliveryRepository = {
+      claimDelivery: mock(async () => ({
+        id: "delivery_123",
+        orderId: delivery.orderId,
+        idempotencyKey,
+        attemptCount: ++attemptCount,
+      })),
+      markDelivered: mock(async (attempt) => {
+        completedAttempts.push(attempt.attemptCount);
+        return true;
+      }),
+      markFailed: mock(async (attempt) => {
+        failedAttempts.push(attempt.attemptCount);
+        expect(attempt.errorCode).toBe("delivery_error");
+        expect(attempt.terminal).toBe(false);
+        return true;
+      }),
+      findDueOrderIds: mock(async () => [delivery.orderId]),
+    };
+    const usedKeys: string[] = [];
+    const send = mock(async (_orderId: string, key: string) => {
+      usedKeys.push(key);
+
+      if (usedKeys.length === 1) {
+        throw new Error("Temporary network failure");
+      }
+
+      return "email_123";
+    });
+
+    const first = await attemptOrderConfirmationDelivery(delivery.orderId, repository, send);
+    const retry = await deliverDueOrderConfirmations(repository, send);
+
+    expect(first).toMatchObject({ status: "failed", terminal: false });
+    expect(retry).toEqual({ attempted: 1, sent: 1, failed: 0 });
+    expect(failedAttempts).toEqual([1]);
+    expect(completedAttempts).toEqual([2]);
+    expect(usedKeys).toEqual([idempotencyKey, idempotencyKey]);
+  });
+
+  test("does not send again after a successful delivery claim is no longer available", async () => {
+    let available = true;
+    const repository: OrderConfirmationDeliveryRepository = {
+      claimDelivery: mock(async () => {
+        if (!available) {
+          return null;
+        }
+
+        available = false;
+        return {
+          id: "delivery_123",
+          orderId: delivery.orderId,
+          idempotencyKey: delivery.idempotencyKey,
+          attemptCount: 1,
+        };
+      }),
+      markDelivered: mock(async () => true),
+      markFailed: mock(async () => true),
+      findDueOrderIds: mock(async () => []),
+    };
+    const send = mock(async () => "email_123");
+
+    expect(
+      await attemptOrderConfirmationDelivery(delivery.orderId, repository, send, { force: true }),
+    ).toEqual({ status: "sent" });
+    expect(
+      await attemptOrderConfirmationDelivery(delivery.orderId, repository, send, { force: true }),
+    ).toEqual({ status: "skipped" });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

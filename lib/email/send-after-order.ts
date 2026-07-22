@@ -1,20 +1,26 @@
+import type { OrderConfirmationAttemptResult } from "@/lib/email/order-confirmation-delivery";
 import type { StripeWebhookResult } from "@/lib/webhooks/stripe";
 
-type OrderConfirmationSender = (orderId: string) => Promise<unknown>;
+type OrderConfirmationAttempt = (orderId: string) => Promise<OrderConfirmationAttemptResult>;
 type EmailErrorReporter = (error: unknown) => void;
 
 export async function sendConfirmationAfterOrderCommit(
   result: StripeWebhookResult,
-  sendConfirmation: OrderConfirmationSender,
+  attemptConfirmation: OrderConfirmationAttempt,
   reportError: EmailErrorReporter,
 ): Promise<boolean> {
-  if (!result.handled || !("created" in result) || !result.created) {
+  if (!result.handled || !("created" in result)) {
     return false;
   }
 
   try {
-    await sendConfirmation(result.orderId);
-    return true;
+    const attempt = await attemptConfirmation(result.orderId);
+
+    if (attempt.status === "failed") {
+      reportError(attempt.error);
+    }
+
+    return attempt.status === "sent";
   } catch (error) {
     reportError(error);
     return false;

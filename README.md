@@ -77,6 +77,15 @@ bun run db:seed
 `db:migrate` and `db:seed` require `DATABASE_URL`. The seed script is intended for local or
 development databases.
 
+Migration `0004_chilly_talisman.sql` adds the confirmation-email delivery outbox. Apply and verify it
+on a disposable database branch before deployment, then run it before deploying code that creates
+paid orders. Existing orders are backfilled as `failed` with the non-sensitive
+`legacy_delivery_unknown` code so the scheduler does not unexpectedly email historical customers;
+an administrator may explicitly retry one after checking its delivery history. To roll back, deploy
+the previous application first, then use a reviewed follow-up migration to drop
+`order_confirmation_deliveries` and `confirmation_delivery_status`. Rolling back removes retry
+history but does not alter orders or payments.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:
@@ -117,9 +126,27 @@ The payment-lifecycle migration adds durable refund and dispute state, a Stripe 
 unique Payment Intent lookup. Review its
 [deployment and rollback notes](docs/migrations/0003-payment-lifecycle.md) before applying it.
 
-Order confirmations use the persisted order and item snapshots after that transaction commits.
+Order creation writes a confirmation delivery record in the same transaction. Delivery starts only
+after commit, and verified webhook replays retry an unsent record without recreating the order or
+decrementing inventory. Every attempt uses the persisted `order-confirmation/<order-id>` Resend
+idempotency key; a successful record cannot be claimed again.
+
 Configure `RESEND_API_KEY`, `EMAIL_FROM`, and `SUPPORT_EMAIL` to enable delivery. Resend failures
-are reported separately and do not make a successfully persisted Stripe webhook fail.
+are recorded as normalized error codes without copying email payloads or provider error messages
+into the outbox. Automatic retries use exponential backoff, stop after eight attempts, and can be
+resumed from the protected admin order page.
+
+The Vercel Pro deployment runs `/api/cron/order-confirmations` every five minutes. Generate a
+dedicated secret locally, then store the output as the production `CRON_SECRET` in Vercel:
+
+```bash
+openssl rand -hex 32
+```
+
+Do not commit or reuse this value. Vercel supplies it as a bearer token to the route. The cron
+claims at most 20 due deliveries per invocation, and a ten-minute lease permits recovery if an
+invocation stops mid-attempt. Vercel cron runs only on production deployments, so invoke the route
+with the same bearer header when testing on a disposable local or preview setup.
 
 ## Admin Authentication
 

@@ -88,6 +88,7 @@ Restore the product price and inventory after these checks.
       match Checkout.
 - [ ] Inventory decreased by exactly the purchased quantity.
 - [ ] The confirmation email arrives once and contains the same persisted snapshots and totals.
+- [ ] The order detail shows the confirmation delivery as `Sent` with one attempt.
 - [ ] Marking the order shipped changes its status to `fulfilled`.
 - [ ] Reloading confirms the fulfilled status and no longer offers the shipped action; automated
       tests cover an idempotent repeated action.
@@ -120,7 +121,9 @@ stripe events resend <event_id> --webhook-endpoint=<endpoint_id>
 - [ ] The Stripe Session still maps to exactly one order.
 - [ ] Inventory does not decrease again.
 - [ ] No duplicate order items are created.
-- [ ] No second confirmation email is delivered.
+- [ ] A previously successful confirmation remains `Sent` and no second email is delivered.
+- [ ] A confirmation in `Retry scheduled` or `Needs attention` is retried by the verified replay
+      without creating another order.
 - [ ] No new unexpected Sentry issue appears.
 
 The unique `orders.stripe_session_id` constraint is the database backstop. If verification is
@@ -145,8 +148,24 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] Duplicate product slugs and variant SKUs produce safe form errors.
 - [ ] Archiving a product removes it from the public catalog without deleting historical orders.
 - [ ] Invalid order and product IDs do not expose internal data.
+- [ ] Only an allowlisted administrator can invoke the confirmation-email retry action.
+- [ ] Retrying a failed sandbox delivery increments its attempt count; a successful retry changes
+      the delivery to `Sent`, while another retry does not send a duplicate.
 
-## 9. Product Images
+## 9. Confirmation Delivery Recovery
+
+Perform this check only with a test recipient and sandbox order. Do not use production customer
+data or live Resend credentials.
+
+- [ ] Apply the outbox migration to a disposable database branch before running the new app code.
+- [ ] Temporarily use an invalid test Resend credential and create a paid Stripe sandbox order.
+- [ ] The paid order and its items remain persisted while the delivery becomes `Retry scheduled`.
+- [ ] Restore the valid test credential and invoke the authenticated cron route or use the admin
+      retry button.
+- [ ] The same delivery reaches `Sent` with a higher attempt count and only one email arrives.
+- [ ] A request to the cron route without `Authorization: Bearer <CRON_SECRET>` returns `401`.
+
+## 10. Product Images
 
 - [ ] JPEG, PNG, WebP, or AVIF uploads complete directly from the browser to R2.
 - [ ] Unsupported and oversized files are rejected before product-image persistence.
@@ -154,7 +173,7 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] Alt text and position changes persist and storefront ordering is correct.
 - [ ] Deleting an image removes its database record and attempts R2 cleanup.
 
-## 10. Security And Observability
+## 11. Security And Observability
 
 - [ ] Storefront responses include CSP, `X-Content-Type-Options`, `X-Frame-Options`,
       `Referrer-Policy`, and `Permissions-Policy` headers.
@@ -167,7 +186,7 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] Production Vercel WAF checkout and upload rules are in log-only mode for final QA, then changed
       to rate-limit mode before accepting customers.
 
-## 11. Cleanup And Sign-Off
+## 12. Cleanup And Sign-Off
 
 - [ ] Restore any product, inventory, shipping, tax, and email configuration changed during QA.
 - [ ] Remove or archive test products and orders according to the environment's cleanup policy.

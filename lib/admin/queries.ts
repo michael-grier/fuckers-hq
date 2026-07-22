@@ -127,6 +127,7 @@ export async function getAdminOrderById(input: unknown) {
   return getDb().query.orders.findFirst({
     where: (orders, { eq }) => eq(orders.id, parsedOrderId.data),
     with: {
+      confirmationDelivery: true,
       items: {
         orderBy: (items) => [asc(items.productNameSnapshot), asc(items.variantNameSnapshot)],
       },

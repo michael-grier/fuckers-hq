@@ -18,6 +18,13 @@ export const orderInventoryStatusValues = ["allocated", "exception"] as const;
 export const refundStatusValues = ["none", "partial", "full"] as const;
 export const disputeStatusValues = ["none", "open", "won", "lost", "prevented"] as const;
 export const stripePaymentEventKindValues = ["refund", "dispute"] as const;
+export const confirmationDeliveryStatusValues = [
+  "pending",
+  "processing",
+  "retry",
+  "sent",
+  "failed",
+] as const;
 
 export const productStatus = pgEnum("product_status", productStatusValues);
 export const orderStatus = pgEnum("order_status", orderStatusValues);
@@ -27,6 +34,10 @@ export const disputeStatus = pgEnum("dispute_status", disputeStatusValues);
 export const stripePaymentEventKind = pgEnum(
   "stripe_payment_event_kind",
   stripePaymentEventKindValues,
+);
+export const confirmationDeliveryStatus = pgEnum(
+  "confirmation_delivery_status",
+  confirmationDeliveryStatusValues,
 );
 
 export type PendingCheckoutItem = {
@@ -218,6 +229,39 @@ export const orderItems = pgTable(
   ],
 );
 
+export const orderConfirmationDeliveries = pgTable(
+  "order_confirmation_deliveries",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    status: confirmationDeliveryStatus("status").notNull().default("pending"),
+    idempotencyKey: text("idempotency_key").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    providerMessageId: text("provider_message_id"),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("order_confirmation_deliveries_order_id_unique").on(table.orderId),
+    uniqueIndex("order_confirmation_deliveries_idempotency_key_unique").on(table.idempotencyKey),
+    index("order_confirmation_deliveries_due_idx").on(table.status, table.nextAttemptAt),
+    check(
+      "order_confirmation_deliveries_attempt_count_nonnegative",
+      sql`${table.attemptCount} >= 0`,
+    ),
+    check(
+      "order_confirmation_deliveries_sent_at_required",
+      sql`${table.status} <> 'sent' OR ${table.deliveredAt} IS NOT NULL`,
+    ),
+  ],
+);
+
 export const productsRelations = relations(products, ({ many }) => ({
   variants: many(productVariants),
   images: many(productImages),
@@ -238,8 +282,9 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
   }),
 }));
 
-export const ordersRelations = relations(orders, ({ many }) => ({
+export const ordersRelations = relations(orders, ({ many, one }) => ({
   items: many(orderItems),
+  confirmationDelivery: one(orderConfirmationDeliveries),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
@@ -252,6 +297,16 @@ export const orderItemsRelations = relations(orderItems, ({ one }) => ({
     references: [productVariants.id],
   }),
 }));
+
+export const orderConfirmationDeliveriesRelations = relations(
+  orderConfirmationDeliveries,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [orderConfirmationDeliveries.orderId],
+      references: [orders.id],
+    }),
+  }),
+);
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
@@ -267,3 +322,5 @@ export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
 export type StripePaymentEvent = typeof stripePaymentEvents.$inferSelect;
 export type NewStripePaymentEvent = typeof stripePaymentEvents.$inferInsert;
+export type OrderConfirmationDelivery = typeof orderConfirmationDeliveries.$inferSelect;
+export type NewOrderConfirmationDelivery = typeof orderConfirmationDeliveries.$inferInsert;

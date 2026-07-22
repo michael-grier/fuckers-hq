@@ -4,12 +4,14 @@ import { and, asc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import {
+  orderConfirmationDeliveries,
   orderItems,
   orders,
   pendingCheckouts,
   productVariants,
   stripePaymentEvents,
 } from "@/lib/db/schema";
+import { makeOrderConfirmationIdempotencyKey } from "@/lib/email/order-confirmation-delivery";
 import {
   assertInventoryDecremented,
   assertPendingCheckoutItemsMatchSnapshots,
@@ -146,6 +148,11 @@ export const paidOrderRepository: PaidOrderWriter = {
           ...snapshot,
         })),
       );
+
+      await tx.insert(orderConfirmationDeliveries).values({
+        orderId: order.id,
+        idempotencyKey: makeOrderConfirmationIdempotencyKey(order.id),
+      });
 
       const completedCheckouts = await tx
         .update(pendingCheckouts)

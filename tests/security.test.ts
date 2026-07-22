@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { MAX_CART_LINE_QUANTITY, MAX_CART_LINES } from "@/lib/cart/constants";
+import { isOrderConfirmationCronAuthorized } from "@/lib/email/order-confirmation-cron";
 import { readJsonRequest } from "@/lib/http/read-json-request";
 import { checkoutSchema } from "@/lib/validators/cart";
 
@@ -74,5 +75,17 @@ describe("checkout request complexity", () => {
     }));
 
     expect(checkoutSchema.safeParse({ items }).success).toBe(false);
+  });
+});
+
+describe("order confirmation cron authorization", () => {
+  const cronSecret = "test_cron_secret_123456";
+
+  test("accepts only the configured bearer secret", () => {
+    expect(isOrderConfirmationCronAuthorized(`Bearer ${cronSecret}`, cronSecret)).toBe(true);
+    expect(isOrderConfirmationCronAuthorized("Bearer incorrect", cronSecret)).toBe(false);
+    expect(isOrderConfirmationCronAuthorized(cronSecret, cronSecret)).toBe(false);
+    expect(isOrderConfirmationCronAuthorized(null, cronSecret)).toBe(false);
+    expect(isOrderConfirmationCronAuthorized(`Bearer ${cronSecret}`, undefined)).toBe(false);
   });
 });

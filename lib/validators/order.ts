@@ -2,7 +2,9 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from "driz
 import { z } from "zod";
 
 import {
+  confirmationDeliveryStatusValues,
   disputeStatusValues,
+  orderConfirmationDeliveries,
   orderInventoryStatusValues,
   orderItems,
   orderStatusValues,
@@ -14,6 +16,7 @@ export const orderStatusSchema = z.enum(orderStatusValues);
 export const orderInventoryStatusSchema = z.enum(orderInventoryStatusValues);
 export const refundStatusSchema = z.enum(refundStatusValues);
 export const disputeStatusSchema = z.enum(disputeStatusValues);
+export const confirmationDeliveryStatusSchema = z.enum(confirmationDeliveryStatusValues);
 export const shippingAddressSchema = z.record(z.string(), z.unknown()).nullable();
 
 export const orderSelectSchema = createSelectSchema(orders, {
@@ -48,6 +51,13 @@ export const orderUpdateSchema = createUpdateSchema(orders, {
 });
 
 export const orderItemSelectSchema = createSelectSchema(orderItems);
+export const orderConfirmationDeliverySelectSchema = createSelectSchema(
+  orderConfirmationDeliveries,
+  {
+    status: confirmationDeliveryStatusSchema,
+    attemptCount: (schema) => schema.int().nonnegative(),
+  },
+);
 
 export const orderItemInsertSchema = createInsertSchema(orderItems, {
   productNameSnapshot: (schema) => schema.trim().min(1).max(160),
