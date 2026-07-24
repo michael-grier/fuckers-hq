@@ -14,16 +14,15 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
 jobs:
   quality:
     name: Quality
     if: >-
       github.event.pull_request.draft == false &&
       (github.event.action != 'edited' || github.event.changes.base != null)
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
