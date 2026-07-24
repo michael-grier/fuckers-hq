@@ -1,0 +1,98 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  in_progress_fortune: false
+  enable_prompt_for_ai_agents: true
+
+  auto_review:
+    enabled: true
+    drafts: false
+    auto_incremental_review: true
+    auto_pause_after_reviewed_commits: 5
+
+  path_filters:
+    - "!bun.lock"
+    # Generated metadata is noisy; the authored schema and SQL migrations remain reviewable.
+    - "!drizzle/meta/**"
+
+  path_instructions:
+    - path: "**/*.{ts,tsx,sql,yml,yaml}"
+      instructions: |
+        Report concrete correctness, security, data-integrity, accessibility, or
+        maintainability problems. Do not report formatting or style issues already
+        enforced by Biome.
+
+        Keep one independently fixable problem per comment. For every finding:
+        - State the severity and a realistic failure scenario.
+        - Cite evidence in the changed code.
+        - Give a minimal implementation direction without prescribing a broad refactor.
+        - Name the regression test or command that should prove the fix.
+        Do not speculate when the repository code disproves a concern.
+
+    - path: "{lib/checkout/**,lib/orders/**,lib/webhooks/**,lib/email/**,app/api/checkout/**,app/api/webhooks/**}"
+      instructions: |
+        Treat commerce changes as failure-sensitive distributed workflows:
+        - Browser cart data, prices, totals, inventory, identity, URLs, and statuses
+          are untrusted. Resolve purchasable variants, prices, currency, and
+          availability on the server before creating Stripe Checkout.
+        - Stripe is authoritative for payment, tax, refund, dispute, and payment state.
+          Persisted totals and immutable item snapshots must reconcile with Stripe.
+        - Verify the unchanged raw webhook body and Stripe signature before parsing
+          trusted event data or causing side effects.
+        - Webhook transitions must remain safe under duplicate, delayed, retried, and
+          out-of-order events through durable idempotency and explicit state changes.
+        - Never discard a verified paid event because inventory is unavailable. Preserve
+          a traceable exception state or deterministic compensating path.
+        - Paid-order persistence, immutable snapshots, inventory allocation, and the
+          confirmation-delivery record must remain atomic.
+        - Refunds and disputes must affect fulfillment eligibility correctly.
+        - Email delivery happens after the order commit, is retryable and idempotent,
+          and must never roll back a paid order.
+        Require focused tests for retries, competing inventory, invalid signatures,
+        catalog mutation, lifecycle events, and downstream delivery failures.
+
+    - path: "{lib/auth/**,lib/actions/**,lib/admin/**,app/admin/**,app/api/admin/**,middleware.ts}"
+      instructions: |
+        Treat authentication and authorization separately. Require server-side admin
+        authorization for every protected read and write, including helpers called
+        outside route components. Treat client checks and browser values as untrusted,
+        validate every mutation payload, and avoid leaking whether protected resources
+        exist.
+
+    - path: "{lib/db/**,lib/validators/**,drizzle/**}"
+      instructions: |
+        Keep Drizzle schema, SQL migrations, queries, and Zod contracts aligned. Review
+        nullability, defaults, constraints, uniqueness, indexes, foreign-key behavior,
+        rollback compatibility, and required backfills. Financial values remain safe
+        nonnegative integer cents. Concurrency-sensitive writes require transactions,
+        unique constraints, locks, or conditional updates rather than read-then-write
+        timing assumptions.
+
+    - path: "{lib/observability/**,sentry.*.config.ts,instrumentation*.ts}"
+      instructions: |
+        Do not allow customer data, addresses, request bodies, raw webhook payloads,
+        payment details, credentials, or secrets into logs, errors, monitoring tags, or
+        test snapshots. Keep telemetry optional and safe when configuration is absent.
+
+    - path: "{app/**,components/**}"
+      instructions: |
+        Check semantic HTML, accessible names, keyboard operation, focus behavior,
+        pending and error states, and server/client trust boundaries. Prefer existing
+        shared UI primitives and simple component composition.
+
+    - path: "tests/**"
+      instructions: |
+        Require focused coverage for changed behavior, especially error paths,
+        authorization failures, idempotency, boundary values, replay behavior, and
+        concurrency-sensitive commerce operations. Prefer tests that prove externally
+        observable or persisted outcomes over implementation details.
+
+chat:
+  auto_reply: true

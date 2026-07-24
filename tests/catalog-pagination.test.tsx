@@ -38,15 +38,20 @@ mock.module("@/lib/db/client", () => ({
   }),
 }));
 
-const originalDatabaseUrl = process.env.DATABASE_URL;
-process.env.DATABASE_URL = "postgres://catalog.test";
+const actualEnvModule = await import("@/lib/env");
+
+// Catalog queries short-circuit without database configuration, so keep this test boundary
+// explicit while preserving the module's other exports for tests that share Bun's module cache.
+mock.module("@/lib/env", () => ({
+  ...actualEnvModule,
+  env: {
+    ...actualEnvModule.env,
+    DATABASE_URL: "postgres://catalog.test",
+  },
+}));
+
 const { getCatalogPage } = await import("@/lib/catalog/queries");
 const { catalogSearchParamsCache } = await import("@/lib/catalog/search-params");
-if (originalDatabaseUrl === undefined) {
-  delete process.env.DATABASE_URL;
-} else {
-  process.env.DATABASE_URL = originalDatabaseUrl;
-}
 
 const retainedFilters = {
   q: "deck",
