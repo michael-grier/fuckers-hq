@@ -48,6 +48,7 @@ export const productVariantInsertSchema = createInsertSchema(productVariants, {
   inventoryQty: (schema) => schema.int().nonnegative(),
 }).omit({
   id: true,
+  reservedQty: true,
 });
 
 export const productVariantUpdateSchema = createUpdateSchema(productVariants, {
@@ -57,6 +58,7 @@ export const productVariantUpdateSchema = createUpdateSchema(productVariants, {
   inventoryQty: (schema) => schema.int().nonnegative(),
 }).omit({
   id: true,
+  reservedQty: true,
 });
 
 export const productImageSelectSchema = createSelectSchema(productImages);

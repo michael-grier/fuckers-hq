@@ -19,7 +19,8 @@ guest checkout, server-authoritative pricing, and a small maintainable admin sur
 ## Architecture Summary
 
 - The client cart stores purchase intent and display snapshots only.
-- Checkout re-reads product prices and inventory from Postgres.
+- Checkout re-reads product prices and available inventory from Postgres, then atomically reserves
+  every line before creating a payable Stripe Session.
 - Stripe owns payment, tax, and hosted payment UI.
 - Orders are created only by the verified Stripe webhook after payment.
 - Paid order creation snapshots items and either allocates all inventory or records an explicit
@@ -27,6 +28,8 @@ guest checkout, server-authoritative pricing, and a small maintainable admin sur
 - `pending_checkouts` bridges Checkout Session creation to the webhook with a short metadata token
   and an immutable copy of the resolved names, prices, quantities, and currency instead of storing
   cart JSON directly in Stripe metadata.
+- `inventory_reservations` tracks provisioning, active, asynchronous-payment, conversion, release,
+  and reconciliation state. Physical stock, reserved stock, and available stock remain distinct.
 - Admin access uses Clerk authentication plus an `ADMIN_USER_IDS` allowlist.
 
 ## Local Setup
@@ -96,9 +99,27 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 
 Store the listener's `whsec_...` signing secret as `STRIPE_WEBHOOK_SECRET` in `.env.local`.
 Verified paid Checkout events always create one idempotent paid order. The transaction locks the
-affected variants and either decrements every item or records an inventory exception without a
-partial decrement, then marks the pending checkout completed. Inventory exceptions are visible in
-admin, block fulfillment, and can be retried after an operator corrects stock.
+affected reservation and variants, converts every reserved line by decrementing both physical and
+reserved quantities, and marks the pending checkout completed. If reservation state is missing or
+inconsistent, it preserves the paid order as an inventory exception without a partial decrement.
+Inventory exceptions are visible in admin, block fulfillment, and can be retried after an operator
+corrects available stock.
+
+Checkout Session creation is a recoverable saga. The database stores the exact Session request
+before calling Stripe, uses a stable reservation idempotency key, and exposes the hosted URL only
+after local Session linkage succeeds. Confirmed Stripe request rejection releases stock; ambiguous
+network or linkage failures remain `provisioning` for reconciliation.
+
+Stripe expiration and asynchronous-payment-failure events release reservations exactly once.
+Unpaid completion keeps inventory in `awaiting_payment` until Stripe reports success or failure.
+The authenticated `/api/cron/inventory-reservations` job runs every five minutes, claims at most 20
+due records with leases, recovers stale provisioning through the original idempotent request, and
+retrieves overdue Sessions before converting or releasing stock. It never releases an open Session
+from the local clock alone.
+
+Migration `0005_daffy_skullbuster` adds reservation state, normalized reservation lines, and
+`product_variants.reserved_qty`. Review the
+[deployment and rollback notes](docs/migrations/0005-inventory-reservations.md) before applying it.
 
 Also forward `charge.refunded` and all `charge.dispute.*` lifecycle events. These events are
 deduplicated by Stripe event ID and reconciled to orders through the persisted Payment Intent ID.

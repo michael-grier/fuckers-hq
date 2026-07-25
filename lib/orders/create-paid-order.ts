@@ -4,6 +4,7 @@ import { pendingCheckoutLineSnapshotsSchema } from "@/lib/validators/pending-che
 
 export type PaidCheckoutData = {
   pendingCheckoutToken: string;
+  reservationToken: string | null;
   stripeSessionId: string;
   stripePaymentIntentId: string | null;
   email: string;
@@ -18,6 +19,7 @@ export type PaidCheckoutData = {
 export type InventorySnapshotVariant = {
   id: string;
   inventoryQty: number;
+  reservedQty?: number;
 };
 
 export type OrderItemSnapshot = {
@@ -148,7 +150,7 @@ export function planInventoryAllocation(
   }
 
   const inventoryByVariantId = new Map(
-    variants.map((variant) => [variant.id, variant.inventoryQty]),
+    variants.map((variant) => [variant.id, variant.inventoryQty - (variant.reservedQty ?? 0)]),
   );
   const lines = Array.from(requiredByVariantId, ([variantId, quantity]) => ({
     variantId,

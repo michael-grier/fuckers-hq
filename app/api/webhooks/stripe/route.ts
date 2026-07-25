@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 
+import { reservationEventRepository } from "@/lib/checkout/reservation-event-repository";
 import { attemptOrderConfirmationDelivery } from "@/lib/email/order-confirmation-delivery";
 import { orderConfirmationDeliveryRepository } from "@/lib/email/order-confirmation-delivery-repository";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
@@ -32,7 +33,12 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await processStripeEvent(event, paidOrderRepository, paymentLifecycleRepository);
+    const result = await processStripeEvent(
+      event,
+      paidOrderRepository,
+      paymentLifecycleRepository,
+      reservationEventRepository,
+    );
 
     await sendConfirmationAfterOrderCommit(
       result,

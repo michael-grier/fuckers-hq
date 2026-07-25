@@ -125,6 +125,7 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
               .select({
                 id: productVariants.id,
                 inventoryQty: productVariants.inventoryQty,
+                reservedQty: productVariants.reservedQty,
               })
               .from(productVariants)
               .where(inArray(productVariants.id, variantIds))
@@ -146,7 +147,10 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
           .where(
             and(
               eq(productVariants.id, line.variantId),
-              gte(productVariants.inventoryQty, line.quantity),
+              gte(
+                sql`${productVariants.inventoryQty} - ${productVariants.reservedQty}`,
+                line.quantity,
+              ),
             ),
           )
           .returning({ id: productVariants.id });

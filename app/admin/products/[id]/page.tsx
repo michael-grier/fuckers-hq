@@ -90,7 +90,7 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
             Variants
           </h2>
           <p className="mt-1 text-muted-foreground text-sm">
-            Prices are entered in Canadian dollars and stored as integer cents.
+            Inventory shows on-hand, reserved, and currently available quantities.
           </p>
         </div>
 

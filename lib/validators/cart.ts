@@ -32,6 +32,7 @@ export const cartSchema = z
 
 export const checkoutSchema = z
   .object({
+    requestId: z.string().uuid(),
     items: cartSchema,
   })
   .strict();
@@ -57,6 +58,7 @@ export const pendingCheckoutTokenSchema = z
 export const pendingCheckoutMetadataSchema = z
   .object({
     pendingCheckoutToken: pendingCheckoutTokenSchema,
+    reservationToken: pendingCheckoutTokenSchema.optional(),
   })
   .strict();
 

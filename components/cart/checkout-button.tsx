@@ -1,29 +1,39 @@
 "use client";
 
 import { ArrowRight, LoaderCircle } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { getCheckoutCartFingerprint, toCheckoutRequest } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import { checkoutErrorResponseSchema, checkoutResponseSchema } from "@/lib/validators/cart";
 
 export function CheckoutButton() {
   const lines = useCartStore((state) => state.lines);
-  const toCheckoutRequest = useCartStore((state) => state.toCheckoutRequest);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const requestIdentity = useRef<{ cartFingerprint: string; requestId: string } | null>(null);
 
   async function handleCheckout() {
     setError(null);
     setIsLoading(true);
 
     try {
+      const cartFingerprint = getCheckoutCartFingerprint(lines);
+
+      if (requestIdentity.current?.cartFingerprint !== cartFingerprint) {
+        requestIdentity.current = {
+          cartFingerprint,
+          requestId: crypto.randomUUID(),
+        };
+      }
+
       const response = await fetch("/api/checkout", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(toCheckoutRequest()),
+        body: JSON.stringify(toCheckoutRequest(lines, requestIdentity.current.requestId)),
       });
       const responseBody: unknown = await response.json().catch(() => null);
 

@@ -14,6 +14,7 @@ export type CheckoutVariantRecord = {
   variantName: string;
   priceCents: number;
   inventoryQty: number;
+  reservedQty: number;
 };
 
 export type ResolvedCheckoutLine = CheckoutVariantRecord & {
@@ -44,9 +45,11 @@ export function resolveCheckoutLines(
       throw new CheckoutError("One or more items are no longer available.", 404);
     }
 
-    if (variant.inventoryQty < line.quantity) {
+    const availableQty = getAvailableInventoryQty(variant);
+
+    if (availableQty < line.quantity) {
       throw new CheckoutError(
-        `${variant.productName} (${variant.variantName}) only has ${variant.inventoryQty} available.`,
+        `${variant.productName} (${variant.variantName}) only has ${availableQty} available.`,
         409,
       );
     }
@@ -58,6 +61,12 @@ export function resolveCheckoutLines(
   });
 }
 
+export function getAvailableInventoryQty(
+  variant: Pick<CheckoutVariantRecord, "inventoryQty" | "reservedQty">,
+): number {
+  return variant.inventoryQty - variant.reservedQty;
+}
+
 export function buildStripeLineItems(
   lines: ResolvedCheckoutLine[],
 ): Stripe.Checkout.SessionCreateParams.LineItem[] {
@@ -66,6 +75,23 @@ export function buildStripeLineItems(
     price_data: {
       currency: checkoutCurrency,
       unit_amount: line.priceCents,
+      tax_behavior: "exclusive",
+      product_data: {
+        name: line.productName,
+        description: line.variantName,
+      },
+    },
+  }));
+}
+
+export function buildStripeLineItemsFromSnapshots(
+  lines: PendingCheckoutLineSnapshot[],
+): Stripe.Checkout.SessionCreateParams.LineItem[] {
+  return lines.map((line) => ({
+    quantity: line.quantity,
+    price_data: {
+      currency: line.currency,
+      unit_amount: line.unitPriceCents,
       tax_behavior: "exclusive",
       product_data: {
         name: line.productName,
@@ -90,4 +116,8 @@ export function createPendingCheckoutLineSnapshots(
 
 export function getCheckoutSubtotalCents(lines: ResolvedCheckoutLine[]): number {
   return lines.reduce((subtotal, line) => subtotal + line.priceCents * line.quantity, 0);
+}
+
+export function getCheckoutSnapshotSubtotalCents(lines: PendingCheckoutLineSnapshot[]): number {
+  return lines.reduce((subtotal, line) => subtotal + line.unitPriceCents * line.quantity, 0);
 }

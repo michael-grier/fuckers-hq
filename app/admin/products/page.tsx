@@ -48,8 +48,12 @@ export default async function AdminProductsPage() {
             <tbody className="divide-y">
               {products.map((product) => {
                 const prices = product.variants.map((variant) => variant.priceCents);
-                const inventory = product.variants.reduce(
+                const onHand = product.variants.reduce(
                   (total, variant) => total + variant.inventoryQty,
+                  0,
+                );
+                const reserved = product.variants.reduce(
+                  (total, variant) => total + variant.reservedQty,
                   0,
                 );
 
@@ -65,7 +69,12 @@ export default async function AdminProductsPage() {
                       <ProductStatusBadge status={product.status} />
                     </td>
                     <td className="px-4 py-4 align-top">{product.variants.length}</td>
-                    <td className="px-4 py-4 align-top">{inventory}</td>
+                    <td className="px-4 py-4 align-top">
+                      <span className="font-medium">{onHand - reserved} available</span>
+                      <span className="block text-muted-foreground text-xs">
+                        {onHand} on hand · {reserved} reserved
+                      </span>
+                    </td>
                     <td className="px-4 py-4 align-top">{formatPriceRange(prices)}</td>
                     <td className="whitespace-nowrap px-4 py-4 align-top">
                       <time dateTime={product.updatedAt.toISOString()}>

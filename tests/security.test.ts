@@ -6,6 +6,7 @@ import { readJsonRequest } from "@/lib/http/read-json-request";
 import { checkoutSchema } from "@/lib/validators/cart";
 
 const variantId = "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6";
+const requestId = "a593031e-8306-46c9-b92d-caa1d274405d";
 
 function jsonRequest(body: string, headers: HeadersInit = {}): Request {
   return new Request("http://localhost/api/test", {
@@ -55,11 +56,13 @@ describe("checkout request complexity", () => {
   test("caps individual and combined variant quantities", () => {
     expect(
       checkoutSchema.safeParse({
+        requestId,
         items: [{ variantId, quantity: MAX_CART_LINE_QUANTITY + 1 }],
       }).success,
     ).toBe(false);
     expect(
       checkoutSchema.safeParse({
+        requestId,
         items: [
           { variantId, quantity: MAX_CART_LINE_QUANTITY },
           { variantId, quantity: 1 },
@@ -74,7 +77,7 @@ describe("checkout request complexity", () => {
       quantity: 1,
     }));
 
-    expect(checkoutSchema.safeParse({ items }).success).toBe(false);
+    expect(checkoutSchema.safeParse({ requestId, items }).success).toBe(false);
   });
 });
 
