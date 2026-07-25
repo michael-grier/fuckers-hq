@@ -16,6 +16,8 @@ export async function deleteProductImageRecord(
   imageId: string,
 ): Promise<DeletedProductImage | null> {
   return database.transaction(async (tx) => {
+    // Serialize same-product deletions without blocking unrelated edits to the parent product.
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${productId}))`);
     const [image] = await tx
       .select({
         slug: products.slug,
@@ -24,7 +26,7 @@ export async function deleteProductImageRecord(
       .from(productImages)
       .innerJoin(products, eq(products.id, productImages.productId))
       .where(and(eq(productImages.id, imageId), eq(productImages.productId, productId)))
-      .for("update");
+      .for("update", { of: productImages });
 
     if (!image) {
       return null;

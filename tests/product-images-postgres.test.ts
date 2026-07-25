@@ -29,7 +29,7 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
     adminClient = postgres(testDatabaseUrl, { max: 1, prepare: false });
     await adminClient.unsafe(`create schema "${schemaName}"`);
     client = postgres(testDatabaseUrl, {
-      max: 1,
+      max: 5,
       prepare: false,
       connection: { search_path: schemaName },
     });
@@ -106,6 +106,32 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
     ]);
   });
 
+  test("moves the only remaining image to position zero", async () => {
+    await insertImages([
+      { id: firstImageId, position: 0 },
+      { id: secondImageId, position: 1 },
+    ]);
+
+    await deleteProductImageRecord(database, productId, firstImageId);
+
+    expect(await imagePositions()).toEqual([{ id: secondImageId, position: 0 }]);
+  });
+
+  test("serializes concurrent deletions before compacting positions", async () => {
+    await insertImages([
+      { id: firstImageId, position: 0 },
+      { id: secondImageId, position: 1 },
+      { id: thirdImageId, position: 2 },
+    ]);
+
+    await Promise.all([
+      deleteProductImageRecord(database, productId, firstImageId),
+      deleteProductImageRecord(database, productId, secondImageId),
+    ]);
+
+    expect(await imagePositions()).toEqual([{ id: thirdImageId, position: 0 }]);
+  });
+
   test("rolls back the deletion when position compaction fails", async () => {
     await insertImages([
       { id: firstImageId, position: 0 },
@@ -124,9 +150,9 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
       for each row execute function reject_image_reposition()
     `);
 
-    await expect(deleteProductImageRecord(database, productId, firstImageId)).rejects.toThrow(
-      "position update rejected",
-    );
+    const error = await captureError(deleteProductImageRecord(database, productId, firstImageId));
+
+    expect(hasErrorMessage(error, "position update rejected")).toBe(true);
     expect(await imagePositions()).toEqual([
       { id: firstImageId, position: 0 },
       { id: secondImageId, position: 1 },
@@ -154,3 +180,19 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
       .orderBy(asc(productImages.position), asc(productImages.id));
   }
 });
+
+async function captureError(operation: Promise<unknown>): Promise<unknown> {
+  try {
+    await operation;
+    return null;
+  } catch (error) {
+    return error;
+  }
+}
+
+function hasErrorMessage(error: unknown, expected: string): boolean {
+  return (
+    error instanceof Error &&
+    (error.message.includes(expected) || hasErrorMessage(error.cause, expected))
+  );
+}
