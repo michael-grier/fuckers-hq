@@ -283,10 +283,14 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     await insertVariant(database, variantId, 1);
     await reserve(checkoutRepository, variantId, "10000000-0000-4000-8000-000000000008");
 
-    await expect(database.update(productVariants).set({ inventoryQty: 0 })).rejects.toMatchObject({
+    await expect(
+      database.update(productVariants).set({ inventoryQty: 0 }).execute(),
+    ).rejects.toMatchObject({
       code: "23514",
     });
-    await expect(database.delete(productVariants)).rejects.toMatchObject({ code: "23503" });
+    await expect(database.delete(productVariants).execute()).rejects.toMatchObject({
+      code: "23503",
+    });
   });
 });
 
