@@ -1,6 +1,7 @@
 "use client";
 
-import { ShoppingCart } from "lucide-react";
+import { Check, ShoppingCart } from "lucide-react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/lib/cart/store";
@@ -13,17 +14,25 @@ type AddToCartButtonProps = {
 
 export function AddToCartButton({ line, disabled }: AddToCartButtonProps) {
   const addLine = useCartStore((state) => state.addLine);
+  const [addedLineKey, setAddedLineKey] = useState<string | null>(null);
+  const lineKey = `${line.variantId}:${line.quantity ?? 1}`;
+  const wasAdded = addedLineKey === lineKey;
+
+  function handleAddToCart() {
+    addLine(line);
+    setAddedLineKey(lineKey);
+  }
 
   return (
     <Button
+      className="w-full cursor-pointer"
       disabled={disabled}
-      onClick={() => addLine(line)}
+      onClick={handleAddToCart}
       size="lg"
       type="button"
-      className="w-full"
     >
-      <ShoppingCart aria-hidden="true" />
-      Add to cart
+      {wasAdded ? <Check aria-hidden="true" /> : <ShoppingCart aria-hidden="true" />}
+      <span aria-live="polite">{wasAdded ? "Added to cart" : "Add to cart"}</span>
     </Button>
   );
 }
