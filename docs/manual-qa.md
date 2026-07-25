@@ -43,6 +43,12 @@ against a development or disposable database branch.
 - [ ] The listener's signing secret matches `STRIPE_WEBHOOK_SECRET` in `.env.local`.
 - [ ] The configured Clerk user is present in `ADMIN_USER_IDS`.
 
+The failure-boundary checks below require a local-only breakpoint or temporary reviewed throw.
+Never commit fault-injection code. Use a fresh reservation for each case, target database changes by
+the exact recorded reservation ID, and never edit `inventory_qty` or `reserved_qty` directly to
+manufacture an outcome. Let Stripe events or authenticated reconciliation perform every stock
+transition.
+
 ## 3. Storefront And Catalog
 
 - [ ] The home page and `/products` render without console or hydration errors.
@@ -74,6 +80,12 @@ against a development or disposable database branch.
 - [ ] Tax behavior matches `STRIPE_TAX_ENABLED` and the Stripe sandbox configuration.
 - [ ] Starting Checkout increases the selected variant's reserved quantity and reduces its
       available quantity without changing on-hand inventory.
+- [ ] Submit the same sandbox Checkout request twice with the same request UUID and identical cart
+      lines.
+- [ ] Both submissions converge on the same Stripe Session/Checkout URL, with one pending checkout,
+      one reservation, and one reserved-quantity increment.
+- [ ] Reordering the same cart lines with that request UUID still converges, while changing a
+      quantity with the reused UUID returns a safe conflict without changing stock.
 - [ ] Cancelling the browser tab leaves the reservation active until Stripe expires the Session.
 - [ ] After the Stripe expiration event or authenticated reconciliation run, reserved inventory
       returns to zero while on-hand inventory remains unchanged.
@@ -100,7 +112,32 @@ Restore the product price and inventory after these checks.
 - [ ] Reloading confirms the fulfilled status and no longer offers the shipped action; automated
       tests cover an idempotent repeated action.
 
+Use a fresh sandbox order to verify catalog mutation after Checkout creation:
+
+- [ ] Open hosted Checkout and record the displayed product name, variant name, unit price, and
+      quantity.
+- [ ] Before paying, change those catalog names and the price in admin without changing the
+      reservation's inventory.
+- [ ] Complete payment and confirm the order and confirmation delivery retain the values originally
+      displayed by Checkout, not the newer catalog values.
+- [ ] Confirm stock conversion still uses the reserved variant and quantity, then restore the
+      catalog values.
+
+Use another fresh sandbox order to verify recovery when the paid webhook is delayed:
+
+- [ ] Open Checkout, stop local Stripe forwarding, and complete a successful sandbox payment.
+- [ ] Confirm no local order is created merely from the browser redirect and the reservation
+      remains active.
+- [ ] On the disposable database branch, set only that reservation's `next_reconcile_at` to now,
+      then invoke the authenticated inventory-reservation cron.
+- [ ] Reconciliation retrieves the paid Session, creates exactly one order and confirmation
+      delivery, and converts on-hand and reserved inventory exactly once.
+- [ ] Restart forwarding and resend the original paid event; it succeeds without another order,
+      stock decrement, or confirmation email.
+
 ## 7. Webhook Replay And Idempotency
+
+### Concurrent inventory and admin guards
 
 Before replaying an event, verify competing reservations against the disposable database branch:
 
@@ -118,6 +155,66 @@ Before replaying an event, verify competing reservations against the disposable 
 
 Also retain one malformed-reservation sandbox fixture or integration test that confirms a verified
 paid Session is persisted as an inventory exception rather than discarded.
+
+### Checkout creation and provisioning recovery
+
+Use a fresh variant or allow the prior Session to reach a terminal state before each case:
+
+- [ ] Temporarily configure an intentionally invalid Stripe **sandbox** secret, restart the local
+      app, and attempt Checkout.
+- [ ] The confirmed Stripe authentication rejection returns a safe error, marks the reservation
+      released with a creation-failure reason, restores reserved inventory to zero, and leaves
+      on-hand inventory unchanged.
+- [ ] Restore the valid sandbox secret before continuing.
+- [ ] Add a local-only fault immediately after the reservation transaction commits but before the
+      exact Stripe Session request is persisted, then attempt Checkout.
+- [ ] Remove the fault, make only that reservation due, and run authenticated reconciliation.
+- [ ] The abandoned pre-request reservation releases exactly once without contacting Stripe or
+      changing on-hand inventory.
+- [ ] Add a local-only fault after Stripe returns a Session but immediately before
+      `linkStripeSession`, then attempt Checkout once.
+- [ ] Remove the fault, make only that provisioning reservation due, and run authenticated
+      reconciliation.
+- [ ] Reconciliation reuses the persisted Session request and idempotency key, links the original
+      Stripe Session, creates no second Session, and increments reserved inventory only once.
+- [ ] Complete or expire that linked Session and confirm the resulting conversion or release is
+      exactly once.
+
+### Asynchronous payment lifecycle
+
+Temporarily enable a sandbox delayed-notification payment method compatible with the configured
+currency and country. Follow Stripe's
+[delayed-payment fulfillment guidance](https://docs.stripe.com/checkout/fulfillment) and that
+method's sandbox testing instructions.
+
+- [ ] Complete Checkout with the delayed method and confirm
+      `checkout.session.completed` reports `payment_status = unpaid`.
+- [ ] The reservation moves to `awaiting_payment`; no paid order or confirmation delivery exists,
+      on-hand inventory is unchanged, and reserved inventory remains held.
+- [ ] Cause the sandbox payment to succeed.
+- [ ] `checkout.session.async_payment_succeeded` creates exactly one paid order and confirmation
+      delivery, then decrements on-hand and reserved inventory exactly once.
+- [ ] Repeat with a fresh reservation and cause the sandbox payment to fail.
+- [ ] `checkout.session.async_payment_failed` creates no paid order, releases reserved inventory
+      exactly once, and leaves on-hand inventory unchanged.
+- [ ] Replay the unpaid completion and terminal async event for both cases; every replay succeeds
+      without changing the terminal reservation, order count, stock, or delivery count.
+
+### Reconciliation safety and overlapping invocations
+
+- [ ] Open a payable Stripe Session that has not expired or completed.
+- [ ] On the disposable database branch, set only that reservation's `next_reconcile_at` to now and
+      invoke the authenticated reconciliation cron.
+- [ ] Stripe still reports the Session as open, so reconciliation keeps stock reserved and defers
+      the next attempt instead of releasing from the local clock.
+- [ ] Make one safe test reservation due and invoke two authenticated reconciliation requests as
+      concurrently as practical.
+- [ ] The lease permits only one effective transition; both requests return safely and the
+      reservation, inventory counters, order count, and Stripe Session count remain consistent.
+- [ ] Allow every Session created by this section to convert or expire before cleanup. Do not
+      delete non-terminal reservation rows or zero reservation counters manually.
+
+### Stripe webhook replay
 
 Use a Stripe-registered sandbox endpoint, such as a preview deployment. Follow Stripe's
 [webhook retry guidance](https://docs.stripe.com/webhooks), find the original event and endpoint IDs
