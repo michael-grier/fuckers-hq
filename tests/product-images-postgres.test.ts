@@ -39,7 +39,11 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
         id uuid primary key,
         slug text not null,
         name text not null,
-        status text not null
+        description text,
+        category text,
+        status text not null,
+        created_at timestamp with time zone not null default now(),
+        updated_at timestamp with time zone not null default now()
       )
     `);
     await client.unsafe(`
