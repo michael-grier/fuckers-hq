@@ -13,14 +13,17 @@ import {
 import { productInsertSchema, slugSchema } from "@/lib/validators/product";
 
 const variantId = "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6";
+const requestId = "a593031e-8306-46c9-b92d-caa1d274405d";
 
 describe("checkout contract", () => {
   test("accepts variant IDs and quantities", () => {
     expect(
       checkoutSchema.parse({
+        requestId,
         items: [{ variantId, quantity: 2 }],
       }),
     ).toEqual({
+      requestId,
       items: [{ variantId, quantity: 2 }],
     });
   });
@@ -114,7 +117,8 @@ describe("cart selectors", () => {
 
     expect(getCartItemCount(lines)).toBe(2);
     expect(getCartSubtotalCents(lines)).toBe(17800);
-    expect(toCheckoutRequest(lines)).toEqual({
+    expect(toCheckoutRequest(lines, requestId)).toEqual({
+      requestId,
       items: [{ variantId, quantity: 2 }],
     });
   });

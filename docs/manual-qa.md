@@ -35,7 +35,8 @@ against a development or disposable database branch.
 - [ ] Start Stripe forwarding with:
 
   ```bash
-  stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded \
+  stripe listen \
+    --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired \
     --forward-to localhost:3000/api/webhooks/stripe
   ```
 
@@ -71,6 +72,11 @@ against a development or disposable database branch.
 - [ ] An order at the free-shipping threshold shows free shipping.
 - [ ] Only configured shipping countries are selectable.
 - [ ] Tax behavior matches `STRIPE_TAX_ENABLED` and the Stripe sandbox configuration.
+- [ ] Starting Checkout increases the selected variant's reserved quantity and reduces its
+      available quantity without changing on-hand inventory.
+- [ ] Cancelling the browser tab leaves the reservation active until Stripe expires the Session.
+- [ ] After the Stripe expiration event or authenticated reconciliation run, reserved inventory
+      returns to zero while on-hand inventory remains unchanged.
 
 Restore the product price and inventory after these checks.
 
@@ -86,7 +92,8 @@ Restore the product price and inventory after these checks.
 - [ ] Exactly one order appears in admin with status `paid`.
 - [ ] Order totals, shipping address, product name, variant name, quantity, and unit-price snapshots
       match Checkout.
-- [ ] Inventory decreased by exactly the purchased quantity.
+- [ ] On-hand and reserved inventory both decreased by exactly the purchased quantity, leaving the
+      correct available quantity.
 - [ ] The confirmation email arrives once and contains the same persisted snapshots and totals.
 - [ ] The order detail shows the confirmation delivery as `Sent` with one attempt.
 - [ ] Marking the order shipped changes its status to `fulfilled`.
@@ -95,19 +102,22 @@ Restore the product price and inventory after these checks.
 
 ## 7. Webhook Replay And Idempotency
 
-Before replaying an event, verify the competing-checkout exception path against the disposable
-database branch:
+Before replaying an event, verify competing reservations against the disposable database branch:
 
 - [ ] Set a test variant's inventory to one and open two hosted Checkout Sessions for that unit
-      before paying either Session.
-- [ ] Complete both payments with Stripe sandbox cards; both webhook deliveries succeed and both
-      paid orders appear in admin.
-- [ ] Exactly one order shows allocated inventory, the other shows an inventory exception, and
-      inventory is zero rather than negative.
-- [ ] The exception order cannot be marked shipped.
-- [ ] Restock one unit, retry allocation from the exception order, and confirm inventory returns to
-      zero while the exception changes to allocated.
-- [ ] Retrying allocation again does not decrement inventory a second time.
+      as concurrently as practical.
+- [ ] Exactly one request receives a payable Checkout URL; the competing request receives an
+      availability error.
+- [ ] Admin shows one on-hand, one reserved, and zero available before payment.
+- [ ] Completing the payable Session creates one allocated paid order and leaves on-hand, reserved,
+      and available inventory at zero.
+- [ ] Expiring the payable Session instead releases the reservation exactly once and restores one
+      available without changing on-hand inventory.
+- [ ] Lowering on-hand inventory below the reserved quantity and deleting the reserved variant are
+      both rejected by admin.
+
+Also retain one malformed-reservation sandbox fixture or integration test that confirms a verified
+paid Session is persisted as an inventory exception rather than discarded.
 
 Use a Stripe-registered sandbox endpoint, such as a preview deployment. Follow Stripe's
 [webhook retry guidance](https://docs.stripe.com/webhooks), find the original event and endpoint IDs
@@ -164,6 +174,7 @@ data or live Resend credentials.
       retry button.
 - [ ] The same delivery reaches `Sent` with a higher attempt count and only one email arrives.
 - [ ] A request to the cron route without `Authorization: Bearer <CRON_SECRET>` returns `401`.
+- [ ] The inventory-reservation cron also rejects a request without the same bearer secret.
 
 ## 10. Product Images
 

@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 
+import { toCheckoutRequest } from "@/lib/cart/selectors";
 import type { CartDisplayLine } from "@/lib/cart/types";
 
 class MemoryStorage implements Storage {
@@ -115,7 +116,8 @@ describe("cart store", () => {
   test("builds checkout intent without display snapshot fields", () => {
     useCartStore.getState().addLine({ ...deck, quantity: 2 });
 
-    expect(useCartStore.getState().toCheckoutRequest()).toEqual({
+    expect(toCheckoutRequest(useCartStore.getState().lines, "request-123")).toEqual({
+      requestId: "request-123",
       items: [{ variantId: deck.variantId, quantity: 2 }],
     });
   });

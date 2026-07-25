@@ -57,6 +57,7 @@ export async function getAdminProducts() {
         columns: {
           priceCents: true,
           inventoryQty: true,
+          reservedQty: true,
         },
         orderBy: (variants) => [asc(variants.sku)],
       },

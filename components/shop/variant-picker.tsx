@@ -15,7 +15,7 @@ type VariantPickerProps = {
 
 export function VariantPicker({ product }: VariantPickerProps) {
   const firstAvailableVariant =
-    product.variants.find((variant) => variant.inventoryQty > 0) ?? product.variants[0];
+    product.variants.find((variant) => variant.availableQty > 0) ?? product.variants[0];
   const [variantId, setVariantId] = useState(firstAvailableVariant?.id ?? "");
   const [quantity, setQuantity] = useState(1);
   const selectedVariant = useMemo(
@@ -23,8 +23,8 @@ export function VariantPicker({ product }: VariantPickerProps) {
     [firstAvailableVariant, product.variants, variantId],
   );
   const imageUrl = product.images[0]?.url ?? null;
-  const maxQuantity = Math.max(1, Math.min(selectedVariant?.inventoryQty ?? 1, 99));
-  const isUnavailable = !selectedVariant || selectedVariant.inventoryQty <= 0;
+  const maxQuantity = Math.max(1, Math.min(selectedVariant?.availableQty ?? 1, 99));
+  const isUnavailable = !selectedVariant || selectedVariant.availableQty <= 0;
 
   return (
     <div className="space-y-6">
@@ -56,8 +56,8 @@ export function VariantPicker({ product }: VariantPickerProps) {
               <p className="text-muted-foreground text-sm">{selectedVariant.sku}</p>
             </div>
             <p className="font-semibold text-sm">
-              {selectedVariant.inventoryQty > 0
-                ? `${selectedVariant.inventoryQty} available`
+              {selectedVariant.availableQty > 0
+                ? `${selectedVariant.availableQty} available`
                 : "Out of stock"}
             </p>
           </div>

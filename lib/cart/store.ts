@@ -4,8 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { MAX_CART_LINE_QUANTITY } from "./constants";
-import { toCheckoutRequest } from "./selectors";
-import type { AddCartLineInput, CartDisplayLine, CheckoutRequest } from "./types";
+import type { AddCartLineInput, CartDisplayLine } from "./types";
 
 type CartState = {
   lines: CartDisplayLine[];
@@ -13,7 +12,6 @@ type CartState = {
   updateQuantity: (variantId: string, quantity: number) => void;
   removeLine: (variantId: string) => void;
   clear: () => void;
-  toCheckoutRequest: () => CheckoutRequest;
 };
 
 function clampQuantity(quantity: number): number {
@@ -22,7 +20,7 @@ function clampQuantity(quantity: number): number {
 
 export const useCartStore = create<CartState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       lines: [],
       addLine: (line) => {
         const quantity = clampQuantity(line.quantity ?? 1);
@@ -71,7 +69,6 @@ export const useCartStore = create<CartState>()(
         }));
       },
       clear: () => set({ lines: [] }),
-      toCheckoutRequest: () => toCheckoutRequest(get().lines),
     }),
     {
       name: "skate-shop-cart",

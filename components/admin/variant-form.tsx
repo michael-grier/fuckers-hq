@@ -18,6 +18,7 @@ type ExistingVariant = {
   sku: string;
   priceCents: number;
   inventoryQty: number;
+  reservedQty: number;
 };
 
 type VariantFormProps = {
@@ -164,6 +165,13 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
           />
         </FormField>
       </div>
+
+      {variant ? (
+        <p className="mt-3 text-muted-foreground text-xs">
+          {variant.inventoryQty} on hand · {variant.reservedQty} reserved ·{" "}
+          {variant.inventoryQty - variant.reservedQty} available
+        </p>
+      ) : null}
 
       {actionError ? (
         <p className="mt-4 text-destructive text-sm" role="alert">

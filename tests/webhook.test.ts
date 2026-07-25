@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type Stripe from "stripe";
 
 import { createPendingCheckoutLineSnapshots, resolveCheckoutLines } from "@/lib/checkout/items";
+import type { ReservationEventWriter } from "@/lib/checkout/reservation-events";
 import {
   assertInventoryDecremented,
   assertPendingCheckoutItemsMatchSnapshots,
@@ -35,6 +36,7 @@ function makeCheckoutSession(overrides: Record<string, unknown> = {}): Record<st
     payment_intent: "pi_test_paid",
     metadata: {
       pendingCheckoutToken: "checkout_abcDEF123456789",
+      reservationToken: "reservation_abcDEF123456",
     },
     customer_details: {
       email: "skater@example.com",
@@ -169,6 +171,7 @@ describe("paid Checkout Session parsing", () => {
   test("maps Stripe-authoritative totals, customer, shipping, and metadata", () => {
     expect(parsePaidCheckoutData(makeCheckoutSession())).toEqual({
       pendingCheckoutToken: "checkout_abcDEF123456789",
+      reservationToken: "reservation_abcDEF123456",
       stripeSessionId: "cs_test_paid",
       stripePaymentIntentId: "pi_test_paid",
       email: "skater@example.com",
@@ -250,12 +253,23 @@ describe("Stripe payment lifecycle parsing", () => {
 });
 
 describe("Stripe event processing", () => {
-  test("ignores unrelated and unpaid events without touching persistence", async () => {
+  test("ignores unrelated events and keeps unpaid Sessions reserved", async () => {
     let writes = 0;
+    const reservationTransitions: string[] = [];
     const writer = {
       createPaidOrder: async () => {
         writes += 1;
         return { created: true, orderId: "order_unused" };
+      },
+    };
+    const reservationWriter: ReservationEventWriter = {
+      markAwaitingPayment: async (session) => {
+        reservationTransitions.push(`awaiting:${session.stripeSessionId}`);
+        return { changed: true };
+      },
+      releaseReservation: async (session, reason) => {
+        reservationTransitions.push(`${reason}:${session.stripeSessionId}`);
+        return { changed: true };
       },
     };
 
@@ -269,9 +283,42 @@ describe("Stripe event processing", () => {
           data: { object: makeCheckoutSession({ payment_status: "unpaid" }) },
         },
         writer,
+        undefined,
+        reservationWriter,
       ),
-    ).toEqual({ handled: false });
+    ).toEqual({ handled: true, reservationChanged: true });
     expect(writes).toBe(0);
+    expect(reservationTransitions).toEqual(["awaiting:cs_test_paid"]);
+  });
+
+  test("releases expired and failed asynchronous Sessions idempotently through the writer", async () => {
+    const releases: string[] = [];
+    const reservationWriter: ReservationEventWriter = {
+      markAwaitingPayment: async () => ({ changed: true }),
+      releaseReservation: async (session, reason) => {
+        releases.push(`${reason}:${session.reservationToken}`);
+        return { changed: releases.length === 1 };
+      },
+    };
+
+    for (const type of [
+      "checkout.session.expired",
+      "checkout.session.async_payment_failed",
+    ] as const) {
+      expect(
+        await processStripeEvent(
+          { type, data: { object: makeCheckoutSession({ payment_status: "unpaid" }) } },
+          unusedPaidOrderWriter,
+          undefined,
+          reservationWriter,
+        ),
+      ).toMatchObject({ handled: true });
+    }
+
+    expect(releases).toEqual([
+      "stripe_session_expired:reservation_abcDEF123456",
+      "async_payment_failed:reservation_abcDEF123456",
+    ]);
   });
 
   test("passes a paid Session to persistence and reports idempotent results", async () => {
@@ -432,6 +479,7 @@ describe("paid order snapshots and inventory", () => {
       variantName: '8.25"',
       priceCents: 8900,
       inventoryQty: 3,
+      reservedQty: 0,
     };
     const pendingSnapshots = createPendingCheckoutLineSnapshots(
       resolveCheckoutLines([{ variantId, quantity: 2 }], [catalogAtCheckout]),

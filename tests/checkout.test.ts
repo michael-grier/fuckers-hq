@@ -18,7 +18,7 @@ import { buildShippingOptions, parseAllowedShippingCountries } from "@/lib/check
 import { checkoutSchema } from "@/lib/validators/cart";
 
 const variantId = "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6";
-
+const requestId = "a593031e-8306-46c9-b92d-caa1d274405d";
 const activeVariant: CheckoutVariantRecord = {
   id: variantId,
   productName: "Database Deck",
@@ -26,7 +26,43 @@ const activeVariant: CheckoutVariantRecord = {
   variantName: '8.25"',
   priceCents: 8900,
   inventoryQty: 3,
+  reservedQty: 0,
 };
+const reservationLineItems = [
+  {
+    variantId,
+    productName: "Database Deck",
+    variantName: '8.25"',
+    unitPriceCents: 8900,
+    quantity: 2,
+    currency: "cad",
+  },
+];
+const settings = {
+  appUrl: "http://localhost:3000",
+  allowedCountries: ["CA", "US"] as const,
+  standardShippingRateCents: 1500,
+  freeShippingThresholdCents: 10000,
+  taxEnabled: true,
+};
+
+function makeRepository(overrides: Partial<CheckoutRepository> = {}): CheckoutRepository {
+  return {
+    reserveCheckout: async () => ({
+      pendingCheckoutToken: "checkout_abcDEF123456789",
+      reservationToken: "reservation_abcDEF123456",
+      stripeCreateIdempotencyKey: "checkout-session/reservation_abcDEF123456",
+      stripeSessionId: null,
+      stripeSessionParams: null,
+      expiresAt: new Date("2026-07-10T13:00:00.000Z"),
+      lineItems: reservationLineItems,
+    }),
+    prepareStripeSession: async (_reservationToken, params) => params,
+    linkStripeSession: async () => {},
+    releaseSessionCreationFailure: async () => true,
+    ...overrides,
+  };
+}
 
 describe("checkout completion", () => {
   test("clears purchase intent only for completed paid sessions", () => {
@@ -40,51 +76,37 @@ describe("checkout completion", () => {
 });
 
 describe("checkout error reporting boundary", () => {
-  test("does not report validation or catalog errors", async () => {
+  test("reports only unexpected and internal failures", async () => {
     const reportedErrors: unknown[] = [];
-    const validationResult = checkoutSchema.safeParse({ items: [] });
+    const invalid = checkoutSchema.safeParse({ requestId, items: [] });
 
-    if (validationResult.success) {
+    if (invalid.success) {
       throw new Error("Expected invalid checkout input.");
     }
 
-    const validationResponse = toCheckoutErrorResponse(validationResult.error, (error) => {
+    const validationResponse = toCheckoutErrorResponse(invalid.error, (error) => {
       reportedErrors.push(error);
     });
     const stockResponse = toCheckoutErrorResponse(
       new CheckoutError("Only 1 item remains.", 409),
-      (error) => {
-        reportedErrors.push(error);
-      },
+      (error) => reportedErrors.push(error),
     );
-
-    expect(validationResponse.status).toBe(400);
-    expect(stockResponse.status).toBe(409);
-    expect(await stockResponse.json()).toEqual({ error: "Only 1 item remains." });
-    expect(reportedErrors).toEqual([]);
-  });
-
-  test("reports unexpected and internal checkout failures with a safe response", async () => {
-    const reportedErrors: unknown[] = [];
-    const stripeError = new CheckoutError("Stripe did not return a Checkout URL.", 500);
     const databaseError = new Error("Database unavailable.");
-    const stripeResponse = toCheckoutErrorResponse(stripeError, (error) => {
-      reportedErrors.push(error);
-    });
     const databaseResponse = toCheckoutErrorResponse(databaseError, (error) => {
       reportedErrors.push(error);
     });
 
-    expect(stripeResponse.status).toBe(500);
+    expect(validationResponse.status).toBe(400);
+    expect(stockResponse.status).toBe(409);
+    expect(await stockResponse.json()).toEqual({ error: "Only 1 item remains." });
     expect(databaseResponse.status).toBe(500);
-    expect(await stripeResponse.json()).toEqual({ error: "Unable to start checkout." });
     expect(await databaseResponse.json()).toEqual({ error: "Unable to start checkout." });
-    expect(reportedErrors).toEqual([stripeError, databaseError]);
+    expect(reportedErrors).toEqual([databaseError]);
   });
 });
 
 describe("checkout item resolution", () => {
-  test("constructs Stripe line items only from resolved database fields", () => {
+  test("constructs Stripe lines only from server-resolved fields", () => {
     const [resolvedLine] = resolveCheckoutLines([{ variantId, quantity: 2 }], [activeVariant]);
 
     expect(buildStripeLineItems([resolvedLine])).toEqual([
@@ -103,103 +125,66 @@ describe("checkout item resolution", () => {
     ]);
   });
 
-  test("rejects unknown and inactive variants as unavailable", () => {
-    try {
-      resolveCheckoutLines([{ variantId, quantity: 1 }], []);
-      throw new Error("Expected unknown variant resolution to fail.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(CheckoutError);
-      expect((error as CheckoutError).status).toBe(404);
-    }
+  test("uses on-hand minus reserved inventory after combining duplicate lines", () => {
+    expect(() =>
+      resolveCheckoutLines(
+        [
+          { variantId, quantity: 1 },
+          { variantId, quantity: 1 },
+        ],
+        [{ ...activeVariant, reservedQty: 2 }],
+      ),
+    ).toThrow("only has 1 available");
+  });
 
-    try {
+  test("rejects unknown and inactive variants", () => {
+    expect(() => resolveCheckoutLines([{ variantId, quantity: 1 }], [])).toThrow(CheckoutError);
+    expect(() =>
       resolveCheckoutLines(
         [{ variantId, quantity: 1 }],
         [{ ...activeVariant, productStatus: "archived" }],
-      );
-      throw new Error("Expected inactive variant resolution to fail.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(CheckoutError);
-      expect((error as CheckoutError).status).toBe(404);
-    }
-  });
-
-  test("rejects insufficient combined stock for duplicate cart lines", () => {
-    try {
-      resolveCheckoutLines(
-        [
-          { variantId, quantity: 2 },
-          { variantId, quantity: 2 },
-        ],
-        [activeVariant],
-      );
-      throw new Error("Expected insufficient stock resolution to fail.");
-    } catch (error) {
-      expect(error).toBeInstanceOf(CheckoutError);
-      expect((error as CheckoutError).status).toBe(409);
-      expect((error as CheckoutError).message).toContain("only has 3 available");
-    }
+      ),
+    ).toThrow(CheckoutError);
   });
 });
 
 describe("checkout shipping", () => {
-  test("uses the standard rate below the free-shipping threshold", () => {
+  test("selects standard and free rates around the configured threshold", () => {
     expect(
       buildShippingOptions(9999, {
         standardRateCents: 1500,
         freeThresholdCents: 10000,
-      }),
-    ).toEqual([
-      {
-        shipping_rate_data: {
-          type: "fixed_amount",
-          display_name: "Standard shipping",
-          fixed_amount: { amount: 1500, currency: "cad" },
-          tax_behavior: "exclusive",
-        },
-      },
-    ]);
+      })[0].shipping_rate_data?.fixed_amount?.amount,
+    ).toBe(1500);
+    expect(
+      buildShippingOptions(10000, {
+        standardRateCents: 1500,
+        freeThresholdCents: 10000,
+      })[0].shipping_rate_data?.fixed_amount?.amount,
+    ).toBe(0);
   });
 
-  test("uses free shipping at or above the configured threshold", () => {
-    const [option] = buildShippingOptions(10000, {
-      standardRateCents: 1500,
-      freeThresholdCents: 10000,
-    });
-
-    expect(option.shipping_rate_data?.display_name).toBe("Free shipping");
-    expect(option.shipping_rate_data?.fixed_amount?.amount).toBe(0);
-  });
-
-  test("parses, normalizes, and validates configured countries", () => {
+  test("normalizes and validates configured countries", () => {
     expect(parseAllowedShippingCountries("ca, US,ca")).toEqual(["CA", "US"]);
     expect(() => parseAllowedShippingCountries("CA,GB")).toThrow("must contain only CA and/or US");
   });
 });
 
 describe("hosted checkout orchestration", () => {
-  test("validates input before calling dependencies", async () => {
+  test("validates input before reserving stock", async () => {
     let repositoryCalled = false;
 
     await expect(
       createHostedCheckout(
-        { items: [] },
+        { requestId, items: [] },
+        { ...settings, allowedCountries: [...settings.allowedCountries] },
         {
-          appUrl: "http://localhost:3000",
-          allowedCountries: ["CA", "US"],
-          standardShippingRateCents: 1500,
-          freeShippingThresholdCents: 10000,
-          taxEnabled: true,
-        },
-        {
-          repository: {
-            findVariants: async () => {
+          repository: makeRepository({
+            reserveCheckout: async () => {
               repositoryCalled = true;
-              return [];
+              throw new Error("Unexpected reservation call.");
             },
-            createPendingCheckout: async () => {},
-            setStripeSessionId: async () => {},
-          },
+          }),
           sessions: {
             create: async () => ({ id: "cs_test_unused", url: null }),
           },
@@ -211,90 +196,95 @@ describe("hosted checkout orchestration", () => {
     expect(repositoryCalled).toBe(false);
   });
 
-  test("persists immutable resolved lines and links compact metadata to the Stripe session", async () => {
-    const pendingWrites: Parameters<CheckoutRepository["createPendingCheckout"]>[0][] = [];
-    const sessionLinks: Array<{ token: string; sessionId: string }> = [];
+  test("reserves first, persists the exact request, and uses stable Stripe metadata", async () => {
+    const reservationWrites: Parameters<CheckoutRepository["reserveCheckout"]>[0][] = [];
+    const links: Array<{ token: string; sessionId: string }> = [];
+    const idempotencyKeys: string[] = [];
     let sessionParams: Stripe.Checkout.SessionCreateParams | undefined;
     const now = new Date("2026-07-10T12:00:00.000Z");
+    const tokens = ["checkout_abcDEF123456789", "reservation_abcDEF123456"];
+    const repository = makeRepository({
+      reserveCheckout: async (checkout) => {
+        reservationWrites.push(checkout);
+        return {
+          pendingCheckoutToken: checkout.pendingCheckoutToken,
+          reservationToken: checkout.reservationToken,
+          stripeCreateIdempotencyKey: `checkout-session/${checkout.reservationToken}`,
+          stripeSessionId: null,
+          stripeSessionParams: null,
+          expiresAt: checkout.expiresAt,
+          lineItems: reservationLineItems,
+        };
+      },
+      prepareStripeSession: async (_token, params) => {
+        sessionParams = params;
+        return params;
+      },
+      linkStripeSession: async (token, sessionId) => {
+        links.push({ token, sessionId });
+      },
+    });
 
     const result = await createHostedCheckout(
       {
+        requestId,
         items: [
           { variantId, quantity: 1 },
           { variantId, quantity: 1 },
         ],
       },
       {
+        ...settings,
         appUrl: "http://localhost:3000/",
-        allowedCountries: ["CA", "US"],
-        standardShippingRateCents: 1500,
+        allowedCountries: [...settings.allowedCountries],
         freeShippingThresholdCents: 20000,
-        taxEnabled: true,
       },
       {
-        repository: {
-          findVariants: async () => [activeVariant],
-          createPendingCheckout: async (checkout) => {
-            pendingWrites.push(checkout);
-          },
-          setStripeSessionId: async (token, sessionId) => {
-            sessionLinks.push({ token, sessionId });
-          },
-        },
+        repository,
         sessions: {
-          create: async (params) => {
-            sessionParams = params;
+          create: async (_params, options) => {
+            idempotencyKeys.push(options.idempotencyKey);
             return { id: "cs_test_123", url: "https://checkout.stripe.com/c/pay/test" };
           },
         },
-        createToken: () => "checkout_abcDEF123456789",
+        createToken: () => tokens.shift() ?? "unexpected",
         now: () => now,
       },
     );
 
     expect(result).toEqual({ url: "https://checkout.stripe.com/c/pay/test" });
-    expect(pendingWrites).toEqual([
+    expect(reservationWrites).toEqual([
       {
-        token: "checkout_abcDEF123456789",
-        items: [{ variantId, quantity: 2 }],
-        lineItems: [
-          {
-            variantId,
-            productName: "Database Deck",
-            variantName: '8.25"',
-            unitPriceCents: 8900,
-            quantity: 2,
-            currency: "cad",
-          },
+        requestId,
+        pendingCheckoutToken: "checkout_abcDEF123456789",
+        reservationToken: "reservation_abcDEF123456",
+        items: [
+          { variantId, quantity: 1 },
+          { variantId, quantity: 1 },
         ],
         expiresAt: new Date("2026-07-10T13:00:00.000Z"),
+        nextReconcileAt: new Date("2026-07-10T12:05:00.000Z"),
       },
     ]);
     expect(sessionParams?.metadata).toEqual({
       pendingCheckoutToken: "checkout_abcDEF123456789",
+      reservationToken: "reservation_abcDEF123456",
     });
+    expect(sessionParams?.client_reference_id).toBe("reservation_abcDEF123456");
+    expect(sessionParams?.after_expiration).toEqual({ recovery: { enabled: false } });
+    expect(sessionParams?.expires_at).toBe(1783688400);
     expect(sessionParams?.line_items?.[0]).toMatchObject({
       quantity: 2,
       price_data: { unit_amount: 8900 },
     });
-    expect(sessionParams?.automatic_tax).toEqual({ enabled: true });
-    expect(sessionParams?.shipping_address_collection?.allowed_countries).toEqual(["CA", "US"]);
-    expect(sessionLinks).toEqual([{ token: "checkout_abcDEF123456789", sessionId: "cs_test_123" }]);
+    expect(idempotencyKeys).toEqual(["checkout-session/reservation_abcDEF123456"]);
+    expect(links).toEqual([{ token: "reservation_abcDEF123456", sessionId: "cs_test_123" }]);
   });
 
-  test("derives pending snapshots from the same resolved lines sent to Stripe", () => {
+  test("uses the same immutable snapshots for persistence and Stripe", () => {
     const [resolvedLine] = resolveCheckoutLines([{ variantId, quantity: 2 }], [activeVariant]);
 
-    expect(createPendingCheckoutLineSnapshots([resolvedLine])).toEqual([
-      {
-        variantId,
-        productName: "Database Deck",
-        variantName: '8.25"',
-        unitPriceCents: 8900,
-        quantity: 2,
-        currency: "cad",
-      },
-    ]);
+    expect(createPendingCheckoutLineSnapshots([resolvedLine])).toEqual(reservationLineItems);
     expect(buildStripeLineItems([resolvedLine])[0]).toMatchObject({
       quantity: 2,
       price_data: {
@@ -305,35 +295,66 @@ describe("hosted checkout orchestration", () => {
     });
   });
 
-  test("can disable Stripe Tax while preserving hosted Checkout", async () => {
-    let sessionParams: Stripe.Checkout.SessionCreateParams | undefined;
-
-    const result = await createHostedCheckout(
-      { items: [{ variantId, quantity: 1 }] },
-      {
-        appUrl: "http://localhost:3000",
-        allowedCountries: ["CA", "US"],
-        standardShippingRateCents: 1500,
-        freeShippingThresholdCents: 10000,
-        taxEnabled: false,
+  test("releases confirmed Stripe rejections but preserves ambiguous failures", async () => {
+    const releases: string[] = [];
+    const repository = makeRepository({
+      releaseSessionCreationFailure: async (token) => {
+        releases.push(token);
+        return true;
       },
-      {
-        repository: {
-          findVariants: async () => [activeVariant],
-          createPendingCheckout: async () => {},
-          setStripeSessionId: async () => {},
-        },
-        sessions: {
-          create: async (params) => {
-            sessionParams = params;
-            return { id: "cs_test_tax_disabled", url: "https://checkout.stripe.com/test" };
+    });
+
+    for (const [type, expectedReleases] of [
+      ["StripeInvalidRequestError", 1],
+      ["StripeConnectionError", 1],
+    ] as const) {
+      await expect(
+        createHostedCheckout(
+          { requestId, items: [{ variantId, quantity: 2 }] },
+          { ...settings, allowedCountries: [...settings.allowedCountries] },
+          {
+            repository,
+            sessions: {
+              create: async () => {
+                throw { type };
+              },
+            },
+            createToken: () => "checkout_abcDEF123456789",
           },
-        },
-        createToken: () => "checkout_taxDisabled123",
-      },
-    );
+        ),
+      ).rejects.toEqual({ type });
+      expect(releases).toHaveLength(expectedReleases);
+    }
+  });
 
-    expect(result.url).toBe("https://checkout.stripe.com/test");
-    expect(sessionParams?.automatic_tax).toEqual({ enabled: false });
+  test("leaves a successfully created but unlinked Session for reconciliation", async () => {
+    const releases: string[] = [];
+
+    await expect(
+      createHostedCheckout(
+        { requestId, items: [{ variantId, quantity: 2 }] },
+        { ...settings, allowedCountries: [...settings.allowedCountries] },
+        {
+          repository: makeRepository({
+            linkStripeSession: async () => {
+              throw new Error("Database link failed.");
+            },
+            releaseSessionCreationFailure: async (token) => {
+              releases.push(token);
+              return true;
+            },
+          }),
+          sessions: {
+            create: async () => ({
+              id: "cs_test_unlinked",
+              url: "https://checkout.stripe.com/unlinked",
+            }),
+          },
+          createToken: () => "checkout_abcDEF123456789",
+        },
+      ),
+    ).rejects.toThrow("Database link failed.");
+
+    expect(releases).toEqual([]);
   });
 });

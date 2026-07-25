@@ -20,6 +20,7 @@ const matchingProducts = Array.from({ length: 13 }, (_, index) => ({
       sku: `DECK-${index + 1}`,
       priceCents: 8_900 + index,
       inventoryQty: 1,
+      reservedQty: 0,
       createdAt: new Date("2026-07-22T00:00:00.000Z"),
       updatedAt: new Date("2026-07-22T00:00:00.000Z"),
     },

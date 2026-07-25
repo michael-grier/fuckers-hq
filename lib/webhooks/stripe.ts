@@ -2,6 +2,10 @@ import type Stripe from "stripe";
 import { z } from "zod";
 
 import type {
+  ReservationEventData,
+  ReservationEventWriter,
+} from "@/lib/checkout/reservation-events";
+import type {
   CreatePaidOrderResult,
   PaidCheckoutData,
   PaidOrderWriter,
@@ -124,6 +128,7 @@ type StripeEventLike = {
 export type StripeWebhookResult =
   | { handled: false }
   | ({ handled: true } & CreatePaidOrderResult)
+  | { handled: true; reservationChanged: boolean }
   | ({ handled: true; paymentUpdated: true } & RecordPaymentLifecycleResult);
 
 export class StripeWebhookSignatureError extends Error {
@@ -177,6 +182,7 @@ export function parsePaidCheckoutData(input: unknown): PaidCheckoutData | null {
 
   return {
     pendingCheckoutToken: metadata.pendingCheckoutToken,
+    reservationToken: metadata.reservationToken ?? null,
     stripeSessionId: session.id,
     stripePaymentIntentId: getPaymentIntentId(session.payment_intent),
     email: session.customer_details.email,
@@ -187,6 +193,26 @@ export function parsePaidCheckoutData(input: unknown): PaidCheckoutData | null {
     totalCents: session.amount_total,
     currency: session.currency,
     shippingAddress: session.collected_information?.shipping_details ?? null,
+  };
+}
+
+export function parseReservationEventData(input: unknown): ReservationEventData | null {
+  const session = paidCheckoutSessionSchema
+    .pick({
+      id: true,
+      metadata: true,
+    })
+    .parse(input);
+  const metadata = pendingCheckoutMetadataSchema.parse(session.metadata);
+
+  if (!metadata.reservationToken) {
+    return null;
+  }
+
+  return {
+    pendingCheckoutToken: metadata.pendingCheckoutToken,
+    reservationToken: metadata.reservationToken,
+    stripeSessionId: session.id,
   };
 }
 
@@ -240,21 +266,66 @@ export async function processStripeEvent(
   event: StripeEventLike,
   writer: PaidOrderWriter,
   paymentLifecycleWriter?: PaymentLifecycleWriter,
+  reservationWriter?: ReservationEventWriter,
 ): Promise<StripeWebhookResult> {
-  if (
-    event.type === "checkout.session.completed" ||
-    event.type === "checkout.session.async_payment_succeeded"
-  ) {
+  if (event.type === "checkout.session.completed") {
     const checkout = parsePaidCheckoutData(event.data.object);
 
     if (!checkout) {
-      return { handled: false };
+      const reservation = parseReservationEventData(event.data.object);
+
+      if (!reservation) {
+        return { handled: false };
+      }
+
+      if (!reservationWriter) {
+        throw new Error("Inventory reservation persistence is not configured.");
+      }
+
+      const result = await reservationWriter.markAwaitingPayment(reservation);
+
+      return { handled: true, reservationChanged: result.changed };
     }
 
     return {
       handled: true,
       ...(await writer.createPaidOrder(checkout)),
     };
+  }
+
+  if (event.type === "checkout.session.async_payment_succeeded") {
+    const checkout = parsePaidCheckoutData(event.data.object);
+
+    if (!checkout) {
+      throw new Error("Asynchronous payment success did not contain a paid Checkout Session.");
+    }
+
+    return {
+      handled: true,
+      ...(await writer.createPaidOrder(checkout)),
+    };
+  }
+
+  if (
+    event.type === "checkout.session.expired" ||
+    event.type === "checkout.session.async_payment_failed"
+  ) {
+    const reservation = parseReservationEventData(event.data.object);
+
+    if (!reservation) {
+      return { handled: false };
+    }
+
+    if (!reservationWriter) {
+      throw new Error("Inventory reservation persistence is not configured.");
+    }
+
+    const result = await reservationWriter.releaseReservation(
+      reservation,
+      event.type === "checkout.session.expired" ? "stripe_session_expired" : "async_payment_failed",
+    );
+
+    return { handled: true, reservationChanged: result.changed };
   }
 
   const paymentUpdate = parsePaymentLifecycleUpdate(event);

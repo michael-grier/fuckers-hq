@@ -13,6 +13,8 @@ export type CatalogVariant = {
   sku: string;
   priceCents: number;
   inventoryQty: number;
+  reservedQty: number;
+  availableQty: number;
 };
 
 export type CatalogImage = {
@@ -65,11 +67,17 @@ function toCatalogProduct(
     category: row.category,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    variants: row.variants,
+    variants: row.variants.map((variant) => ({
+      ...variant,
+      availableQty: variant.inventoryQty - variant.reservedQty,
+    })),
     images: row.images.sort((a, b) => a.position - b.position || a.id.localeCompare(b.id)),
     minPriceCents: prices.length > 0 ? Math.min(...prices) : null,
     maxPriceCents: prices.length > 0 ? Math.max(...prices) : null,
-    totalInventoryQty: row.variants.reduce((total, variant) => total + variant.inventoryQty, 0),
+    totalInventoryQty: row.variants.reduce(
+      (total, variant) => total + variant.inventoryQty - variant.reservedQty,
+      0,
+    ),
   };
 }
 

@@ -25,6 +25,13 @@ export const confirmationDeliveryStatusValues = [
   "sent",
   "failed",
 ] as const;
+export const inventoryReservationStatusValues = [
+  "provisioning",
+  "active",
+  "awaiting_payment",
+  "converted",
+  "released",
+] as const;
 
 export const productStatus = pgEnum("product_status", productStatusValues);
 export const orderStatus = pgEnum("order_status", orderStatusValues);
@@ -38,6 +45,10 @@ export const stripePaymentEventKind = pgEnum(
 export const confirmationDeliveryStatus = pgEnum(
   "confirmation_delivery_status",
   confirmationDeliveryStatusValues,
+);
+export const inventoryReservationStatus = pgEnum(
+  "inventory_reservation_status",
+  inventoryReservationStatusValues,
 );
 
 export type PendingCheckoutItem = {
@@ -90,12 +101,18 @@ export const productVariants = pgTable(
     sku: text("sku").notNull(),
     priceCents: integer("price_cents").notNull(),
     inventoryQty: integer("inventory_qty").notNull().default(0),
+    reservedQty: integer("reserved_qty").notNull().default(0),
   },
   (table) => [
     uniqueIndex("product_variants_sku_unique").on(table.sku),
     index("product_variants_product_id_idx").on(table.productId),
     check("product_variants_price_cents_nonnegative", sql`${table.priceCents} >= 0`),
     check("product_variants_inventory_qty_nonnegative", sql`${table.inventoryQty} >= 0`),
+    check("product_variants_reserved_qty_nonnegative", sql`${table.reservedQty} >= 0`),
+    check(
+      "product_variants_reserved_qty_not_above_inventory",
+      sql`${table.reservedQty} <= ${table.inventoryQty}`,
+    ),
   ],
 );
 
@@ -137,6 +154,91 @@ export const pendingCheckouts = pgTable(
       "pending_checkouts_line_items_nonempty_array",
       sql`${table.lineItems} is null or (jsonb_typeof(${table.lineItems}) = 'array' and jsonb_array_length(${table.lineItems}) > 0)`,
     ),
+  ],
+);
+
+export const inventoryReservations = pgTable(
+  "inventory_reservations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    token: text("token").notNull(),
+    requestId: uuid("request_id").notNull(),
+    pendingCheckoutId: uuid("pending_checkout_id")
+      .notNull()
+      .references(() => pendingCheckouts.id, { onDelete: "restrict" }),
+    stripeSessionId: text("stripe_session_id"),
+    stripeCreateIdempotencyKey: text("stripe_create_idempotency_key").notNull(),
+    stripeSessionParams: jsonb("stripe_session_params").$type<JsonRecord>(),
+    status: inventoryReservationStatus("status").notNull().default("provisioning"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    convertedAt: timestamp("converted_at", { withTimezone: true }),
+    releasedAt: timestamp("released_at", { withTimezone: true }),
+    releaseReason: text("release_reason"),
+    nextReconcileAt: timestamp("next_reconcile_at", { withTimezone: true }).notNull(),
+    reconcileLeaseUntil: timestamp("reconcile_lease_until", { withTimezone: true }),
+    reconcileAttemptCount: integer("reconcile_attempt_count").notNull().default(0),
+    lastReconcileErrorCode: text("last_reconcile_error_code"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("inventory_reservations_token_unique").on(table.token),
+    uniqueIndex("inventory_reservations_request_id_unique").on(table.requestId),
+    uniqueIndex("inventory_reservations_pending_checkout_id_unique").on(table.pendingCheckoutId),
+    uniqueIndex("inventory_reservations_stripe_session_id_unique").on(table.stripeSessionId),
+    uniqueIndex("inventory_reservations_stripe_idempotency_key_unique").on(
+      table.stripeCreateIdempotencyKey,
+    ),
+    index("inventory_reservations_reconcile_due_idx").on(table.status, table.nextReconcileAt),
+    check(
+      "inventory_reservations_attempt_count_nonnegative",
+      sql`${table.reconcileAttemptCount} >= 0`,
+    ),
+    check(
+      "inventory_reservations_terminal_state_consistent",
+      sql`(
+        ${table.status} = 'converted'
+        AND ${table.convertedAt} IS NOT NULL
+        AND ${table.releasedAt} IS NULL
+        AND ${table.releaseReason} IS NULL
+      ) OR (
+        ${table.status} = 'released'
+        AND ${table.convertedAt} IS NULL
+        AND ${table.releasedAt} IS NOT NULL
+        AND ${table.releaseReason} IS NOT NULL
+      ) OR (
+        ${table.status} IN ('provisioning', 'active', 'awaiting_payment')
+        AND ${table.convertedAt} IS NULL
+        AND ${table.releasedAt} IS NULL
+        AND ${table.releaseReason} IS NULL
+      )`,
+    ),
+    check(
+      "inventory_reservations_linked_state_has_session",
+      sql`${table.status} NOT IN ('active', 'awaiting_payment', 'converted') OR ${table.stripeSessionId} IS NOT NULL`,
+    ),
+  ],
+);
+
+export const inventoryReservationItems = pgTable(
+  "inventory_reservation_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    reservationId: uuid("reservation_id")
+      .notNull()
+      .references(() => inventoryReservations.id, { onDelete: "cascade" }),
+    variantId: uuid("variant_id").references(() => productVariants.id, {
+      onDelete: "restrict",
+    }),
+    variantIdSnapshot: uuid("variant_id_snapshot").notNull(),
+    quantity: integer("quantity").notNull(),
+  },
+  (table) => [
+    uniqueIndex("inventory_reservation_items_reservation_variant_unique").on(
+      table.reservationId,
+      table.variantIdSnapshot,
+    ),
+    index("inventory_reservation_items_variant_id_idx").on(table.variantId),
+    check("inventory_reservation_items_quantity_positive", sql`${table.quantity} > 0`),
   ],
 );
 
@@ -273,6 +375,7 @@ export const productVariantsRelations = relations(productVariants, ({ one, many 
     references: [products.id],
   }),
   orderItems: many(orderItems),
+  reservationItems: many(inventoryReservationItems),
 }));
 
 export const productImagesRelations = relations(productImages, ({ one }) => ({
@@ -286,6 +389,32 @@ export const ordersRelations = relations(orders, ({ many, one }) => ({
   items: many(orderItems),
   confirmationDelivery: one(orderConfirmationDeliveries),
 }));
+
+export const pendingCheckoutsRelations = relations(pendingCheckouts, ({ one }) => ({
+  reservation: one(inventoryReservations),
+}));
+
+export const inventoryReservationsRelations = relations(inventoryReservations, ({ many, one }) => ({
+  pendingCheckout: one(pendingCheckouts, {
+    fields: [inventoryReservations.pendingCheckoutId],
+    references: [pendingCheckouts.id],
+  }),
+  items: many(inventoryReservationItems),
+}));
+
+export const inventoryReservationItemsRelations = relations(
+  inventoryReservationItems,
+  ({ one }) => ({
+    reservation: one(inventoryReservations, {
+      fields: [inventoryReservationItems.reservationId],
+      references: [inventoryReservations.id],
+    }),
+    variant: one(productVariants, {
+      fields: [inventoryReservationItems.variantId],
+      references: [productVariants.id],
+    }),
+  }),
+);
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
   order: one(orders, {
@@ -316,6 +445,10 @@ export type ProductImage = typeof productImages.$inferSelect;
 export type NewProductImage = typeof productImages.$inferInsert;
 export type PendingCheckout = typeof pendingCheckouts.$inferSelect;
 export type NewPendingCheckout = typeof pendingCheckouts.$inferInsert;
+export type InventoryReservation = typeof inventoryReservations.$inferSelect;
+export type NewInventoryReservation = typeof inventoryReservations.$inferInsert;
+export type InventoryReservationItem = typeof inventoryReservationItems.$inferSelect;
+export type NewInventoryReservationItem = typeof inventoryReservationItems.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 export type OrderItem = typeof orderItems.$inferSelect;

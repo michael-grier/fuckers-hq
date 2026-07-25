@@ -8,6 +8,7 @@ export type CartDisplayLine = {
 };
 
 export type CheckoutRequest = {
+  requestId: string;
   items: Array<{
     variantId: string;
     quantity: number;
