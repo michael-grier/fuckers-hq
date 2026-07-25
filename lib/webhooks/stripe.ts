@@ -203,15 +203,15 @@ export function parseReservationEventData(input: unknown): ReservationEventData 
       metadata: true,
     })
     .parse(input);
-  const metadata = pendingCheckoutMetadataSchema.parse(session.metadata);
+  const metadata = pendingCheckoutMetadataSchema.safeParse(session.metadata);
 
-  if (!metadata.reservationToken) {
+  if (!metadata.success || !metadata.data.reservationToken) {
     return null;
   }
 
   return {
-    pendingCheckoutToken: metadata.pendingCheckoutToken,
-    reservationToken: metadata.reservationToken,
+    pendingCheckoutToken: metadata.data.pendingCheckoutToken,
+    reservationToken: metadata.data.reservationToken,
     stripeSessionId: session.id,
   };
 }

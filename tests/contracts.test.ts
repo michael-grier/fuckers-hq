@@ -33,6 +33,16 @@ describe("checkout contract", () => {
     expect(() => checkoutSchema.parse({ items: [{ variantId: "nope", quantity: 1 }] })).toThrow();
   });
 
+  test("requires a UUID checkout request ID", () => {
+    expect(checkoutSchema.safeParse({ items: [{ variantId, quantity: 1 }] }).success).toBe(false);
+    expect(
+      checkoutSchema.safeParse({
+        requestId: "request-123",
+        items: [{ variantId, quantity: 1 }],
+      }).success,
+    ).toBe(false);
+  });
+
   test("accepts pending checkout token metadata", () => {
     expect(
       pendingCheckoutMetadataSchema.parse({

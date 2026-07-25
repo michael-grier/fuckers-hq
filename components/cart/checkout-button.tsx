@@ -4,7 +4,7 @@ import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { toCheckoutRequest } from "@/lib/cart/selectors";
+import { getCheckoutCartFingerprint, toCheckoutRequest } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import { checkoutErrorResponseSchema, checkoutResponseSchema } from "@/lib/validators/cart";
 
@@ -19,9 +19,7 @@ export function CheckoutButton() {
     setIsLoading(true);
 
     try {
-      const cartFingerprint = JSON.stringify(
-        lines.map(({ variantId, quantity }) => ({ variantId, quantity })),
-      );
+      const cartFingerprint = getCheckoutCartFingerprint(lines);
 
       if (requestIdentity.current?.cartFingerprint !== cartFingerprint) {
         requestIdentity.current = {

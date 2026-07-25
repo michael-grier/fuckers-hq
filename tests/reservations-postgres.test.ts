@@ -179,6 +179,11 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       }),
     ).toEqual({ status: "converted" });
     expect(await database.$count(orders)).toBe(1);
+    expect(
+      await reservationEvents.markAwaitingPayment(eventFor(reservation, "cs_test_paid")),
+    ).toEqual({
+      changed: false,
+    });
 
     await resetCommerceRows(database);
     await insertVariant(database, variantId, 1);
@@ -287,9 +292,20 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       database.update(productVariants).set({ inventoryQty: 0 }).execute(),
     );
     const deleteError = await captureDatabaseError(database.delete(productVariants).execute());
+    const missingSessionError = await captureDatabaseError(
+      database.update(inventoryReservations).set({ status: "active" }).execute(),
+    );
+    const inconsistentTerminalError = await captureDatabaseError(
+      database
+        .update(inventoryReservations)
+        .set({ status: "converted", stripeSessionId: "cs_invalid_terminal" })
+        .execute(),
+    );
 
     expect(getDatabaseErrorCode(inventoryError)).toBe("23514");
     expect(getDatabaseErrorCode(deleteError)).toBe("23503");
+    expect(getDatabaseErrorCode(missingSessionError)).toBe("23514");
+    expect(getDatabaseErrorCode(inconsistentTerminalError)).toBe("23514");
   });
 });
 
@@ -358,6 +374,14 @@ function paidCheckout(reservation: Awaited<ReturnType<typeof reserve>>, stripeSe
   };
 }
 
+function eventFor(reservation: Awaited<ReturnType<typeof reserve>>, stripeSessionId: string) {
+  return {
+    pendingCheckoutToken: reservation.pendingCheckoutToken,
+    reservationToken: reservation.reservationToken,
+    stripeSessionId,
+  };
+}
+
 async function variantStock(database: Database, id: string) {
   return database.query.productVariants.findFirst({
     columns: { inventoryQty: true, reservedQty: true },
@@ -422,7 +446,28 @@ const postgresTestSchema = [
     reconcile_attempt_count integer not null default 0,
     last_reconcile_error_code text,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    constraint inventory_reservations_terminal_state_consistent check (
+      (
+        status = 'converted'
+        and converted_at is not null
+        and released_at is null
+        and release_reason is null
+      ) or (
+        status = 'released'
+        and converted_at is null
+        and released_at is not null
+        and release_reason is not null
+      ) or (
+        status in ('provisioning', 'active', 'awaiting_payment')
+        and converted_at is null
+        and released_at is null
+        and release_reason is null
+      )
+    ),
+    constraint inventory_reservations_linked_state_has_session check (
+      status not in ('active', 'awaiting_payment', 'converted') or stripe_session_id is not null
+    )
   )`,
   `create table inventory_reservation_items (
     id uuid primary key default gen_random_uuid(),

@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 
-import { toCheckoutRequest } from "@/lib/cart/selectors";
+import { getCheckoutCartFingerprint, toCheckoutRequest } from "@/lib/cart/selectors";
 import type { CartDisplayLine } from "@/lib/cart/types";
 
 class MemoryStorage implements Storage {
@@ -120,5 +120,14 @@ describe("cart store", () => {
       requestId: "request-123",
       items: [{ variantId: deck.variantId, quantity: 2 }],
     });
+  });
+
+  test("uses one checkout request identity for equivalent reordered carts", () => {
+    expect(getCheckoutCartFingerprint([deck, bearings])).toBe(
+      getCheckoutCartFingerprint([bearings, deck]),
+    );
+    expect(getCheckoutCartFingerprint([deck, bearings])).not.toBe(
+      getCheckoutCartFingerprint([{ ...deck, quantity: 2 }, bearings]),
+    );
   });
 });

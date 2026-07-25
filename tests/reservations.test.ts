@@ -319,6 +319,31 @@ describe("reservation reconciliation", () => {
     expect(errors).toHaveLength(2);
   });
 
+  test("compensates a definitive create failure inside Stripe's retention window", async () => {
+    const transitions: string[] = [];
+    const claim = makeClaim();
+
+    const result = await reconcileInventoryReservations(
+      {
+        repository: makeRepository(claim, transitions),
+        sessions: {
+          create: async () => {
+            throw { type: "StripeInvalidRequestError" };
+          },
+          retrieve: async () => {
+            throw new Error("Unexpected retrieve.");
+          },
+        },
+        handlePaidSession: async () => {},
+        reportError: () => {},
+      },
+      { now },
+    );
+
+    expect(result).toMatchObject({ released: 1, failed: 0 });
+    expect(transitions).toEqual(["released:none:stripe_session_creation_failed"]);
+  });
+
   test("does not compensate a create error after Stripe may have pruned the idempotency key", async () => {
     const transitions: string[] = [];
     const claim = makeClaim({

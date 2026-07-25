@@ -56,7 +56,11 @@ export function createReservationEventRepository(database: Database): Reservatio
         }
 
         if (reservation.status === "released" || reservation.status === "converted") {
-          throw new PaidOrderError("Reservation is already terminal.");
+          if (reservation.stripeSessionId !== session.stripeSessionId) {
+            throw new PaidOrderError("Terminal reservation does not match the Stripe Session.");
+          }
+
+          return { changed: false };
         }
 
         await tx

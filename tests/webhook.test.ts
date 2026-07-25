@@ -301,9 +301,9 @@ describe("Stripe event processing", () => {
       },
     };
 
-    for (const type of [
-      "checkout.session.expired",
-      "checkout.session.async_payment_failed",
+    for (const [type, reservationChanged] of [
+      ["checkout.session.expired", true],
+      ["checkout.session.async_payment_failed", false],
     ] as const) {
       expect(
         await processStripeEvent(
@@ -312,13 +312,30 @@ describe("Stripe event processing", () => {
           undefined,
           reservationWriter,
         ),
-      ).toMatchObject({ handled: true });
+      ).toEqual({ handled: true, reservationChanged });
     }
 
     expect(releases).toEqual([
       "stripe_session_expired:reservation_abcDEF123456",
       "async_payment_failed:reservation_abcDEF123456",
     ]);
+  });
+
+  test("ignores reservation lifecycle events without reservation metadata", async () => {
+    expect(
+      await processStripeEvent(
+        {
+          type: "checkout.session.expired",
+          data: { object: makeCheckoutSession({ metadata: null, payment_status: "unpaid" }) },
+        },
+        unusedPaidOrderWriter,
+        undefined,
+        {
+          markAwaitingPayment: async () => ({ changed: true }),
+          releaseReservation: async () => ({ changed: true }),
+        },
+      ),
+    ).toEqual({ handled: false });
   });
 
   test("passes a paid Session to persistence and reports idempotent results", async () => {
