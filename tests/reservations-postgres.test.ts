@@ -283,16 +283,36 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     await insertVariant(database, variantId, 1);
     await reserve(checkoutRepository, variantId, "10000000-0000-4000-8000-000000000008");
 
-    await expect(
+    const inventoryError = await captureDatabaseError(
       database.update(productVariants).set({ inventoryQty: 0 }).execute(),
-    ).rejects.toMatchObject({
-      code: "23514",
-    });
-    await expect(database.delete(productVariants).execute()).rejects.toMatchObject({
-      code: "23503",
-    });
+    );
+    const deleteError = await captureDatabaseError(database.delete(productVariants).execute());
+
+    expect(getDatabaseErrorCode(inventoryError)).toBe("23514");
+    expect(getDatabaseErrorCode(deleteError)).toBe("23503");
   });
 });
+
+async function captureDatabaseError(operation: Promise<unknown>): Promise<unknown> {
+  try {
+    await operation;
+    return null;
+  } catch (error) {
+    return error;
+  }
+}
+
+function getDatabaseErrorCode(error: unknown): string | null {
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+
+  if ("code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+
+  return "cause" in error ? getDatabaseErrorCode(error.cause) : null;
+}
 
 async function insertVariant(database: Database, id: string, inventoryQty: number): Promise<void> {
   await database.insert(productVariants).values({
