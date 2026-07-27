@@ -54,6 +54,9 @@ transition.
 - [ ] The home page and `/products` render without console or hydration errors.
 - [ ] Product images load and remain centered at mobile and desktop widths.
 - [ ] Search, category filters, sort, and pagination update the URL.
+- [ ] Category filters are limited to Hardgoods, Softgoods, and Accessories.
+- [ ] Legacy `decks` and `apparel` category URLs redirect to their canonical replacements while
+      retaining search, sort, and page state.
 - [ ] Browser Back and Forward restore catalog state.
 - [ ] A product page shows the correct variants, prices, and availability.
 - [ ] An unknown product slug returns the custom not-found page.

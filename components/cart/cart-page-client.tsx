@@ -17,7 +17,7 @@ export function CartPageClient() {
     return (
       <EmptyState
         title="Your cart is empty"
-        description="Add a deck, apparel, or accessories before heading to checkout."
+        description="Add hardgoods, softgoods, or accessories before heading to checkout."
         href="/products"
         action="Continue shopping"
       />

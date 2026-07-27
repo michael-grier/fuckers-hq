@@ -5,6 +5,7 @@ import { ProductStatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatAdminDate } from "@/lib/admin/format";
 import { getAdminProducts } from "@/lib/admin/queries";
+import { getProductCategoryLabel, isProductCategory } from "@/lib/catalog/categories";
 import { formatMoney } from "@/lib/money";
 
 export default async function AdminProductsPage() {
@@ -56,13 +57,16 @@ export default async function AdminProductsPage() {
                   (total, variant) => total + variant.reservedQty,
                   0,
                 );
+                const categoryLabel = isProductCategory(product.category ?? "")
+                  ? getProductCategoryLabel(product.category)
+                  : (product.category ?? "Uncategorized");
 
                 return (
                   <tr key={product.id}>
                     <td className="px-4 py-4 align-top">
                       <p className="font-semibold">{product.name}</p>
                       <p className="mt-1 text-muted-foreground text-xs">
-                        {product.category ?? "Uncategorized"} · /{product.slug}
+                        {categoryLabel} · /{product.slug}
                       </p>
                     </td>
                     <td className="px-4 py-4 align-top">

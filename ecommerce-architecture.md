@@ -54,7 +54,7 @@ export const products = pgTable("products", {
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
   description: text("description"),
-  category: text("category"),                 // "decks" | "apparel" | "accessories"
+  category: text("category"),                 // "hardgoods" | "softgoods" | "accessories"
   status: productStatus("status").notNull().default("draft"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

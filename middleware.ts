@@ -1,4 +1,7 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
+
+import { getCanonicalCatalogCategoryUrl } from "@/lib/catalog/categories";
 
 function isAdminRoute(pathname: string): boolean {
   return pathname === "/admin" || pathname.startsWith("/admin/");
@@ -6,6 +9,14 @@ function isAdminRoute(pathname: string): boolean {
 
 export default clerkMiddleware(
   async (auth, request) => {
+    if (request.nextUrl.pathname === "/products") {
+      const canonicalUrl = getCanonicalCatalogCategoryUrl(request.nextUrl);
+
+      if (canonicalUrl) {
+        return NextResponse.redirect(canonicalUrl);
+      }
+    }
+
     if (isAdminRoute(request.nextUrl.pathname)) {
       await auth.protect();
     }

@@ -8,7 +8,7 @@ const matchingProducts = Array.from({ length: 13 }, (_, index) => ({
   slug: `deck-${index + 1}`,
   name: `Deck ${String(index + 1).padStart(2, "0")}`,
   description: "A catalog deck",
-  category: "Decks",
+  category: "hardgoods",
   status: "active" as const,
   createdAt: new Date(`2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`),
   updatedAt: new Date("2026-07-22T00:00:00.000Z"),
@@ -56,9 +56,9 @@ const { catalogSearchParamsCache } = await import("@/lib/catalog/search-params")
 
 const retainedFilters = {
   q: "deck",
-  category: "Decks",
+  category: "hardgoods",
   sort: "name-asc" as const,
-};
+} as const;
 
 function renderPagination(currentPage: number, totalPages: number): string {
   return renderToStaticMarkup(
@@ -80,7 +80,7 @@ describe("catalog pagination", () => {
     expect(catalog.totalPages).toBe(2);
     expect(markup).toContain("Page 1 of 2");
     expect(markup).toContain(
-      'href="/products?q=deck&amp;category=Decks&amp;sort=name-asc&amp;page=2"',
+      'href="/products?q=deck&amp;category=hardgoods&amp;sort=name-asc&amp;page=2"',
     );
     expect(markup).toContain('aria-label="Go to catalog page 2"');
     expect(markup).toContain('aria-disabled="true" disabled=""');
@@ -95,7 +95,7 @@ describe("catalog pagination", () => {
     expect(catalog.products).toHaveLength(1);
     expect(markup).toContain("Page 2 of 2");
     expect(markup).toContain(
-      'href="/products?q=deck&amp;category=Decks&amp;sort=name-asc&amp;page=1"',
+      'href="/products?q=deck&amp;category=hardgoods&amp;sort=name-asc&amp;page=1"',
     );
     expect(markup).toContain('aria-label="Go to catalog page 1"');
     expect(markup).toContain('aria-disabled="true" disabled=""');
@@ -104,7 +104,7 @@ describe("catalog pagination", () => {
 
   test("falls back from an invalid page parameter and omits single-page navigation", async () => {
     const parsed = await catalogSearchParamsCache.parse({ page: "not-a-page" });
-    const catalog = await getCatalogPage({ ...parsed, q: "Deck 01", category: "Decks" });
+    const catalog = await getCatalogPage({ ...parsed, q: "Deck 01", category: "hardgoods" });
 
     expect(parsed.page).toBe(1);
     expect(catalog.page).toBe(1);

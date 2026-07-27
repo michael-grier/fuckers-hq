@@ -6,12 +6,18 @@ import { useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  getProductCategoryLabel,
+  type ProductCategory,
+  productCategoryValues,
+} from "@/lib/catalog/categories";
 import { type CatalogSort, catalogSortValues } from "@/lib/catalog/search-params";
 
 const catalogSortParserValues = [...catalogSortValues];
+const catalogCategoryParserValues = [...productCategoryValues];
 
 type CatalogFiltersProps = {
-  categories: string[];
+  categories: ProductCategory[];
   totalProducts: number;
 };
 
@@ -23,7 +29,9 @@ export function CatalogFilters({ categories, totalProducts }: CatalogFiltersProp
   );
   const [category, setCategory] = useQueryState(
     "category",
-    parseAsString.withDefault("").withOptions({ startTransition }),
+    parseAsStringEnum<ProductCategory>(catalogCategoryParserValues).withOptions({
+      startTransition,
+    }),
   );
   const [sort, setSort] = useQueryState(
     "sort",
@@ -87,7 +95,7 @@ export function CatalogFilters({ categories, totalProducts }: CatalogFiltersProp
       <div className="flex flex-wrap gap-2">
         <Button
           onClick={async () => {
-            await setCategory("");
+            await setCategory(null);
             await resetPage();
           }}
           size="sm"
@@ -107,7 +115,7 @@ export function CatalogFilters({ categories, totalProducts }: CatalogFiltersProp
             type="button"
             variant={category === item ? "default" : "outline"}
           >
-            {item}
+            {getProductCategoryLabel(item)}
           </Button>
         ))}
       </div>

@@ -4,13 +4,14 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getProductCategoryLabel } from "@/lib/catalog/categories";
 import { getFeaturedProducts } from "@/lib/catalog/queries";
 import { formatMoney } from "@/lib/money";
 
 const fallbackProducts = [
-  { name: "Street Deck 8.25", category: "Decks", price: "$89.00" },
-  { name: "Canvas Coach Jacket", category: "Apparel", price: "$128.00" },
-  { name: "Precision Bearings", category: "Accessories", price: "$34.00" },
+  { name: "Street Deck 8.25", category: "Hardgoods", price: "$89.00" },
+  { name: "Canvas Coach Jacket", category: "Softgoods", price: "$128.00" },
+  { name: "Precision Bearings", category: "Hardgoods", price: "$34.00" },
 ];
 
 type HomeDisplayProduct = {
@@ -27,7 +28,7 @@ export default async function HomePage() {
     featuredProducts.length > 0
       ? featuredProducts.map((product) => ({
           name: product.name,
-          category: product.category ?? "Skate goods",
+          category: getProductCategoryLabel(product.category),
           price:
             product.minPriceCents == null
               ? "Price unavailable"

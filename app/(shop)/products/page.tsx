@@ -27,7 +27,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <div className="space-y-2">
             <h1 className="font-black text-5xl tracking-normal">Shop All</h1>
             <p className="max-w-2xl text-muted-foreground">
-              Decks, apparel, and accessories with inventory managed directly from Postgres.
+              Hardgoods, softgoods, and accessories with inventory managed directly from Postgres.
             </p>
           </div>
           <Button variant="outline">Filters</Button>

@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { getProductCategoryLabel } from "@/lib/catalog/categories";
 import type { CatalogProduct } from "@/lib/catalog/queries";
 
 import { Price } from "./price";
@@ -43,7 +44,7 @@ export function ProductCard({ product }: ProductCardProps) {
         <div className="min-w-0 space-y-1">
           <h2 className="truncate font-black text-2xl tracking-normal">{product.name}</h2>
           <p className="truncate text-muted-foreground text-sm">
-            {product.category ?? "Skate goods"}
+            {getProductCategoryLabel(product.category)}
           </p>
           <p className="font-bold">
             <Price cents={product.minPriceCents} maxCents={product.maxPriceCents} />
