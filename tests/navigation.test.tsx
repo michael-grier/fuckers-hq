@@ -15,6 +15,7 @@ describe("storefront navigation", () => {
 
     expect(markup).toContain('aria-label="Primary navigation"');
     expect(markup).toContain("group-hover:visible");
+    expect(markup).toContain("group-focus-within:visible");
     expect(markup).toContain('aria-label="Shop categories"');
     expect(markup).toContain('href="/crew">Crew</a>');
     expect(markup).toContain('href="/videos">Videos</a>');
@@ -54,6 +55,10 @@ describe("storefront navigation", () => {
     expect(openMarkup).toContain('aria-expanded="true"');
     expect(openMarkup).toContain('id="mobile-shop-links"');
     expect(openMarkup).not.toContain('hidden="" id="mobile-shop-links"');
+    expect(openMarkup).toContain('href="/products">Shop All</a>');
+    expect(openMarkup).toContain('href="/products?category=hardgoods">Hardgoods</a>');
+    expect(openMarkup).toContain('href="/products?category=softgoods">Softgoods</a>');
+    expect(openMarkup).toContain('href="/products?category=accessories">Accessories</a>');
     expect(openMarkup).toContain('href="/crew">Crew</a>');
     expect(openMarkup).toContain('href="/videos">Videos</a>');
   });
