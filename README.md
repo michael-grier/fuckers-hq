@@ -46,7 +46,15 @@ guest checkout, server-authoritative pricing, and a small maintainable admin sur
    cp .env.example .env.local
    ```
 
-3. Start the app:
+3. Apply the committed migrations to the local or development database:
+
+   ```bash
+   bun run db:migrate
+   ```
+
+   Review the migration notes below before updating any shared or deployed database.
+
+4. Start the app:
 
    ```bash
    bun run dev
@@ -56,7 +64,7 @@ guest checkout, server-authoritative pricing, and a small maintainable admin sur
    free-shipping threshold, allowed countries, and app URL values documented in `.env.example`.
    Keep `STRIPE_TAX_ENABLED=false` until Stripe Tax is configured, then enable it for production.
 
-4. Run checks:
+5. Run checks:
 
    ```bash
    bun run lint
