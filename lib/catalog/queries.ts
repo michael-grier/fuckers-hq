@@ -2,7 +2,6 @@ import "server-only";
 
 import { asc } from "drizzle-orm";
 
-import { type ProductCategory, productCategoryValues } from "@/lib/catalog/categories";
 import { getDb } from "@/lib/db/client";
 import { env } from "@/lib/env";
 
@@ -42,7 +41,6 @@ export type CatalogProduct = {
 
 export type CatalogPageResult = {
   products: CatalogProduct[];
-  categories: ProductCategory[];
   page: number;
   pageSize: number;
   totalPages: number;
@@ -121,7 +119,6 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
   if (!canQueryDatabase()) {
     return {
       products: [],
-      categories: [...productCategoryValues],
       page: 1,
       pageSize: PAGE_SIZE,
       totalPages: 1,
@@ -151,7 +148,6 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
 
   return {
     products: sorted.slice(start, start + PAGE_SIZE),
-    categories: [...productCategoryValues],
     page,
     pageSize: PAGE_SIZE,
     totalPages,

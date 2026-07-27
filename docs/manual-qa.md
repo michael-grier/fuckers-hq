@@ -58,8 +58,8 @@ transition.
       returns focus to its trigger when dismissed with Escape.
 - [ ] Crew and Videos are reachable from desktop and mobile navigation.
 - [ ] Product images load and remain centered at mobile and desktop widths.
-- [ ] Search, category filters, sort, and pagination update the URL.
-- [ ] Category filters are limited to Hardgoods, Softgoods, and Accessories.
+- [ ] Search and sort refresh the catalog, update the URL, and reset pagination to page one.
+- [ ] Shop navigation category links are limited to Hardgoods, Softgoods, and Accessories.
 - [ ] Legacy `decks` and `apparel` category URLs redirect to their canonical replacements while
       retaining search, sort, and page state.
 - [ ] Browser Back and Forward restore catalog state.

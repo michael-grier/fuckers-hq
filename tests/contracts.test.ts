@@ -6,7 +6,11 @@ import {
   getLegacyProductCategoryAlias,
   getProductCategoryLabel,
 } from "@/lib/catalog/categories";
-import { catalogSearchParamsCache } from "@/lib/catalog/search-params";
+import {
+  catalogFilterUrlOptions,
+  catalogSearchParamsCache,
+  withFirstCatalogPage,
+} from "@/lib/catalog/search-params";
 import { parseEnv } from "@/lib/env";
 import { centsToDollars, dollarsToCents } from "@/lib/money";
 import { makeOrderNumber } from "@/lib/orders/order-number";
@@ -203,6 +207,17 @@ describe("catalog category contract", () => {
         new URL("https://example.com/products?q=street+deck&category=decks&sort=name-asc&page=2"),
       )?.toString(),
     ).toBe("https://example.com/products?q=street+deck&category=hardgoods&sort=name-asc&page=2");
+  });
+});
+
+describe("catalog filter URL contract", () => {
+  test("notifies the server and resets pagination with each control update", () => {
+    expect(catalogFilterUrlOptions).toEqual({ shallow: false });
+    expect(withFirstCatalogPage({ q: "shirt" })).toEqual({ q: "shirt", page: 1 });
+    expect(withFirstCatalogPage({ sort: "price-asc" })).toEqual({
+      sort: "price-asc",
+      page: 1,
+    });
   });
 });
 

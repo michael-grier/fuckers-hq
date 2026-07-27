@@ -24,3 +24,13 @@ export const catalogSearchParamsCache = createSearchParamsCache(catalogSearchPar
 
 export type CatalogSearchParams =
   ReturnType<typeof catalogSearchParamsCache.parse> extends Promise<infer T> ? T : never;
+
+// Catalog results are rendered by a Server Component, so client URL updates must trigger a
+// server navigation instead of nuqs' default shallow update.
+export const catalogFilterUrlOptions = { shallow: false } as const;
+
+export function withFirstCatalogPage<T extends Partial<Pick<CatalogSearchParams, "q" | "sort">>>(
+  update: T,
+): T & { page: 1 } {
+  return { ...update, page: 1 };
+}
