@@ -53,5 +53,7 @@ test("renders Add to cart as an enabled, clickable button", () => {
 test("keeps the quantity control and Add to cart button within separate desktop columns", () => {
   const markup = renderToStaticMarkup(<VariantPicker product={product} />);
 
-  expect(markup).toContain("sm:grid-cols-[auto_minmax(0,1fr)]");
+  expect(markup).toContain(
+    'class="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center"',
+  );
 });
