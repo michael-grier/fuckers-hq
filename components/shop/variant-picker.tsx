@@ -63,7 +63,7 @@ export function VariantPicker({ product }: VariantPickerProps) {
           </div>
         </div>
       ) : null}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
         <QuantityControl max={maxQuantity} onChange={setQuantity} value={quantity} />
         {selectedVariant ? (
           <AddToCartButton
