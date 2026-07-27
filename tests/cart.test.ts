@@ -68,7 +68,7 @@ const bearings: CartDisplayLine = {
 };
 
 beforeEach(() => {
-  useCartStore.setState({ lines: [] });
+  useCartStore.setState({ isCartOpen: false, lines: [] });
   storage.clear();
 });
 
@@ -85,6 +85,15 @@ describe("cart store", () => {
         quantity: 99,
       },
     ]);
+    expect(useCartStore.getState().isCartOpen).toBe(true);
+  });
+
+  test("controls the sidebar without persisting its open state", () => {
+    useCartStore.getState().addLine(deck);
+    useCartStore.getState().setCartOpen(false);
+
+    expect(useCartStore.getState().isCartOpen).toBe(false);
+    expect(storage.getItem("skate-shop-cart")).not.toContain("isCartOpen");
   });
 
   test("updates quantities, removes lines, and clears the cart", () => {
@@ -106,11 +115,12 @@ describe("cart store", () => {
     const persistedCart = storage.getItem("skate-shop-cart");
     expect(persistedCart).not.toBeNull();
 
-    useCartStore.setState({ lines: [] });
+    useCartStore.setState({ isCartOpen: false, lines: [] });
     storage.setItem("skate-shop-cart", persistedCart ?? "");
     await useCartStore.persist.rehydrate();
 
     expect(useCartStore.getState().lines).toEqual([deck, bearings]);
+    expect(useCartStore.getState().isCartOpen).toBe(false);
   });
 
   test("builds checkout intent without display snapshot fields", () => {
