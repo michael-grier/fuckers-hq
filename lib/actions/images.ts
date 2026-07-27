@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
+import { deleteProductImageRecord } from "@/lib/admin/product-image-repository";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidateProduct } from "@/lib/catalog/cache";
 import { getDb } from "@/lib/db/client";
@@ -176,20 +177,7 @@ export async function deleteProductImage(input: unknown): Promise<ActionResult> 
   }
 
   const db = getDb();
-  const [image] = await db
-    .select({
-      slug: products.slug,
-      url: productImages.url,
-    })
-    .from(productImages)
-    .innerJoin(products, eq(products.id, productImages.productId))
-    .where(
-      and(
-        eq(productImages.id, parsed.data.imageId),
-        eq(productImages.productId, parsed.data.productId),
-      ),
-    )
-    .limit(1);
+  const image = await deleteProductImageRecord(db, parsed.data.productId, parsed.data.imageId);
 
   if (!image) {
     return {
@@ -197,15 +185,6 @@ export async function deleteProductImage(input: unknown): Promise<ActionResult> 
       message: "Product image not found.",
     };
   }
-
-  await db
-    .delete(productImages)
-    .where(
-      and(
-        eq(productImages.id, parsed.data.imageId),
-        eq(productImages.productId, parsed.data.productId),
-      ),
-    );
 
   const objectKey = env.R2_PUBLIC_URL
     ? getR2ObjectKeyFromPublicUrl(env.R2_PUBLIC_URL, image.url)
