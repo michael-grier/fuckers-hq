@@ -8,6 +8,8 @@ import type { AddCartLineInput, CartDisplayLine } from "./types";
 
 type CartState = {
   lines: CartDisplayLine[];
+  isCartOpen: boolean;
+  setCartOpen: (open: boolean) => void;
   addLine: (line: AddCartLineInput) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeLine: (variantId: string) => void;
@@ -22,6 +24,8 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       lines: [],
+      isCartOpen: false,
+      setCartOpen: (open) => set({ isCartOpen: open }),
       addLine: (line) => {
         const quantity = clampQuantity(line.quantity ?? 1);
 
@@ -30,6 +34,7 @@ export const useCartStore = create<CartState>()(
 
           if (existingLine) {
             return {
+              isCartOpen: true,
               lines: state.lines.map((item) =>
                 item.variantId === line.variantId
                   ? {
@@ -46,6 +51,7 @@ export const useCartStore = create<CartState>()(
           }
 
           return {
+            isCartOpen: true,
             lines: [
               ...state.lines,
               {

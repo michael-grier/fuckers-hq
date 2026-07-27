@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.940.0",
     "@clerk/nextjs": "^6.35.0",
     "@hookform/resolvers": "^5.2.0",
+    "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-slot": "^1.2.0",
     "@react-email/components": "^0.5.0",
     "@sentry/nextjs": "^10.30.0",

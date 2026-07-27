@@ -68,10 +68,19 @@ transition.
 
 ## 4. Cart
 
-- [ ] Adding a variant updates the header count and cart subtotal.
+- [ ] The header cart button opens a right-side cart without changing the current URL.
+- [ ] Adding a variant updates the header count and subtotal and automatically opens the cart.
 - [ ] Adding the same variant again merges its quantity instead of creating another line.
-- [ ] Quantity controls update totals and respect their limits.
-- [ ] Removing a line and clearing the cart update the header count.
+- [ ] Keyboard focus moves into the open cart, remains trapped there, and returns to the invoking
+      header or Add to cart button after closing.
+- [ ] Escape, the close button, the overlay, and Continue shopping close the cart without
+      navigating, and the page behind it does not scroll while open.
+- [ ] Quantity controls have product-specific accessible names, update totals, and respect limits.
+- [ ] Removing a line and clearing the cart update the header count and show the empty state.
+- [ ] A long cart scrolls its item list while keeping the summary and actions reachable.
+- [ ] View cart closes the sidebar and navigates to the full `/cart` page.
+- [ ] At phone widths the cart occupies the viewport width; at tablet and desktop widths it is
+      capped and leaves the overlay visible.
 - [ ] Reloading the page preserves the cart.
 - [ ] Cancelling hosted Checkout returns to `/cart` without clearing purchase intent.
 - [ ] Completing a paid Checkout clears the cart on the success page.

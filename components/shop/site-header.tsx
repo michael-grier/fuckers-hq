@@ -1,12 +1,12 @@
 "use client";
 
 import { Menu, Search, ShoppingCart, X } from "lucide-react";
-import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { DesktopNavigation, MobileNavigation } from "@/components/shop/site-navigation";
 import { Button } from "@/components/ui/button";
+import { SheetTrigger } from "@/components/ui/sheet";
 import { getCartItemCount } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 
@@ -83,20 +83,21 @@ export function SiteHeader() {
               <span className="sr-only">Search products</span>
             </Link>
           </Button>
-          <Button
-            asChild
-            className="relative text-white hover:bg-white/10"
-            size="icon"
-            variant="ghost"
-          >
-            <Link href={"/cart" as Route} onClick={closeMobileNavigation}>
+          <SheetTrigger asChild>
+            <Button
+              className="relative text-white hover:bg-white/10"
+              onClick={closeMobileNavigation}
+              size="icon"
+              type="button"
+              variant="ghost"
+            >
               <ShoppingCart aria-hidden="true" />
               <span className="sr-only">Cart</span>
               <span className="absolute -top-1 -right-1 grid min-h-5 min-w-5 place-items-center rounded-full bg-accent px-1 font-black text-[11px] text-accent-foreground">
                 {itemCount}
               </span>
-            </Link>
-          </Button>
+            </Button>
+          </SheetTrigger>
         </div>
       </div>
       <MobileNavigation
