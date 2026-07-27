@@ -4,6 +4,7 @@ import { Menu, Search, ShoppingCart } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 
+import { DesktopNavigation } from "@/components/shop/site-navigation";
 import { Button } from "@/components/ui/button";
 import { getCartItemCount } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
@@ -23,29 +24,7 @@ export function SiteHeader() {
             Skate Shop
           </Link>
         </div>
-        <nav className="hidden items-center gap-7 font-semibold text-sm md:flex">
-          <Link className="text-white/80 transition hover:text-white" href="/products">
-            Products
-          </Link>
-          <Link
-            className="text-white/80 transition hover:text-white"
-            href="/products?category=decks"
-          >
-            Decks
-          </Link>
-          <Link
-            className="text-white/80 transition hover:text-white"
-            href="/products?category=apparel"
-          >
-            Apparel
-          </Link>
-          <Link
-            className="text-white/80 transition hover:text-white"
-            href="/products?category=accessories"
-          >
-            Accessories
-          </Link>
-        </nav>
+        <DesktopNavigation />
         <div className="flex items-center gap-2">
           <Button asChild className="text-white hover:bg-white/10" size="icon" variant="ghost">
             <Link href="/products">
