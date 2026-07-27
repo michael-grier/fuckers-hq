@@ -64,7 +64,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-3 gap-3">
             {displayProducts.map((product) => (
               <div className="min-w-0 space-y-3" key={product.name}>
-                <div className="relative aspect-[4/5] overflow-hidden rounded-lg border border-white/10 bg-neutral-100">
+                <div className="relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-neutral-100">
                   {product.imageUrl ? (
                     <Image
                       alt={product.imageAlt ?? product.name}
