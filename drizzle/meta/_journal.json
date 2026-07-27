@@ -43,6 +43,13 @@
       "when": 1784952593582,
       "tag": "0005_daffy_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785128034876,
+      "tag": "0006_normalize-product-categories",
+      "breakpoints": true
     }
   ]
 }

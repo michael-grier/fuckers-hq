@@ -52,8 +52,16 @@ transition.
 ## 3. Storefront And Catalog
 
 - [ ] The home page and `/products` render without console or hydration errors.
+- [ ] Desktop Shop navigation opens on pointer hover and keyboard focus, and every category link
+      reaches the matching catalog.
+- [ ] Tablet and phone navigation opens and closes, expands Shop, closes after navigation, and
+      returns focus to its trigger when dismissed with Escape.
+- [ ] Crew and Videos are reachable from desktop and mobile navigation.
 - [ ] Product images load and remain centered at mobile and desktop widths.
-- [ ] Search, category filters, sort, and pagination update the URL.
+- [ ] Search and sort refresh the catalog, update the URL, and reset pagination to page one.
+- [ ] Shop navigation category links are limited to Hardgoods, Softgoods, and Accessories.
+- [ ] Legacy `decks` and `apparel` category URLs redirect to their canonical replacements while
+      retaining search, sort, and page state.
 - [ ] Browser Back and Forward restore catalog state.
 - [ ] A product page shows the correct variants, prices, and availability.
 - [ ] An unknown product slug returns the custom not-found page.

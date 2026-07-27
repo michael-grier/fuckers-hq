@@ -1,6 +1,17 @@
 import { describe, expect, test } from "bun:test";
 
 import { getCartItemCount, getCartSubtotalCents, toCheckoutRequest } from "@/lib/cart/selectors";
+import {
+  getCanonicalCatalogCategoryUrl,
+  getCatalogHeading,
+  getLegacyProductCategoryAlias,
+  getProductCategoryLabel,
+} from "@/lib/catalog/categories";
+import {
+  catalogFilterUrlOptions,
+  catalogSearchParamsCache,
+  withFirstCatalogPage,
+} from "@/lib/catalog/search-params";
 import { parseEnv } from "@/lib/env";
 import { centsToDollars, dollarsToCents } from "@/lib/money";
 import { makeOrderNumber } from "@/lib/orders/order-number";
@@ -146,14 +157,71 @@ describe("product validators", () => {
         slug: "street-deck",
         name: "Street Deck",
         description: null,
-        category: "decks",
+        category: "hardgoods",
         status: "active",
       }),
     ).toMatchObject({
       slug: "street-deck",
       name: "Street Deck",
-      category: "decks",
+      category: "hardgoods",
       status: "active",
+    });
+  });
+
+  test("rejects legacy and unknown category values", () => {
+    for (const category of ["decks", "apparel", "custom"]) {
+      expect(
+        productInsertSchema.safeParse({
+          slug: "category-test",
+          name: "Category Test",
+          description: null,
+          category,
+          status: "draft",
+        }).success,
+      ).toBe(false);
+    }
+  });
+});
+
+describe("catalog category contract", () => {
+  test("uses canonical labels and recognizes only supported legacy redirects", () => {
+    expect(getCatalogHeading(null)).toBe("Shop All");
+    expect(getCatalogHeading("hardgoods")).toBe("Hardgoods");
+    expect(getCatalogHeading("softgoods")).toBe("Softgoods");
+    expect(getCatalogHeading("accessories")).toBe("Accessories");
+    expect(getProductCategoryLabel("hardgoods")).toBe("Hardgoods");
+    expect(getProductCategoryLabel("softgoods")).toBe("Softgoods");
+    expect(getProductCategoryLabel("accessories")).toBe("Accessories");
+    expect(getProductCategoryLabel("decks")).toBe("Uncategorized");
+    expect(getLegacyProductCategoryAlias(" Decks ")).toBe("hardgoods");
+    expect(getLegacyProductCategoryAlias("apparel")).toBe("softgoods");
+    expect(getLegacyProductCategoryAlias("accessories")).toBeNull();
+  });
+
+  test("canonicalizes a legacy category while preserving the other catalog state", async () => {
+    const parsed = await catalogSearchParamsCache.parse({
+      q: "street deck",
+      category: "decks",
+      sort: "name-asc",
+      page: "2",
+    });
+
+    expect(parsed.category).toBeNull();
+    expect(
+      getCanonicalCatalogCategoryUrl(
+        new URL("https://example.com/products?q=street+deck&category=decks&sort=name-asc&page=2"),
+      )?.toString(),
+    ).toBe("https://example.com/products?q=street+deck&category=hardgoods&sort=name-asc&page=2");
+  });
+});
+
+describe("catalog filter URL contract", () => {
+  test("notifies the server and resets pagination with each control update", () => {
+    expect(catalogFilterUrlOptions).toEqual({ shallow: false });
+    expect(withFirstCatalogPage({ q: "shirt" })).toEqual({ q: "shirt", page: 1 });
+    expect(withFirstCatalogPage({ sort: "price-asc" })).toEqual({
+      sort: "price-asc",
+      page: 1,
     });
   });
 });

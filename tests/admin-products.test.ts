@@ -16,7 +16,7 @@ describe("admin product form contract", () => {
       name: "Street Deck",
       slug: "street-deck",
       description: "  ",
-      category: " Decks ",
+      category: " hardgoods ",
       status: "draft",
     });
 
@@ -24,7 +24,7 @@ describe("admin product form contract", () => {
       name: "Street Deck",
       slug: "street-deck",
       description: null,
-      category: "Decks",
+      category: "hardgoods",
       status: "draft",
     });
   });
@@ -35,7 +35,7 @@ describe("admin product form contract", () => {
         name: "Street Deck",
         slug: "Street Deck",
         description: "",
-        category: "Decks",
+        category: "hardgoods",
         status: "active",
       }),
     ).toThrow();
@@ -45,11 +45,37 @@ describe("admin product form contract", () => {
         name: "Street Deck",
         slug: "street-deck",
         description: "",
-        category: "Decks",
+        category: "hardgoods",
         status: "active",
         clientPrice: 1,
       }),
     ).toThrow();
+  });
+
+  test("accepts only the three storefront product categories", () => {
+    for (const category of ["hardgoods", "softgoods", "accessories"] as const) {
+      expect(
+        adminProductFormSchema.parse({
+          name: "Category Test",
+          slug: `category-${category}`,
+          description: "",
+          category,
+          status: "draft",
+        }).category,
+      ).toBe(category);
+    }
+
+    for (const category of ["", "decks", "apparel", "custom"]) {
+      expect(
+        adminProductFormSchema.safeParse({
+          name: "Category Test",
+          slug: "category-test",
+          description: "",
+          category,
+          status: "draft",
+        }).success,
+      ).toBe(false);
+    }
   });
 });
 

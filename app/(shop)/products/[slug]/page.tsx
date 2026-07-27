@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ProductGallery } from "@/components/shop/product-gallery";
 import { VariantPicker } from "@/components/shop/variant-picker";
 import { Badge } from "@/components/ui/badge";
+import { getProductCategoryLabel } from "@/lib/catalog/categories";
 import { getProductBySlug } from "@/lib/catalog/queries";
 
 export const revalidate = 300;
@@ -43,7 +44,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <ProductGallery images={product.images} name={product.name} />
       <section className="space-y-8">
         <div className="space-y-4">
-          <Badge variant="outline">{product.category ?? "Skate goods"}</Badge>
+          <Badge variant="outline">{getProductCategoryLabel(product.category)}</Badge>
           <div className="space-y-3">
             <h1 className="font-black text-5xl tracking-normal">{product.name}</h1>
             {product.description ? (

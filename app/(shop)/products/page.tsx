@@ -3,7 +3,7 @@ import type { SearchParams } from "nuqs/server";
 import { CatalogFilters } from "@/components/shop/catalog-filters";
 import { CatalogPagination } from "@/components/shop/catalog-pagination";
 import { ProductGrid } from "@/components/shop/product-grid";
-import { Button } from "@/components/ui/button";
+import { getCatalogHeading } from "@/lib/catalog/categories";
 import { getCatalogPage } from "@/lib/catalog/queries";
 import { catalogSearchParamsCache } from "@/lib/catalog/search-params";
 
@@ -23,17 +23,16 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <p className="font-semibold text-muted-foreground text-sm uppercase tracking-wide">
           Catalog
         </p>
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div className="space-y-2">
-            <h1 className="font-black text-5xl tracking-normal">Shop All</h1>
-            <p className="max-w-2xl text-muted-foreground">
-              Decks, apparel, and accessories with inventory managed directly from Postgres.
-            </p>
-          </div>
-          <Button variant="outline">Filters</Button>
+        <div className="space-y-2">
+          <h1 className="font-black text-5xl tracking-normal">
+            {getCatalogHeading(parsedSearchParams.category)}
+          </h1>
+          <p className="max-w-2xl text-muted-foreground">
+            Hardgoods, softgoods, and accessories with inventory managed directly from Postgres.
+          </p>
         </div>
       </header>
-      <CatalogFilters categories={catalog.categories} totalProducts={catalog.totalProducts} />
+      <CatalogFilters totalProducts={catalog.totalProducts} />
       <ProductGrid products={catalog.products} />
       <CatalogPagination
         currentPage={catalog.page}

@@ -8,7 +8,7 @@ const seedProducts = [
     slug: "street-deck-825",
     name: "Street Deck 8.25",
     description: "A balanced popsicle deck for street sessions and everyday park skating.",
-    category: "decks",
+    category: "hardgoods",
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/f4f4f5/18181b/png?text=Street+Deck",
@@ -23,7 +23,7 @@ const seedProducts = [
     slug: "canvas-coach-jacket",
     name: "Canvas Coach Jacket",
     description: "A midweight coach jacket with snap closure and a relaxed skate fit.",
-    category: "apparel",
+    category: "softgoods",
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/e7e5e4/18181b/png?text=Coach+Jacket",
@@ -39,7 +39,7 @@ const seedProducts = [
     slug: "precision-bearings",
     name: "Precision Bearings",
     description: "Fast, durable bearings for clean roll speed and easy maintenance.",
-    category: "accessories",
+    category: "hardgoods",
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/fafafa/18181b/png?text=Bearings",

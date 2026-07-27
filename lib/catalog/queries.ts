@@ -41,7 +41,6 @@ export type CatalogProduct = {
 
 export type CatalogPageResult = {
   products: CatalogProduct[];
-  categories: string[];
   page: number;
   pageSize: number;
   totalPages: number;
@@ -120,7 +119,6 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
   if (!canQueryDatabase()) {
     return {
       products: [],
-      categories: [],
       page: 1,
       pageSize: PAGE_SIZE,
       totalPages: 1,
@@ -129,18 +127,11 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
   }
 
   const query = params.q.trim().toLowerCase();
-  const category = params.category.trim().toLowerCase();
+  const category = params.category;
   const activeProducts = (await fetchActiveProducts()).map(toCatalogProduct);
-  const categories = Array.from(
-    new Set(
-      activeProducts
-        .map((product) => product.category)
-        .filter((category): category is string => Boolean(category)),
-    ),
-  ).sort();
 
   const filtered = activeProducts.filter((product) => {
-    const categoryMatches = !category || product.category?.toLowerCase() === category;
+    const categoryMatches = !category || product.category === category;
     const queryMatches =
       !query ||
       product.name.toLowerCase().includes(query) ||
@@ -157,7 +148,6 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
 
   return {
     products: sorted.slice(start, start + PAGE_SIZE),
-    categories,
     page,
     pageSize: PAGE_SIZE,
     totalPages,

@@ -11,7 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { archiveProduct, createProduct, updateProduct } from "@/lib/actions/products";
 import type { ActionFailure } from "@/lib/actions/result";
-import { type AdminProductFormInput, adminProductFormSchema } from "@/lib/validators/product";
+import { productCategories } from "@/lib/catalog/categories";
+import {
+  type AdminProductFormInput,
+  type AdminProductFormValues,
+  adminProductFormSchema,
+} from "@/lib/validators/product";
 
 type ProductFormProps = {
   defaultValues: AdminProductFormInput;
@@ -25,7 +30,7 @@ export function ProductForm({ defaultValues, productId }: ProductFormProps) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
-  const form = useForm<AdminProductFormInput>({
+  const form = useForm<AdminProductFormInput, unknown, AdminProductFormValues>({
     defaultValues,
     resolver: zodResolver(adminProductFormSchema),
   });
@@ -42,7 +47,7 @@ export function ProductForm({ defaultValues, productId }: ProductFormProps) {
     setActionError(result.message);
   }
 
-  async function onSubmit(values: AdminProductFormInput) {
+  async function onSubmit(values: AdminProductFormValues) {
     setActionError(null);
     setSuccessMessage(null);
 
@@ -128,13 +133,26 @@ export function ProductForm({ defaultValues, productId }: ProductFormProps) {
         </FormField>
 
         <FormField error={errors.category?.message} id="category" label="Category">
-          <Input
-            aria-describedby={errors.category ? "category-error" : undefined}
+          <select
+            aria-describedby={errors.category ? "category-error" : "category-help"}
             aria-invalid={Boolean(errors.category)}
+            className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             id="category"
-            placeholder="Decks"
             {...form.register("category")}
-          />
+          >
+            <option value="">Select a category</option>
+            {productCategories.map((category) => (
+              <option key={category.value} value={category.value}>
+                {category.label}
+              </option>
+            ))}
+          </select>
+          {!errors.category ? (
+            <p className="mt-1 text-muted-foreground text-xs" id="category-help">
+              Hardgoods are skate parts, Softgoods are clothing and wearables, and Accessories are
+              minor items such as stickers, patches, keychains, and buttons.
+            </p>
+          ) : null}
         </FormField>
 
         <FormField error={errors.status?.message} id="status" label="Status">

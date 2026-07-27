@@ -10,7 +10,7 @@ const product: CatalogProduct = {
   slug: "database-deck",
   name: "Database Deck",
   description: "A deck for testing",
-  category: "Decks",
+  category: "hardgoods",
   createdAt: new Date("2026-07-26T00:00:00.000Z"),
   updatedAt: new Date("2026-07-26T00:00:00.000Z"),
   variants: [
