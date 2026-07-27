@@ -29,6 +29,10 @@ export function getProductCategoryLabel(category: string | null): string {
   return productCategoryLabels.get(category) ?? "Uncategorized";
 }
 
+export function getCatalogHeading(category: ProductCategory | null): string {
+  return category ? getProductCategoryLabel(category) : "Shop All";
+}
+
 export function getLegacyProductCategoryAlias(value: unknown): ProductCategory | null {
   if (typeof value !== "string") {
     return null;

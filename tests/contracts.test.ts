@@ -3,6 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { getCartItemCount, getCartSubtotalCents, toCheckoutRequest } from "@/lib/cart/selectors";
 import {
   getCanonicalCatalogCategoryUrl,
+  getCatalogHeading,
   getLegacyProductCategoryAlias,
   getProductCategoryLabel,
 } from "@/lib/catalog/categories";
@@ -184,6 +185,10 @@ describe("product validators", () => {
 
 describe("catalog category contract", () => {
   test("uses canonical labels and recognizes only supported legacy redirects", () => {
+    expect(getCatalogHeading(null)).toBe("Shop All");
+    expect(getCatalogHeading("hardgoods")).toBe("Hardgoods");
+    expect(getCatalogHeading("softgoods")).toBe("Softgoods");
+    expect(getCatalogHeading("accessories")).toBe("Accessories");
     expect(getProductCategoryLabel("hardgoods")).toBe("Hardgoods");
     expect(getProductCategoryLabel("softgoods")).toBe("Softgoods");
     expect(getProductCategoryLabel("accessories")).toBe("Accessories");
