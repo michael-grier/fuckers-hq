@@ -1,6 +1,6 @@
-# Skate Shop — Architecture
+# Fuckers HQ — Architecture
 
-A custom e-commerce build optimized for **reliability without ongoing babysitting**, low operating cost, and portfolio value. Payments, tax, and the payment UI are offloaded to Stripe; everything customer-facing is guest checkout; the catalog and orders live in Postgres.
+The Fuckers HQ storefront is optimized for **reliability without ongoing babysitting**, low operating cost, and portfolio value. Payments, tax, and the payment UI are offloaded to Stripe; everything customer-facing is guest checkout; the catalog and orders live in Postgres.
 
 ---
 
@@ -89,7 +89,7 @@ export const pendingCheckouts = pgTable("pending_checkouts", {
 
 export const orders = pgTable("orders", {
   id: uuid("id").defaultRandom().primaryKey(),
-  orderNumber: text("order_number").notNull().unique(),     // human-readable, e.g. SK-1042
+  orderNumber: text("order_number").notNull().unique(),     // human-readable, e.g. FHQ-1042
   email: text("email").notNull(),
   status: orderStatus("status").notNull().default("pending"),
   stripeSessionId: text("stripe_session_id").notNull().unique(),  // <- idempotency key
@@ -193,7 +193,7 @@ export type CartLine = z.infer<typeof cartLineSchema>;
 
 **Cheap extra:** turn on Next's **typed routes** (`typedRoutes`) so `<Link href>` and router navigation are type-checked too — extends safety to the routing layer for ~zero cost.
 
-**Why not tRPC here:** its headline value (typed client calls without codegen) was built for the Pages-Router / client-fetching world. In the App Router, RSC covers reads and Server Actions cover writes, so tRPC overlaps with primitives you already have — and the genuine client→server call surface here is tiny (checkout, an optional stock check, admin actions). Adding it would be ceremony a sharp reviewer could read as over-engineering. It earns its place only with a *separate* client (React Native, an external API consumer), a large structured API surface, or a strong DX preference — none of which applies to one Next.js skate shop.
+**Why not tRPC here:** its headline value (typed client calls without codegen) was built for the Pages-Router / client-fetching world. In the App Router, RSC covers reads and Server Actions cover writes, so tRPC overlaps with primitives you already have — and the genuine client→server call surface here is tiny (checkout, an optional stock check, admin actions). Adding it would be ceremony a sharp reviewer could read as over-engineering. It earns its place only with a *separate* client (React Native, an external API consumer), a large structured API surface, or a strong DX preference — none of which applies to the Fuckers HQ storefront.
 
 ---
 

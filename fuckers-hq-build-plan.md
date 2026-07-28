@@ -1,12 +1,12 @@
-# Skate Shop - Codex Build Plan
+# Fuckers HQ - Codex Build Plan
 
-Source document: `ecommerce-architecture.md`
+Source document: `fuckers-hq-architecture.md`
 
 This plan turns the architecture into implementation handoffs for Codex agents. It is written so agents can work in sequence or in small parallel tracks without re-deciding the core architecture.
 
 ## Build Objective
 
-Build a production-ready custom e-commerce site for a low-volume skate shop using:
+Build the production-ready Fuckers HQ storefront using:
 
 - Next.js 15 App Router
 - Bun for local tooling and scripts
@@ -242,7 +242,7 @@ README.md
 ### Handoff Prompt
 
 ```text
-You are Agent 0 for the skate shop e-commerce build. Scaffold the Next.js 15 App Router project in this repository using Bun locally, Biome, Tailwind, and shadcn/ui. Preserve the architecture decisions in ecommerce-architecture.md and ecommerce-build-plan.md. Add .env.example, base route structure, typed routes if supported, a Zod env parser, and a concise README. Do not implement database, checkout, admin CRUD, or webhook logic yet. Verify with lint and build.
+You are Agent 0 for the Fuckers HQ build. Scaffold the Next.js 15 App Router project in this repository using Bun locally, Biome, Tailwind, and shadcn/ui. Preserve the architecture decisions in fuckers-hq-architecture.md and fuckers-hq-build-plan.md. Add .env.example, base route structure, typed routes if supported, a Zod env parser, and a concise README. Do not implement database, checkout, admin CRUD, or webhook logic yet. Verify with lint and build.
 ```
 
 ## Workstream 1 - Database, Schema, Migrations, Validation
@@ -403,7 +403,7 @@ checkoutSchema = z.object({ items: cartSchema });
 ### Handoff Prompt
 
 ```text
-You are Agent 1 for the skate shop e-commerce build. Implement the Drizzle/Neon data layer, migrations, seed script, and shared Zod validation schemas exactly from ecommerce-architecture.md and ecommerce-build-plan.md. Preserve integer cents, order snapshots, unique stripeSessionId idempotency, and product variant inventory. Add validator exports for products, variants, images, orders, and cart/checkout. Verify migration generation, migration application, seed execution, lint, and build.
+You are Agent 1 for the Fuckers HQ build. Implement the Drizzle/Neon data layer, migrations, seed script, and shared Zod validation schemas exactly from fuckers-hq-architecture.md and fuckers-hq-build-plan.md. Preserve integer cents, order snapshots, unique stripeSessionId idempotency, and product variant inventory. Add validator exports for products, variants, images, orders, and cart/checkout. Verify migration generation, migration application, seed execution, lint, and build.
 ```
 
 ## Workstream 2 - Shop Shell, UI System, And Layout
@@ -480,7 +480,7 @@ components/shop/
 ### Handoff Prompt
 
 ```text
-You are Agent 2 for the skate shop e-commerce build. Build the customer-facing shop shell, layout, reusable shop components, and route placeholders. Follow ecommerce-architecture.md and ecommerce-build-plan.md. Use shadcn/ui, Tailwind, and lucide-react. Make the app feel like a real shop immediately, not a marketing landing page. Do not implement checkout, webhook, admin, or database mutations. Verify responsive layout, lint, and build.
+You are Agent 2 for the Fuckers HQ build. Build the customer-facing shop shell, layout, reusable shop components, and route placeholders. Follow fuckers-hq-architecture.md and fuckers-hq-build-plan.md. Use shadcn/ui, Tailwind, and lucide-react. Make the app feel like a real shop immediately, not a marketing landing page. Do not implement checkout, webhook, admin, or database mutations. Verify responsive layout, lint, and build.
 ```
 
 ## Workstream 3 - Catalog Reads, ISR, Search Params, Product Detail
@@ -559,7 +559,7 @@ lib/catalog/
 ### Handoff Prompt
 
 ```text
-You are Agent 3 for the skate shop e-commerce build. Implement the public catalog and product detail pages using Drizzle reads, Server Components, ISR, and nuqs URL state. Only active products should be public. Add filters, sort, pagination, product metadata, and cache revalidation helpers for later admin mutations. Do not implement cart persistence, checkout, webhook, or admin writes. Verify seeded data rendering, 404 behavior, filter URLs, lint, and build.
+You are Agent 3 for the Fuckers HQ build. Implement the public catalog and product detail pages using Drizzle reads, Server Components, ISR, and nuqs URL state. Only active products should be public. Add filters, sort, pagination, product metadata, and cache revalidation helpers for later admin mutations. Do not implement cart persistence, checkout, webhook, or admin writes. Verify seeded data rendering, 404 behavior, filter URLs, lint, and build.
 ```
 
 ## Workstream 4 - Cart State And Cart UI
@@ -639,7 +639,7 @@ The checkout route will ignore client-side display prices and re-read prices fro
 ### Handoff Prompt
 
 ```text
-You are Agent 4 for the skate shop e-commerce build. Implement the Zustand persisted cart and cart UI. The cart may store display snapshots, but checkout must send only variantId and quantity as defined in ecommerce-build-plan.md. Integrate add-to-cart from product surfaces if available. Do not trust client prices. Do not implement Stripe session creation beyond calling /api/checkout from the checkout button. Verify cart persistence, item updates, checkout payload shape, lint, and build.
+You are Agent 4 for the Fuckers HQ build. Implement the Zustand persisted cart and cart UI. The cart may store display snapshots, but checkout must send only variantId and quantity as defined in fuckers-hq-build-plan.md. Integrate add-to-cart from product surfaces if available. Do not trust client prices. Do not implement Stripe session creation beyond calling /api/checkout from the checkout button. Verify cart persistence, item updates, checkout payload shape, lint, and build.
 ```
 
 ## Workstream 5 - Checkout Session Route
@@ -736,7 +736,7 @@ Stripe metadata has size limits. V1 uses `pending_checkouts` from the start, so 
 ### Handoff Prompt
 
 ```text
-You are Agent 5 for the skate shop e-commerce build. Implement the /api/checkout route using Stripe hosted Checkout and Stripe Tax. Validate input with checkoutSchema, re-read product variant price and stock from Postgres, reject invalid or out-of-stock carts, create a Checkout Session with DB prices, and return the hosted checkout URL. Preserve the metadata cart contract for the webhook. Do not create order rows here. Verify with Stripe test mode or mocks, validation cases, lint, and build.
+You are Agent 5 for the Fuckers HQ build. Implement the /api/checkout route using Stripe hosted Checkout and Stripe Tax. Validate input with checkoutSchema, re-read product variant price and stock from Postgres, reject invalid or out-of-stock carts, create a Checkout Session with DB prices, and return the hosted checkout URL. Preserve the metadata cart contract for the webhook. Do not create order rows here. Verify with Stripe test mode or mocks, validation cases, lint, and build.
 ```
 
 ## Workstream 6 - Stripe Webhook, Orders, Inventory, Email Boundary
@@ -836,7 +836,7 @@ For each cart line, query current product and variant data and write:
 ### Handoff Prompt
 
 ```text
-You are Agent 6 for the skate shop e-commerce build. Implement the Stripe webhook and paid order creation path. Use raw body signature verification, idempotency through unique stripeSessionId, cart metadata validation, transactional order creation, order item snapshots, and conditional inventory decrement. Email must happen only after commit and must not break persisted orders. Do not create orders in /api/checkout. Verify duplicate event behavior, inventory decrement, invalid signatures, lint, and build.
+You are Agent 6 for the Fuckers HQ build. Implement the Stripe webhook and paid order creation path. Use raw body signature verification, idempotency through unique stripeSessionId, cart metadata validation, transactional order creation, order item snapshots, and conditional inventory decrement. Email must happen only after commit and must not break persisted orders. Do not create orders in /api/checkout. Verify duplicate event behavior, inventory decrement, invalid signatures, lint, and build.
 ```
 
 ## Workstream 7 - Order Confirmation Email
@@ -896,7 +896,7 @@ lib/email/
 ### Handoff Prompt
 
 ```text
-You are Agent 7 for the skate shop e-commerce build. Implement Resend and React Email order confirmation support. Generate emails from persisted order and order item data, not client cart data. Include order number, line items, totals, and shipping details. Make the sending function safe for the webhook to call after commit and allow errors to be caught by the caller. Verify template rendering, a test send or mock, lint, and build.
+You are Agent 7 for the Fuckers HQ build. Implement Resend and React Email order confirmation support. Generate emails from persisted order and order item data, not client cart data. Include order number, line items, totals, and shipping details. Make the sending function safe for the webhook to call after commit and allow errors to be caught by the caller. Verify template rendering, a test send or mock, lint, and build.
 ```
 
 ## Workstream 8 - Admin Auth, Product CRUD, Orders, R2 Uploads
@@ -1021,7 +1021,7 @@ After product, variant, inventory, or image mutation:
 ### Handoff Prompt
 
 ```text
-You are Agent 8 for the skate shop e-commerce build. Implement the Clerk-gated admin area, including requireAdmin, product/variant/image CRUD, inventory and price edits, R2 presigned direct uploads, order list/detail, and mark-fulfilled action. Use React Hook Form, zodResolver, drizzle-zod validators, and server-side parsing in every action. Revalidate public catalog/product pages after mutations. Do not let admin edit financial order totals. Verify auth, CRUD, R2 upload flow, revalidation, lint, and build.
+You are Agent 8 for the Fuckers HQ build. Implement the Clerk-gated admin area, including requireAdmin, product/variant/image CRUD, inventory and price edits, R2 presigned direct uploads, order list/detail, and mark-fulfilled action. Use React Hook Form, zodResolver, drizzle-zod validators, and server-side parsing in every action. Revalidate public catalog/product pages after mutations. Do not let admin edit financial order totals. Verify auth, CRUD, R2 upload flow, revalidation, lint, and build.
 ```
 
 ## Workstream 9 - Observability, Error Handling, And Security Hardening
@@ -1077,7 +1077,7 @@ Workstreams 0 through 8, or enough app surfaces to instrument.
 ### Handoff Prompt
 
 ```text
-You are Agent 9 for the skate shop e-commerce build. Add Sentry and harden error handling around checkout, webhook, admin actions, R2 upload URLs, and email sending. Review server/client boundaries and secret exposure. Expected validation failures should return clean responses; unexpected failures should be captured. Do not log sensitive payment details. Verify Sentry capture paths, invalid webhook behavior, lint, and build.
+You are Agent 9 for the Fuckers HQ build. Add Sentry and harden error handling around checkout, webhook, admin actions, R2 upload URLs, and email sending. Review server/client boundaries and secret exposure. Expected validation failures should return clean responses; unexpected failures should be captured. Do not log sensitive payment details. Verify Sentry capture paths, invalid webhook behavior, lint, and build.
 ```
 
 ## Workstream 10 - Testing And QA
@@ -1162,7 +1162,7 @@ Manual Stripe QA:
 ### Handoff Prompt
 
 ```text
-You are Agent 10 for the skate shop e-commerce build. Add focused tests and a manual QA checklist for validators, checkout, webhook idempotency, inventory decrement, cart behavior, and admin essentials. Prioritize money path and persistence risks over broad snapshot tests. Use the repo's existing test tools if present; otherwise add a minimal test setup compatible with the stack. Verify tests, lint, and build.
+You are Agent 10 for the Fuckers HQ build. Add focused tests and a manual QA checklist for validators, checkout, webhook idempotency, inventory decrement, cart behavior, and admin essentials. Prioritize money path and persistence risks over broad snapshot tests. Use the repo's existing test tools if present; otherwise add a minimal test setup compatible with the stack. Verify tests, lint, and build.
 ```
 
 ## Workstream 11 - Deployment And Go-Live
@@ -1231,7 +1231,7 @@ All prior workstreams.
 ### Handoff Prompt
 
 ```text
-You are Agent 11 for the skate shop e-commerce build. Prepare deployment and go-live documentation for Vercel Pro, Neon, Stripe live mode, Stripe Tax, production webhook registration, Resend, R2, Clerk admin, Sentry, and smoke testing. Do not invent secrets. Add a clear go-live checklist and verify production build readiness.
+You are Agent 11 for the Fuckers HQ build. Prepare deployment and go-live documentation for Vercel Pro, Neon, Stripe live mode, Stripe Tax, production webhook registration, Resend, R2, Clerk admin, Sentry, and smoke testing. Do not invent secrets. Add a clear go-live checklist and verify production build readiness.
 ```
 
 ## Workstream 12 - Returns And Exchanges (Future V2)
@@ -1277,7 +1277,7 @@ Paid order persistence, admin authorization, shipped-order management, Stripe we
 ### Handoff Prompt
 
 ```text
-You are Agent 12 for the skate shop e-commerce build. Design and implement a V2 returns and exchanges workflow using separate return records, immutable original order snapshots, Stripe-authoritative refunds, idempotent webhook reconciliation, explicit transactional restocking, and traceable replacement fulfillment. Support partial returns. Do not let clients calculate refunds or expose guest orders through guessable identifiers. Resolve the deferred customer-request and carrier-label decisions before implementation.
+You are Agent 12 for the Fuckers HQ build. Design and implement a V2 returns and exchanges workflow using separate return records, immutable original order snapshots, Stripe-authoritative refunds, idempotent webhook reconciliation, explicit transactional restocking, and traceable replacement fulfillment. Support partial returns. Do not let clients calculate refunds or expose guest orders through guessable identifiers. Resolve the deferred customer-request and carrier-label decisions before implementation.
 ```
 
 ## Cross-Workstream Contracts
@@ -1395,8 +1395,8 @@ The build is done when:
 
 Every implementation agent should start by reading:
 
-1. `ecommerce-architecture.md`
-2. `ecommerce-build-plan.md`
+1. `fuckers-hq-architecture.md`
+2. `fuckers-hq-build-plan.md`
 3. Existing README and package scripts
 4. The files in their assigned workstream
 

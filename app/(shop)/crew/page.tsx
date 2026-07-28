@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/shop/empty-state";
 
 export const metadata: Metadata = {
   title: "Crew",
-  description: "Meet the riders and people behind Skate Shop.",
+  description: "Meet the riders and people behind Fuckers HQ.",
 };
 
 export default function CrewPage() {
@@ -12,12 +12,12 @@ export default function CrewPage() {
     <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-6 py-10">
       <header className="space-y-3 border-b pb-8">
         <p className="font-semibold text-muted-foreground text-sm uppercase tracking-wide">
-          Skate Shop
+          Fuckers HQ
         </p>
         <div className="space-y-2">
           <h1 className="font-black text-5xl tracking-normal">Meet the crew.</h1>
           <p className="max-w-2xl text-muted-foreground">
-            Rider profiles, shop regulars, and the people behind Skate Shop will live here.
+            Rider profiles, shop regulars, and the people behind Fuckers HQ will live here.
           </p>
         </div>
       </header>
