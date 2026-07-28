@@ -23,7 +23,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <Link className="font-black text-xl tracking-normal" href={"/admin" as Route}>
-              Skate Shop Admin
+              Fuckers HQ Admin
             </Link>
             <nav aria-label="Admin navigation" className="flex items-center gap-1">
               <Button asChild size="sm" variant="ghost">

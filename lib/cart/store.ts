@@ -77,7 +77,7 @@ export const useCartStore = create<CartState>()(
       clear: () => set({ lines: [] }),
     }),
     {
-      name: "skate-shop-cart",
+      name: "fuckers-hq-cart",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ lines: state.lines }),
     },

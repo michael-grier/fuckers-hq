@@ -243,7 +243,7 @@ describe("order numbers", () => {
   test("uses the v1 order number format", () => {
     const orderNumber = makeOrderNumber(new Date("2026-07-09T12:00:00.000Z"), "a1b2c3d4");
 
-    expect(orderNumber).toBe("SK8-20260709-A1B2C3D4");
+    expect(orderNumber).toBe("FHQ-20260709-A1B2C3D4");
   });
 });
 

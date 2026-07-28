@@ -7,10 +7,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Skate Shop",
-    template: "%s | Skate Shop",
+    default: "Fuckers HQ",
+    template: "%s | Fuckers HQ",
   },
-  description: "A custom guest-checkout e-commerce shop for skate goods.",
+  description: "The official Fuckers HQ storefront for skate goods.",
 };
 
 export default function RootLayout({
