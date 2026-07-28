@@ -12,5 +12,5 @@ export function makeOrderNumber(
   date = new Date(),
   entropy = randomBytes(4).toString("hex"),
 ): string {
-  return `SK8-${formatDateSegment(date)}-${entropy.toUpperCase()}`;
+  return `FHQ-${formatDateSegment(date)}-${entropy.toUpperCase()}`;
 }

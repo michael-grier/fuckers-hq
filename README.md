@@ -1,7 +1,8 @@
-# Skate Shop
+# Fuckers HQ
 
-Custom e-commerce app for a low-volume skate shop. The architecture prioritizes hosted payments,
-guest checkout, server-authoritative pricing, and a small maintainable admin surface.
+Fuckers HQ is a custom storefront for independently sold skate goods. The architecture prioritizes
+hosted payments, guest checkout, server-authoritative pricing, and a small maintainable admin
+surface.
 
 ## Stack
 

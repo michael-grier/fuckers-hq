@@ -93,7 +93,7 @@ describe("cart store", () => {
     useCartStore.getState().setCartOpen(false);
 
     expect(useCartStore.getState().isCartOpen).toBe(false);
-    expect(storage.getItem("skate-shop-cart")).not.toContain("isCartOpen");
+    expect(storage.getItem("fuckers-hq-cart")).not.toContain("isCartOpen");
   });
 
   test("updates quantities, removes lines, and clears the cart", () => {
@@ -112,11 +112,11 @@ describe("cart store", () => {
     useCartStore.getState().addLine(deck);
     useCartStore.getState().addLine(bearings);
 
-    const persistedCart = storage.getItem("skate-shop-cart");
+    const persistedCart = storage.getItem("fuckers-hq-cart");
     expect(persistedCart).not.toBeNull();
 
     useCartStore.setState({ isCartOpen: false, lines: [] });
-    storage.setItem("skate-shop-cart", persistedCart ?? "");
+    storage.setItem("fuckers-hq-cart", persistedCart ?? "");
     await useCartStore.persist.rehydrate();
 
     expect(useCartStore.getState().lines).toEqual([deck, bearings]);

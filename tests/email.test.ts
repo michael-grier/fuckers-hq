@@ -23,7 +23,7 @@ const delivery: OrderConfirmationDelivery = {
   idempotencyKey: "order-confirmation/9c786325-fb57-46e3-b3ed-a60b653b3ad8",
   recipientEmail: "skater@example.com",
   order: {
-    orderNumber: "SK8-20260713-ABC12345",
+    orderNumber: "FHQ-20260713-ABC12345",
     currency: "cad",
     subtotalCents: 8900,
     taxCents: 0,
@@ -50,7 +50,7 @@ describe("order confirmation template", () => {
       }),
     );
 
-    expect(html).toContain("SK8-20260713-ABC12345");
+    expect(html).toContain("FHQ-20260713-ABC12345");
     expect(html).toContain("Database Deck");
     expect(html).toContain("8.25&quot;");
     expect(html).toContain("$104.00");
@@ -85,7 +85,7 @@ describe("order confirmation delivery", () => {
     const emailId = await deliverOrderConfirmation(
       delivery,
       {
-        from: "Skate Shop <orders@example.com>",
+        from: "Fuckers HQ <orders@example.com>",
         supportEmail: "support@example.com",
       },
       {
@@ -103,10 +103,10 @@ describe("order confirmation delivery", () => {
 
     expect(emailId).toBe("email_123");
     expect(message).toMatchObject({
-      from: "Skate Shop <orders@example.com>",
+      from: "Fuckers HQ <orders@example.com>",
       to: "skater@example.com",
       replyTo: "support@example.com",
-      subject: "Order SK8-20260713-ABC12345 confirmed",
+      subject: "Order FHQ-20260713-ABC12345 confirmed",
     });
     expect(idempotencyKey).toBe(delivery.idempotencyKey);
   });
@@ -116,7 +116,7 @@ describe("order confirmation delivery", () => {
       deliverOrderConfirmation(
         delivery,
         {
-          from: "Skate Shop <orders@example.com>",
+          from: "Fuckers HQ <orders@example.com>",
           supportEmail: "support@example.com",
         },
         {

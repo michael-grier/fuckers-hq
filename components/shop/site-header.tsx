@@ -72,7 +72,7 @@ export function SiteHeader() {
             href="/"
             onClick={closeMobileNavigation}
           >
-            Skate Shop
+            Fuckers HQ
           </Link>
         </div>
         <DesktopNavigation />

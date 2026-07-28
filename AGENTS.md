@@ -2,7 +2,7 @@
 
 ## Project
 
-This is a low-volume skate-shop application built with Next.js 15, React 19, TypeScript, Bun,
+This is the Fuckers HQ application, built with Next.js 15, React 19, TypeScript, Bun,
 Neon Postgres, Drizzle ORM, Clerk, Stripe Checkout, Cloudflare R2, Resend, and Sentry.
 
 Inspect the existing implementation, tests, schema, migrations, and nearby conventions before
