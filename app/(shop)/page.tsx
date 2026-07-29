@@ -26,11 +26,11 @@ export default function HomePage() {
     <main className="min-h-screen bg-[#101317] text-[#eceff2]">
       <section
         aria-label="Featured"
-        className="relative -mt-[var(--header-height)] flex min-h-[620px] items-end md:h-svh"
+        className="relative flex h-[calc(100svh-var(--header-height))] min-h-[620px] items-end lg:-mt-[var(--header-height)] lg:h-svh"
       >
         <Image
           alt="Skater grinding the lip of a graffiti-covered bowl while the crowd watches"
-          className="object-cover object-[center_25%]"
+          className="object-cover object-[28%_25%] md:object-[center_25%]"
           fill
           priority
           sizes="100vw"
