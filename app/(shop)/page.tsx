@@ -1,6 +1,5 @@
 import { ArrowRight } from "lucide-react";
 import type { Route } from "next";
-import { Space_Grotesk } from "next/font/google";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -11,7 +10,6 @@ import { cn } from "@/lib/utils";
 
 // Landing page uses a self-contained "dusk" palette (charcoal ink surfaces,
 // fire-gold accent from the flame logo) instead of the global theme tokens.
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", "700"] });
 
 const fallbackProducts = [
   { name: "Street Deck 8.25", category: "Hardgoods", price: "$89.00" },
@@ -93,7 +91,10 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen bg-[#101317] text-[#eceff2]">
-      <section aria-label="Featured" className="relative flex min-h-[560px] items-end md:h-[92svh]">
+      <section
+        aria-label="Featured"
+        className="relative -mt-[68px] flex min-h-[620px] items-end md:h-svh"
+      >
         <Image
           alt="Skater grinding the lip of a graffiti-covered bowl while the crowd watches"
           className="object-cover object-[center_25%]"
@@ -107,21 +108,11 @@ export default async function HomePage() {
           className="absolute inset-0 bg-gradient-to-t from-[#101317] via-[#10131740] to-transparent"
         />
         <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pt-40 pb-12">
-          <p
-            className={cn(
-              spaceGrotesk.className,
-              "flex items-center gap-2 font-semibold text-[#ffc42e] text-xs uppercase tracking-[0.14em] [text-shadow:0_1px_10px_rgba(16,19,23,0.9)]",
-            )}
-          >
+          <p className="flex items-center gap-2 font-grotesk font-semibold text-[#ffc42e] text-xs uppercase tracking-[0.14em] [text-shadow:0_1px_10px_rgba(16,19,23,0.9)]">
             <span aria-hidden="true" className="h-0.5 w-6 bg-[#ffc42e]" />
             Fresh off the truck
           </p>
-          <h1
-            className={cn(
-              spaceGrotesk.className,
-              "mt-3 max-w-[20ch] font-semibold text-4xl leading-[1.05] tracking-tight md:text-6xl",
-            )}
-          >
+          <h1 className="mt-3 max-w-[20ch] font-grotesk font-semibold text-4xl leading-[1.05] tracking-tight md:text-6xl">
             Gear that keeps up with the session.
           </h1>
           <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">
@@ -147,10 +138,7 @@ export default async function HomePage() {
       <section aria-labelledby="trending-heading" className="pt-16">
         <div className="mx-auto flex max-w-7xl flex-wrap items-baseline justify-between gap-4 px-6 pb-8">
           <h2
-            className={cn(
-              spaceGrotesk.className,
-              "font-semibold text-3xl tracking-tight md:text-4xl",
-            )}
+            className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"
             id="trending-heading"
           >
             New and trending
@@ -185,9 +173,7 @@ export default async function HomePage() {
                 className="absolute inset-0 bg-gradient-to-t from-[#101317]/60 via-transparent to-transparent"
               />
               <span className="absolute bottom-4 left-5 z-10">
-                <span className={cn(spaceGrotesk.className, "font-semibold text-lg")}>
-                  {tile.label}
-                </span>
+                <span className="font-grotesk font-semibold text-lg">{tile.label}</span>
                 <span className="block text-[#eceff2]/70 text-sm">{tile.caption}</span>
               </span>
             </Link>
@@ -199,7 +185,7 @@ export default async function HomePage() {
         <div className="mx-auto grid max-w-7xl grid-cols-1 divide-[#262c33] divide-y px-6 md:grid-cols-3 md:divide-x md:divide-y-0">
           {shopPromises.map((promise) => (
             <div className="py-8 md:pr-6 md:pl-6 md:first:pl-0" key={promise.highlight}>
-              <h3 className={cn(spaceGrotesk.className, "font-semibold text-lg")}>
+              <h3 className="font-grotesk font-semibold text-lg">
                 <span className="text-[#ffc42e]">{promise.highlight}</span>
                 {promise.rest}
               </h3>
@@ -212,10 +198,7 @@ export default async function HomePage() {
       <section aria-labelledby="picks-heading" className="mx-auto max-w-7xl px-6 py-16">
         <div className="flex flex-wrap items-baseline justify-between gap-4 pb-8">
           <h2
-            className={cn(
-              spaceGrotesk.className,
-              "font-semibold text-3xl tracking-tight md:text-4xl",
-            )}
+            className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"
             id="picks-heading"
           >
             This week's picks
@@ -252,7 +235,7 @@ export default async function HomePage() {
                   <h3 className="font-semibold">{product.name}</h3>
                   <p className="mt-0.5 text-[#8b939c] text-sm">{product.category}</p>
                 </div>
-                <p className={cn(spaceGrotesk.className, "font-semibold")}>{product.price}</p>
+                <p className="font-grotesk font-semibold">{product.price}</p>
               </div>
             </Link>
           ))}
