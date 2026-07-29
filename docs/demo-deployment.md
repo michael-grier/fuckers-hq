@@ -122,7 +122,9 @@ leaving the current production domain public.
 ## 3. Configure Vercel environment variables
 
 Add these in **Project → Settings → Environment Variables**. Mark credential values as Sensitive.
-All listed values are required in **Production** for the complete demo.
+All listed values are required in **Production** for the complete demo except `SENTRY_ORG`,
+`SENTRY_PROJECT`, and `SENTRY_AUTH_TOKEN`. Those three are required only when readable production
+source maps are enabled.
 
 | Variable | Value/source | Sensitive |
 | --- | --- | --- |
