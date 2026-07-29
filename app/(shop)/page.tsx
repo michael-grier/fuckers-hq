@@ -107,7 +107,8 @@ export default async function HomePage() {
           aria-hidden="true"
           className="absolute inset-0 bg-gradient-to-t from-[#101317] via-[#10131740] to-transparent"
         />
-        <div className="relative z-10 mx-auto w-full max-w-7xl px-6 pt-40 pb-12">
+        {/* Hero copy anchors to the viewport edge (like the nav), not the content max-width. */}
+        <div className="relative z-10 w-full px-6 pt-40 pb-12 lg:px-8">
           <p className="flex items-center gap-2 font-grotesk font-semibold text-[#ffc42e] text-xs uppercase tracking-[0.14em] [text-shadow:0_1px_10px_rgba(16,19,23,0.9)]">
             <span aria-hidden="true" className="h-0.5 w-6 bg-[#ffc42e]" />
             Fresh off the truck

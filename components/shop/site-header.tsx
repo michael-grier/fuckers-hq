@@ -50,7 +50,7 @@ export function SiteHeader() {
 
   return (
     <header className="fixed inset-x-3 top-3 z-40 rounded-xl border border-white/10 bg-neutral-950/80 text-white backdrop-blur-md">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-2.5">
+      <div className="flex items-center justify-between gap-4 px-5 py-2.5">
         <div className="flex items-center gap-3">
           <Button
             aria-controls="mobile-navigation"
