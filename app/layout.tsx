@@ -14,10 +14,10 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: {
-    default: "Fuckers HQ",
-    template: "%s | Fuckers HQ",
+    default: "Fuckers Skateboards",
+    template: "%s | Fuckers Skateboards",
   },
-  description: "The official Fuckers HQ storefront for skate goods.",
+  description: "The official Fuckers Skateboards storefront.",
 };
 
 export default function RootLayout({

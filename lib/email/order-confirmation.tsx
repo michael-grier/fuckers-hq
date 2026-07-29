@@ -42,10 +42,10 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
   return (
     <Html lang="en">
       <Head />
-      <Preview>Your Fuckers HQ order {order.orderNumber} is confirmed</Preview>
+      <Preview>Your Fuckers Skateboards order {order.orderNumber} is confirmed</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
-          <Text style={styles.eyebrow}>Fuckers HQ</Text>
+          <Text style={styles.eyebrow}>Fuckers Skateboards</Text>
           <Heading style={styles.heading}>Thanks for your order.</Heading>
           <Text style={styles.intro}>
             We received your payment. Your order number is <strong>{order.orderNumber}</strong>.

@@ -72,7 +72,7 @@ export function SiteHeader() {
             href="/"
             onClick={closeMobileNavigation}
           >
-            Fuckers <span className="text-accent">HQ</span>
+            Fuckers <span className="text-accent">Skateboards</span>
           </Link>
         </div>
         <DesktopNavigation />

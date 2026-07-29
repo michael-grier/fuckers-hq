@@ -42,28 +42,24 @@ export default function HomePage() {
         />
         {/* Hero copy anchors to the viewport edge (like the nav), not the content max-width. */}
         <div className="relative z-10 w-full px-6 pt-40 pb-12 lg:px-8">
-          <p className="flex items-center gap-2 font-grotesk font-semibold text-[#ffc42e] text-xs uppercase tracking-[0.14em] [text-shadow:0_1px_10px_rgba(16,19,23,0.9)]">
-            <span aria-hidden="true" className="h-0.5 w-6 bg-[#ffc42e]" />
-            Fresh off the truck
-          </p>
           <h1 className="mt-3 max-w-[20ch] font-grotesk font-semibold text-4xl leading-[1.05] tracking-tight md:text-6xl">
-            Gear that keeps up with the session.
+            Buy our stuff, we're broke.
           </h1>
           <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">
-            Shop-tested decks, wheels, and daily-wear — picked by the crew.
+            We work hard to support the Calgary skate community, support us by buying some gear!
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               className="rounded-full bg-[#ffc42e] px-6 py-3 font-semibold text-[#101317] text-sm transition hover:brightness-105 md:hover:scale-[1.03]"
               href="/products"
             >
-              Shop the drop
+              Shop our stuff
             </Link>
             <Link
               className="rounded-full border border-white/40 px-6 py-3 font-semibold text-sm transition hover:border-white"
               href={"/videos" as Route}
             >
-              Watch the edit
+              Watch our videos
             </Link>
           </div>
         </div>
@@ -76,7 +72,7 @@ export default function HomePage() {
             className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"
             id="trending-heading"
           >
-            New and trending
+            Categories
           </h2>
           <Link
             className="font-semibold text-sm underline decoration-[#ffc42e] decoration-2 underline-offset-4 hover:decoration-4"
