@@ -9,10 +9,10 @@ import { type ProductCategory, productCategories } from "@/lib/catalog/categorie
 // fire-gold accent from the flame logo) instead of the global theme tokens.
 
 // Labels come from the catalog source of truth; only presentation extras live here.
-const categoryTileExtras: Record<ProductCategory, { caption: string; imageSrc: string }> = {
-  hardgoods: { caption: "Decks, trucks, and wheels", imageSrc: "/hardgoods.jpg" },
-  softgoods: { caption: "Tees, hoods, and jackets", imageSrc: "/softgoods.jpg" },
-  accessories: { caption: "Bearings to wax", imageSrc: "/accessories.jpg" },
+const categoryTileExtras: Record<ProductCategory, { imageSrc: string }> = {
+  hardgoods: { imageSrc: "/hardgoods.jpg" },
+  softgoods: { imageSrc: "/softgoods.jpg" },
+  accessories: { imageSrc: "/accessories.jpg" },
 };
 
 const categoryTiles = productCategories.map(({ label, value }) => ({
@@ -102,7 +102,6 @@ export default function HomePage() {
                 <span className="font-grotesk font-semibold text-lg group-hover:underline group-hover:decoration-[#ffc42e] group-hover:decoration-2 group-hover:underline-offset-4">
                   {tile.label}
                 </span>
-                <span className="block text-[#68727d] text-sm">{tile.caption}</span>
               </div>
             </Link>
           ))}
