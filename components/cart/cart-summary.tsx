@@ -10,7 +10,7 @@ export function CartSummary() {
 
   return (
     <aside className="h-fit rounded-lg border p-5">
-      <h2 className="font-black text-2xl">Summary</h2>
+      <h2 className="font-grotesk font-semibold text-2xl">Summary</h2>
       <dl className="mt-5 space-y-3 text-sm">
         <div className="flex justify-between gap-4">
           <dt className="text-muted-foreground">Subtotal</dt>

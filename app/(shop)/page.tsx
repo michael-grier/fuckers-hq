@@ -1,107 +1,116 @@
 import { ArrowRight } from "lucide-react";
+import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { getProductCategoryLabel } from "@/lib/catalog/categories";
-import { getFeaturedProducts } from "@/lib/catalog/queries";
-import { formatMoney } from "@/lib/money";
+import { type ProductCategory, productCategories } from "@/lib/catalog/categories";
 
-const fallbackProducts = [
-  { name: "Street Deck 8.25", category: "Hardgoods", price: "$89.00" },
-  { name: "Canvas Coach Jacket", category: "Softgoods", price: "$128.00" },
-  { name: "Precision Bearings", category: "Hardgoods", price: "$34.00" },
-];
+// Landing page uses a self-contained "dusk" palette (charcoal ink surfaces,
+// fire-gold accent from the flame logo) instead of the global theme tokens.
 
-type HomeDisplayProduct = {
-  name: string;
-  category: string;
-  price: string;
-  imageUrl?: string;
-  imageAlt?: string;
+// Labels come from the catalog source of truth; only presentation extras live here.
+const categoryTileExtras: Record<ProductCategory, { caption: string; imageSrc: string }> = {
+  hardgoods: { caption: "Decks, trucks, and wheels", imageSrc: "/hardgoods.jpg" },
+  softgoods: { caption: "Tees, hoods, and jackets", imageSrc: "/softgoods.jpg" },
+  accessories: { caption: "Bearings to wax", imageSrc: "/accessories.jpg" },
 };
 
-export default async function HomePage() {
-  const featuredProducts = await getFeaturedProducts(3);
-  const displayProducts: HomeDisplayProduct[] =
-    featuredProducts.length > 0
-      ? featuredProducts.map((product) => ({
-          name: product.name,
-          category: getProductCategoryLabel(product.category),
-          price:
-            product.minPriceCents == null
-              ? "Price unavailable"
-              : formatMoney(product.minPriceCents),
-          imageUrl: product.images[0]?.url,
-          imageAlt: product.images[0]?.alt ?? product.name,
-        }))
-      : fallbackProducts;
+const categoryTiles = productCategories.map(({ label, value }) => ({
+  label,
+  value,
+  ...categoryTileExtras[value],
+}));
 
+export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background">
-      <section className="border-b bg-neutral-950 text-white">
-        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 md:grid-cols-[0.9fr_1.1fr] md:items-end md:py-16">
-          <div className="space-y-6">
-            <Badge className="bg-accent text-accent-foreground" variant="secondary">
-              Free shipping threshold ready
-            </Badge>
-            <div className="space-y-4">
-              <h1 className="max-w-2xl font-black text-5xl tracking-normal md:text-7xl">
-                Built for daily skate goods.
-              </h1>
-              <p className="max-w-xl text-lg text-white/70">
-                A lean catalog, guest checkout, and admin-managed inventory backed by Postgres and
-                Stripe.
-              </p>
-            </div>
-            <Button asChild className="bg-white text-neutral-950 hover:bg-white/90" size="lg">
-              <Link href="/products">
-                Shop products
-                <ArrowRight aria-hidden="true" />
-              </Link>
-            </Button>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {displayProducts.map((product) => (
-              <div className="min-w-0 space-y-3" key={product.name}>
-                <div className="relative aspect-square overflow-hidden rounded-lg border border-white/10 bg-neutral-100">
-                  {product.imageUrl ? (
-                    <Image
-                      alt={product.imageAlt ?? product.name}
-                      className="h-full w-full object-contain object-center"
-                      fill
-                      sizes="(min-width: 768px) 22vw, 30vw"
-                      src={product.imageUrl}
-                      unoptimized
-                    />
-                  ) : null}
-                </div>
-                <div className="space-y-1">
-                  <p className="truncate font-black text-lg">{product.name}</p>
-                  <p className="text-white/60 text-sm">{product.category}</p>
-                  <p className="font-bold">{product.price}</p>
-                </div>
-              </div>
-            ))}
+    <main className="min-h-screen bg-[#101317] text-[#eceff2]">
+      <section
+        aria-label="Featured"
+        className="relative -mt-[var(--header-height)] flex min-h-[620px] items-end md:h-svh"
+      >
+        <Image
+          alt="Skater grinding the lip of a graffiti-covered bowl while the crowd watches"
+          className="object-cover object-[center_25%]"
+          fill
+          priority
+          sizes="100vw"
+          src="/fuckers-hero.jpg"
+        />
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 bg-gradient-to-t from-[#101317] via-[#10131740] to-transparent"
+        />
+        {/* Hero copy anchors to the viewport edge (like the nav), not the content max-width. */}
+        <div className="relative z-10 w-full px-6 pt-40 pb-12 lg:px-8">
+          <p className="flex items-center gap-2 font-grotesk font-semibold text-[#ffc42e] text-xs uppercase tracking-[0.14em] [text-shadow:0_1px_10px_rgba(16,19,23,0.9)]">
+            <span aria-hidden="true" className="h-0.5 w-6 bg-[#ffc42e]" />
+            Fresh off the truck
+          </p>
+          <h1 className="mt-3 max-w-[20ch] font-grotesk font-semibold text-4xl leading-[1.05] tracking-tight md:text-6xl">
+            Gear that keeps up with the session.
+          </h1>
+          <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">
+            Shop-tested decks, wheels, and daily-wear — picked by the crew.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              className="rounded-full bg-[#ffc42e] px-6 py-3 font-semibold text-[#101317] text-sm transition hover:brightness-105 md:hover:scale-[1.03]"
+              href="/products"
+            >
+              Shop the drop
+            </Link>
+            <Link
+              className="rounded-full border border-white/40 px-6 py-3 font-semibold text-sm transition hover:border-white"
+              href={"/videos" as Route}
+            >
+              Watch the edit
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-6 py-10 md:grid-cols-3">
-        {[
-          "Server-authoritative pricing",
-          "Webhook-born paid orders",
-          "Direct R2 image uploads",
-        ].map((label) => (
-          <div className="border-t pt-4" key={label}>
-            <h2 className="font-black text-2xl">{label}</h2>
-            <p className="mt-2 text-muted-foreground">
-              The implementation follows the architecture plan and keeps critical boundaries on the
-              server.
-            </p>
-          </div>
-        ))}
+      {/* Light band: a deliberate visual break from the dark hero above and dark footer below. */}
+      <section aria-labelledby="trending-heading" className="bg-white py-16 text-[#101317]">
+        <div className="flex flex-wrap items-baseline justify-between gap-4 px-6 pb-10 lg:px-8">
+          <h2
+            className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"
+            id="trending-heading"
+          >
+            New and trending
+          </h2>
+          <Link
+            className="font-semibold text-sm underline decoration-[#ffc42e] decoration-2 underline-offset-4 hover:decoration-4"
+            href="/products"
+          >
+            Shop all
+            <ArrowRight aria-hidden="true" className="ml-1 inline size-4" />
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-3">
+          {categoryTiles.map((tile) => (
+            <Link
+              className="group"
+              href={`/products?category=${tile.value}` as Route}
+              key={tile.value}
+            >
+              <div className="relative aspect-[4/5] overflow-hidden">
+                <Image
+                  alt=""
+                  className="object-cover transition duration-300 md:group-hover:scale-[1.02]"
+                  fill
+                  sizes="(min-width: 640px) 33vw, 100vw"
+                  src={tile.imageSrc}
+                />
+              </div>
+              <div className="py-5 text-center">
+                <span className="font-grotesk font-semibold text-lg group-hover:underline group-hover:decoration-[#ffc42e] group-hover:decoration-2 group-hover:underline-offset-4">
+                  {tile.label}
+                </span>
+                <span className="block text-[#68727d] text-sm">{tile.caption}</span>
+              </div>
+            </Link>
+          ))}
+        </div>
       </section>
     </main>
   );

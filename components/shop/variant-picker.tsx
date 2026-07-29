@@ -49,12 +49,9 @@ export function VariantPicker({ product }: VariantPickerProps) {
       {selectedVariant ? (
         <div className="rounded-lg border p-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="font-black text-2xl">
-                <Price cents={selectedVariant.priceCents} />
-              </p>
-              <p className="text-muted-foreground text-sm">{selectedVariant.sku}</p>
-            </div>
+            <p className="font-grotesk font-semibold text-2xl">
+              <Price cents={selectedVariant.priceCents} />
+            </p>
             <p className="font-semibold text-sm">
               {selectedVariant.availableQty > 0
                 ? `${selectedVariant.availableQty} available`

@@ -49,8 +49,8 @@ export function SiteHeader() {
   }, [isMobileNavigationOpen]);
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-neutral-950 text-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+    <header className="fixed inset-x-3 top-3 z-40 rounded-xl border border-white/10 bg-neutral-950/80 text-white backdrop-blur-md">
+      <div className="flex items-center justify-between gap-4 px-5 py-2.5">
         <div className="flex items-center gap-3">
           <Button
             aria-controls="mobile-navigation"
@@ -68,11 +68,11 @@ export function SiteHeader() {
             </span>
           </Button>
           <Link
-            className="font-black text-2xl tracking-normal"
+            className="font-bold font-grotesk text-xl tracking-tight"
             href="/"
             onClick={closeMobileNavigation}
           >
-            Fuckers HQ
+            Fuckers <span className="text-accent">HQ</span>
           </Link>
         </div>
         <DesktopNavigation />

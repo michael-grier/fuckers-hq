@@ -22,6 +22,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --font-grotesk: var(--font-space-grotesk), "Space Grotesk", ui-sans-serif, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -30,6 +31,9 @@
 
 :root {
   --radius: 0.5rem;
+  /* Height of the fixed floating site header including its top inset.
+     Consumed by the shop layout spacer and full-bleed heroes that pull under it. */
+  --header-height: 68px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -42,7 +46,8 @@
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.52 0 0);
-  --accent: oklch(0.78 0.16 84);
+  /* Fire gold (#ffc42e), from the flame logo */
+  --accent: oklch(0.851 0.164 84.8);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.58 0.22 27);
   --border: oklch(0.9 0 0);
