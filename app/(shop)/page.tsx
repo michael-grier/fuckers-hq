@@ -3,92 +3,38 @@ import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
-import { getProductCategoryLabel, type productCategories } from "@/lib/catalog/categories";
-import { getFeaturedProducts } from "@/lib/catalog/queries";
-import { formatMoney } from "@/lib/money";
-import { cn } from "@/lib/utils";
+import type { productCategories } from "@/lib/catalog/categories";
 
 // Landing page uses a self-contained "dusk" palette (charcoal ink surfaces,
 // fire-gold accent from the flame logo) instead of the global theme tokens.
 
-const fallbackProducts = [
-  { name: "Street Deck 8.25", category: "Hardgoods", price: "$89.00" },
-  { name: "Canvas Coach Jacket", category: "Softgoods", price: "$128.00" },
-  { name: "Precision Bearings", category: "Hardgoods", price: "$34.00" },
-];
-
-type HomeDisplayProduct = {
-  name: string;
-  category: string;
-  price: string;
-  slug?: string;
-  imageUrl?: string;
-  imageAlt?: string;
-};
-
-// Each category tile reuses the hero photo with a distinct crop until
-// dedicated category photography exists — swap objectPosition/scale then.
 const categoryTiles: ReadonlyArray<{
   value: (typeof productCategories)[number]["value"];
   label: string;
   caption: string;
-  imageClassName: string;
+  imageSrc: string;
 }> = [
   {
     value: "hardgoods",
     label: "Hardgoods",
     caption: "Decks, trucks, and wheels",
-    imageClassName: "scale-[2.2] object-[38%_12%]",
+    imageSrc: "/hardgoods.jpg",
   },
   {
     value: "softgoods",
     label: "Softgoods",
     caption: "Tees, hoods, and jackets",
-    imageClassName: "scale-[1.9] object-[96%_32%]",
+    imageSrc: "/softgoods.jpg",
   },
   {
     value: "accessories",
     label: "Accessories",
     caption: "Bearings to wax",
-    imageClassName: "scale-[1.7] object-[12%_78%]",
+    imageSrc: "/accessories.jpg",
   },
 ];
 
-const shopPromises = [
-  {
-    highlight: "Free",
-    rest: " grip + setup",
-    detail: "Every deck ships assembled and gripped by the shop, no charge, forever.",
-  },
-  {
-    highlight: "Same-day",
-    rest: " shipping",
-    detail: "Order by 3pm and it's on the truck. Free over $75.",
-  },
-  {
-    highlight: "Crew",
-    rest: "-tested stock",
-    detail: "If the team wouldn't ride it, it doesn't make the wall. Simple as that.",
-  },
-];
-
-export default async function HomePage() {
-  const featuredProducts = await getFeaturedProducts(3);
-  const displayProducts: HomeDisplayProduct[] =
-    featuredProducts.length > 0
-      ? featuredProducts.map((product) => ({
-          name: product.name,
-          slug: product.slug,
-          category: getProductCategoryLabel(product.category),
-          price:
-            product.minPriceCents == null
-              ? "Price unavailable"
-              : formatMoney(product.minPriceCents),
-          imageUrl: product.images[0]?.url,
-          imageAlt: product.images[0]?.alt ?? product.name,
-        }))
-      : fallbackProducts;
-
+export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#101317] text-[#eceff2]">
       <section
@@ -136,8 +82,9 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section aria-labelledby="trending-heading" className="pt-16">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-baseline justify-between gap-4 px-6 pb-8">
+      {/* Light band: a deliberate visual break from the dark hero above and dark footer below. */}
+      <section aria-labelledby="trending-heading" className="bg-white py-16 text-[#101317]">
+        <div className="flex flex-wrap items-baseline justify-between gap-4 px-6 pb-10 lg:px-8">
           <h2
             className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"
             id="trending-heading"
@@ -145,7 +92,7 @@ export default async function HomePage() {
             New and trending
           </h2>
           <Link
-            className="font-semibold text-[#ffc42e] text-sm hover:underline hover:underline-offset-4"
+            className="font-semibold text-sm underline decoration-[#ffc42e] decoration-2 underline-offset-4 hover:decoration-4"
             href="/products"
           >
             Shop all
@@ -155,88 +102,24 @@ export default async function HomePage() {
         <div className="grid grid-cols-1 gap-0.5 sm:grid-cols-3">
           {categoryTiles.map((tile) => (
             <Link
-              className="group relative aspect-[4/5] overflow-hidden"
+              className="group"
               href={`/products?category=${tile.value}` as Route}
               key={tile.value}
             >
-              <Image
-                alt=""
-                className={cn(
-                  "object-cover saturate-[0.9] transition duration-300 group-hover:saturate-[1.05]",
-                  tile.imageClassName,
-                )}
-                fill
-                sizes="(min-width: 640px) 33vw, 100vw"
-                src="/fuckers-hero.jpg"
-              />
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-[#101317]/60 via-transparent to-transparent"
-              />
-              <span className="absolute bottom-4 left-5 z-10">
-                <span className="font-grotesk font-semibold text-lg">{tile.label}</span>
-                <span className="block text-[#eceff2]/70 text-sm">{tile.caption}</span>
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section aria-label="Why shop with us" className="mt-16 border-[#262c33] border-y">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 divide-[#262c33] divide-y px-6 md:grid-cols-3 md:divide-x md:divide-y-0">
-          {shopPromises.map((promise) => (
-            <div className="py-8 md:pr-6 md:pl-6 md:first:pl-0" key={promise.highlight}>
-              <h3 className="font-grotesk font-semibold text-lg">
-                <span className="text-[#ffc42e]">{promise.highlight}</span>
-                {promise.rest}
-              </h3>
-              <p className="mt-1.5 text-[#8b939c] text-sm leading-relaxed">{promise.detail}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="picks-heading" className="mx-auto max-w-7xl px-6 py-16">
-        <div className="flex flex-wrap items-baseline justify-between gap-4 pb-8">
-          <h2
-            className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"
-            id="picks-heading"
-          >
-            This week's picks
-          </h2>
-          <Link
-            className="font-semibold text-[#ffc42e] text-sm hover:underline hover:underline-offset-4"
-            href="/products"
-          >
-            See everything
-            <ArrowRight aria-hidden="true" className="ml-1 inline size-4" />
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-          {displayProducts.map((product) => (
-            <Link
-              className="group"
-              href={product.slug ? (`/products/${product.slug}` as Route) : "/products"}
-              key={product.name}
-            >
-              <div className="relative aspect-square overflow-hidden rounded-lg border border-[#262c33] bg-[#171b20] transition group-hover:border-[#ffc42e]">
-                {product.imageUrl ? (
-                  <Image
-                    alt={product.imageAlt ?? product.name}
-                    className="h-full w-full object-contain object-center"
-                    fill
-                    sizes="(min-width: 768px) 30vw, 90vw"
-                    src={product.imageUrl}
-                    unoptimized
-                  />
-                ) : null}
+              <div className="relative aspect-[4/5] overflow-hidden">
+                <Image
+                  alt=""
+                  className="object-cover transition duration-300 md:group-hover:scale-[1.02]"
+                  fill
+                  sizes="(min-width: 640px) 33vw, 100vw"
+                  src={tile.imageSrc}
+                />
               </div>
-              <div className="flex justify-between gap-4 pt-3">
-                <div>
-                  <h3 className="font-semibold">{product.name}</h3>
-                  <p className="mt-0.5 text-[#8b939c] text-sm">{product.category}</p>
-                </div>
-                <p className="font-grotesk font-semibold">{product.price}</p>
+              <div className="py-5 text-center">
+                <span className="font-grotesk font-semibold text-lg group-hover:underline group-hover:decoration-[#ffc42e] group-hover:decoration-2 group-hover:underline-offset-4">
+                  {tile.label}
+                </span>
+                <span className="block text-[#68727d] text-sm">{tile.caption}</span>
               </div>
             </Link>
           ))}
