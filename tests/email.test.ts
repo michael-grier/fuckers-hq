@@ -85,7 +85,7 @@ describe("order confirmation delivery", () => {
     const emailId = await deliverOrderConfirmation(
       delivery,
       {
-        from: "Fuckers HQ <orders@example.com>",
+        from: "Fuckers Skateboards <orders@example.com>",
         supportEmail: "support@example.com",
       },
       {
@@ -103,7 +103,7 @@ describe("order confirmation delivery", () => {
 
     expect(emailId).toBe("email_123");
     expect(message).toMatchObject({
-      from: "Fuckers HQ <orders@example.com>",
+      from: "Fuckers Skateboards <orders@example.com>",
       to: "skater@example.com",
       replyTo: "support@example.com",
       subject: "Order FHQ-20260713-ABC12345 confirmed",
@@ -116,7 +116,7 @@ describe("order confirmation delivery", () => {
       deliverOrderConfirmation(
         delivery,
         {
-          from: "Fuckers HQ <orders@example.com>",
+          from: "Fuckers Skateboards <orders@example.com>",
           supportEmail: "support@example.com",
         },
         {

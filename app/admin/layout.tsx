@@ -27,7 +27,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
               className="font-bold font-grotesk text-lg tracking-tight"
               href={"/admin" as Route}
             >
-              Fuckers <span className="text-accent">HQ</span> Admin
+              Fuckers <span className="text-accent">Skateboards</span> Admin
             </Link>
             <nav aria-label="Admin navigation" className="flex items-center gap-1">
               <Button

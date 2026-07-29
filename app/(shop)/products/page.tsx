@@ -21,8 +21,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   return (
     <main className="min-h-screen py-10">
       <PageHeader
-        description="Hardgoods, softgoods, and accessories — stocked and tested by the crew."
-        eyebrow="Catalog"
         title={getCatalogHeading(parsedSearchParams.category)}
       />
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 pt-8">
