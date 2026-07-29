@@ -12,7 +12,8 @@ export default function ShopLayout({
   return (
     <CartSidebar>
       <SiteHeader />
-      {children}
+      {/* Offsets the fixed floating header; full-bleed heroes pull under it with -mt-[68px]. */}
+      <div className="pt-[68px]">{children}</div>
       <SiteFooter />
     </CartSidebar>
   );
