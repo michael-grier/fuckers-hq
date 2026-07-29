@@ -15,7 +15,7 @@ export default async function AdminProductsPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
-          <h1 className="font-black text-4xl tracking-normal">Products</h1>
+          <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Products</h1>
           <p className="text-muted-foreground">
             Review every product, including draft and archived inventory.
           </p>

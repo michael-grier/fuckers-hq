@@ -46,7 +46,9 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-black text-4xl tracking-normal">{order.orderNumber}</h1>
+            <h1 className="font-grotesk font-semibold text-4xl tracking-tight">
+              {order.orderNumber}
+            </h1>
             <OrderStatusBadge status={order.status} />
             <OrderInventoryStatusBadge status={order.inventoryStatus} />
             {order.refundStatus !== "none" ? (
@@ -62,7 +64,9 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           </p>
         </div>
         <div className="space-y-4 sm:text-right">
-          <p className="font-black text-3xl">{formatMoney(order.totalCents, order.currency)}</p>
+          <p className="font-grotesk font-semibold text-3xl">
+            {formatMoney(order.totalCents, order.currency)}
+          </p>
           {order.inventoryStatus === "allocated" && isOrderFulfillmentEligible(order) ? (
             <MarkOrderShippedButton orderId={order.id} />
           ) : null}

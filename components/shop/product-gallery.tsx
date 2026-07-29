@@ -25,7 +25,7 @@ export function ProductGallery({ name, images }: ProductGalleryProps) {
             unoptimized
           />
         ) : (
-          <div className="flex h-full items-center justify-center px-6 text-center font-black text-4xl text-neutral-300">
+          <div className="flex h-full items-center justify-center px-6 text-center font-grotesk font-semibold text-4xl text-neutral-300">
             {name}
           </div>
         )}

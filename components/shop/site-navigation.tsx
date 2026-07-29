@@ -92,7 +92,7 @@ export function MobileNavigation({
         <Button
           aria-controls="mobile-shop-links"
           aria-expanded={isShopOpen}
-          className="w-full justify-between px-4 text-white/80 hover:bg-white/10 hover:text-white"
+          className="h-auto w-full justify-between px-4 py-3 font-semibold text-base text-white/80 hover:bg-white/10 hover:text-white"
           onClick={onShopToggle}
           type="button"
           variant="ghost"
