@@ -31,9 +31,10 @@
 
 :root {
   --radius: 0.5rem;
-  /* Height of the fixed floating site header including its top inset.
-     Consumed by the shop layout spacer and full-bleed heroes that pull under it. */
-  --header-height: 68px;
+  /* Height of the fixed site header. Below lg it is a flush, full-width bar (56px);
+     from lg up it floats with a 12px top inset (56px + 12px). Consumed by the shop
+     layout spacer and full-bleed heroes that pull under it. */
+  --header-height: 56px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -53,6 +54,13 @@
   --border: oklch(0.9 0 0);
   --input: oklch(0.9 0 0);
   --ring: oklch(0.64 0.14 84);
+}
+
+/* Matches Tailwind's lg breakpoint, where the header switches to its floating style. */
+@media (min-width: 64rem) {
+  :root {
+    --header-height: 68px;
+  }
 }
 
 @layer base {
