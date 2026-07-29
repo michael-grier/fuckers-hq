@@ -31,6 +31,9 @@
 
 :root {
   --radius: 0.5rem;
+  /* Height of the fixed floating site header including its top inset.
+     Consumed by the shop layout spacer and full-bleed heroes that pull under it. */
+  --header-height: 68px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
