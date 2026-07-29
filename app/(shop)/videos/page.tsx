@@ -11,15 +11,9 @@ export const metadata: Metadata = {
 export default function VideosPage() {
   return (
     <main className="min-h-screen py-10">
-      <PageHeader
-        description="Watch us getting down in the streets."
-        title="Watch the latest."
-      />
+      <PageHeader description="Watch us getting down in the streets." title="Watch the latest." />
       <div className="mx-auto max-w-7xl px-6 pt-8">
-        <EmptyState
-          title="Videos are coming soon"
-          description="We're working on it okay?"
-        />
+        <EmptyState title="Videos are coming soon" description="We're working on it okay?" />
       </div>
     </main>
   );

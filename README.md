@@ -76,6 +76,9 @@ surface.
 
    Before a release, complete the reusable [manual QA checklist](docs/manual-qa.md).
 
+For the temporary public sandbox deployment and Git-based release setup, follow the
+[Vercel demo deployment runbook](docs/demo-deployment.md).
+
 ## Database
 
 The Drizzle schema lives in `lib/db/schema.ts`, and generated migrations live in `drizzle/`.
