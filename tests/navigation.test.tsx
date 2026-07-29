@@ -72,6 +72,6 @@ describe("storefront navigation", () => {
     expect(crewMarkup).toContain("Crew profiles are on the way");
     expect(videosMarkup).toContain("<h1");
     expect(videosMarkup).toContain("Watch the latest.");
-    expect(videosMarkup).toContain("The first edit is coming soon");
+    expect(videosMarkup).toContain("We&#x27;re working on it okay?");
   });
 });

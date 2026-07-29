@@ -20,9 +20,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <main className="min-h-screen py-10">
-      <PageHeader
-        title={getCatalogHeading(parsedSearchParams.category)}
-      />
+      <PageHeader title={getCatalogHeading(parsedSearchParams.category)} />
       <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 pt-8">
         <CatalogFilters totalProducts={catalog.totalProducts} />
         <ProductGrid products={catalog.products} />
