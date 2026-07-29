@@ -10,7 +10,7 @@ export default async function AdminPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <h1 className="font-black text-4xl tracking-normal">Admin dashboard</h1>
+        <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Admin dashboard</h1>
         <p className="text-muted-foreground text-lg">
           Review catalog and paid-order data before enabling admin mutations.
         </p>
@@ -43,7 +43,7 @@ function SummaryCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-lg border bg-background p-5">
       <dt className="font-medium text-muted-foreground text-sm">{label}</dt>
-      <dd className="mt-2 font-black text-3xl">{value}</dd>
+      <dd className="mt-2 font-grotesk font-semibold text-3xl">{value}</dd>
     </div>
   );
 }

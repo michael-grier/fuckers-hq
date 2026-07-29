@@ -33,7 +33,7 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
             </Link>
           </Button>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="font-black text-4xl tracking-normal">{product.name}</h1>
+            <h1 className="font-grotesk font-semibold text-4xl tracking-tight">{product.name}</h1>
             <ProductStatusBadge status={product.status} />
           </div>
         </div>

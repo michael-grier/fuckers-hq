@@ -33,7 +33,7 @@ export function ProductCard({ product }: ProductCardProps) {
               unoptimized
             />
           ) : (
-            <div className="flex h-full items-center justify-center bg-neutral-100 px-4 text-center font-black text-2xl text-neutral-300">
+            <div className="flex h-full items-center justify-center bg-neutral-100 px-4 text-center font-grotesk font-semibold text-2xl text-neutral-300">
               {product.name}
             </div>
           )}
@@ -42,11 +42,13 @@ export function ProductCard({ product }: ProductCardProps) {
           ) : null}
         </div>
         <div className="min-w-0 space-y-1">
-          <h2 className="truncate font-black text-2xl tracking-normal">{product.name}</h2>
+          <h2 className="truncate font-grotesk font-semibold text-xl tracking-tight">
+            {product.name}
+          </h2>
           <p className="truncate text-muted-foreground text-sm">
             {getProductCategoryLabel(product.category)}
           </p>
-          <p className="font-bold">
+          <p className="font-grotesk font-semibold">
             <Price cents={product.minPriceCents} maxCents={product.maxPriceCents} />
           </p>
         </div>

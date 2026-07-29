@@ -49,14 +49,16 @@ export function CartLineItem({ line, compact = false }: CartLineItemProps) {
         <div className={cn("min-w-0", compact && "flex items-start justify-between gap-3")}>
           <div className="min-w-0">
             {compact ? (
-              <h3 className="truncate font-black text-lg">{line.productName}</h3>
+              <h3 className="truncate font-grotesk font-semibold text-lg">{line.productName}</h3>
             ) : (
-              <h2 className="truncate font-black text-xl">{line.productName}</h2>
+              <h2 className="truncate font-grotesk font-semibold text-xl">{line.productName}</h2>
             )}
             <p className="text-muted-foreground text-sm">{line.variantName}</p>
           </div>
           {compact ? (
-            <p className="shrink-0 font-black">{formatMoney(line.priceCents * line.quantity)}</p>
+            <p className="shrink-0 font-grotesk font-semibold">
+              {formatMoney(line.priceCents * line.quantity)}
+            </p>
           ) : null}
         </div>
         <p className="font-bold text-sm">{formatMoney(line.priceCents)} each</p>
@@ -81,7 +83,9 @@ export function CartLineItem({ line, compact = false }: CartLineItemProps) {
       </div>
       {compact ? null : (
         <div className="flex items-start justify-between gap-4 sm:flex-col sm:items-end">
-          <p className="font-black text-xl">{formatMoney(line.priceCents * line.quantity)}</p>
+          <p className="font-grotesk font-semibold text-xl">
+            {formatMoney(line.priceCents * line.quantity)}
+          </p>
           <Button
             onClick={() => removeLine(line.variantId)}
             size="icon"

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/shop/empty-state";
+import { PageHeader } from "@/components/shop/page-header";
 
 export const metadata: Metadata = {
   title: "Crew",
@@ -9,22 +10,18 @@ export const metadata: Metadata = {
 
 export default function CrewPage() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-7xl flex-col gap-8 px-6 py-10">
-      <header className="space-y-3 border-b pb-8">
-        <p className="font-semibold text-muted-foreground text-sm uppercase tracking-wide">
-          Fuckers HQ
-        </p>
-        <div className="space-y-2">
-          <h1 className="font-black text-5xl tracking-normal">Meet the crew.</h1>
-          <p className="max-w-2xl text-muted-foreground">
-            Rider profiles, shop regulars, and the people behind Fuckers HQ will live here.
-          </p>
-        </div>
-      </header>
-      <EmptyState
-        title="Crew profiles are on the way"
-        description="We are putting together rider stories, favorite setups, and the spots that keep the crew rolling."
+    <main className="min-h-screen py-10">
+      <PageHeader
+        description="Rider profiles, shop regulars, and the people behind Fuckers HQ will live here."
+        eyebrow="Fuckers HQ"
+        title="Meet the crew."
       />
+      <div className="mx-auto max-w-7xl px-6 pt-8">
+        <EmptyState
+          title="Crew profiles are on the way"
+          description="We are putting together rider stories, favorite setups, and the spots that keep the crew rolling."
+        />
+      </div>
     </main>
   );
 }

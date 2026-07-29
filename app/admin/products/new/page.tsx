@@ -14,7 +14,7 @@ export default function NewAdminProductPage() {
           </Link>
         </Button>
         <div>
-          <h1 className="font-black text-4xl tracking-normal">New product</h1>
+          <h1 className="font-grotesk font-semibold text-4xl tracking-tight">New product</h1>
           <p className="mt-2 text-muted-foreground">
             Start in draft while you add variants and product details.
           </p>

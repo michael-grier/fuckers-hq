@@ -7,7 +7,9 @@ export default function NotFound() {
     <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-start justify-center gap-6 px-6">
       <div className="space-y-2">
         <p className="font-semibold text-muted-foreground text-sm uppercase tracking-wide">404</p>
-        <h1 className="font-black text-4xl tracking-normal">This page is off the board.</h1>
+        <h1 className="font-grotesk font-semibold text-4xl tracking-tight">
+          This page is off the board.
+        </h1>
         <p className="max-w-xl text-muted-foreground">
           The page may have moved, or the product may no longer be active.
         </p>
