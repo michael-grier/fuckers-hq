@@ -18,7 +18,7 @@ export default async function AdminOrdersPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <h1 className="font-black text-4xl tracking-normal">Orders</h1>
+        <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Orders</h1>
         <p className="text-muted-foreground">Paid orders from verified Stripe webhook events.</p>
       </div>
 

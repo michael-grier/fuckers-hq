@@ -16,7 +16,9 @@ export default function RouteError({
         <p className="font-semibold text-muted-foreground text-sm uppercase tracking-wide">
           Something went wrong
         </p>
-        <h1 className="font-black text-4xl tracking-normal">The shop hit an error.</h1>
+        <h1 className="font-grotesk font-semibold text-4xl tracking-tight">
+          The shop hit an error.
+        </h1>
         <p className="max-w-xl text-muted-foreground">
           Try again. If this keeps happening, the error will be visible in the server logs and
           Sentry once observability is configured.

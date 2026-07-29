@@ -28,7 +28,7 @@ export function CartPageClient() {
     <div className="grid gap-8 lg:grid-cols-[1fr_22rem]">
       <section>
         <div className="flex items-center justify-between gap-4 border-b pb-4">
-          <h1 className="font-black text-4xl tracking-normal">Cart</h1>
+          <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Cart</h1>
           <Button onClick={clear} type="button" variant="outline">
             Clear cart
           </Button>

@@ -19,24 +19,43 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
 
   return (
     <div className="min-h-screen bg-muted/40">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+      {/* Sticky (not fixed) so the wrapping nav can grow taller on narrow screens without overlapping content. */}
+      <header className="sticky top-3 z-40 mx-3 rounded-xl border border-white/10 bg-neutral-950/90 text-white backdrop-blur-md">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-2.5">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <Link className="font-black text-xl tracking-normal" href={"/admin" as Route}>
-              Fuckers HQ Admin
+            <Link
+              className="font-bold font-grotesk text-lg tracking-tight"
+              href={"/admin" as Route}
+            >
+              Fuckers <span className="text-accent">HQ</span> Admin
             </Link>
             <nav aria-label="Admin navigation" className="flex items-center gap-1">
-              <Button asChild size="sm" variant="ghost">
+              <Button
+                asChild
+                className="text-white/80 hover:bg-white/10 hover:text-white"
+                size="sm"
+                variant="ghost"
+              >
                 <Link href={"/admin" as Route} prefetch={false}>
                   Overview
                 </Link>
               </Button>
-              <Button asChild size="sm" variant="ghost">
+              <Button
+                asChild
+                className="text-white/80 hover:bg-white/10 hover:text-white"
+                size="sm"
+                variant="ghost"
+              >
                 <Link href={"/admin/products" as Route} prefetch={false}>
                   Products
                 </Link>
               </Button>
-              <Button asChild size="sm" variant="ghost">
+              <Button
+                asChild
+                className="text-white/80 hover:bg-white/10 hover:text-white"
+                size="sm"
+                variant="ghost"
+              >
                 <Link href={"/admin/orders" as Route} prefetch={false}>
                   Orders
                 </Link>
@@ -44,7 +63,12 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
             </nav>
           </div>
           <div className="flex items-center gap-3">
-            <Button asChild size="sm" variant="outline">
+            <Button
+              asChild
+              className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              size="sm"
+              variant="outline"
+            >
               <Link href="/">View storefront</Link>
             </Button>
             <AdminUserButton />

@@ -40,7 +40,7 @@ export function CartSidebarContent({ lines, onClear }: CartSidebarContentProps) 
       <SheetHeader className="shrink-0 border-b px-4 py-5 pr-14 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
-            <SheetTitle className="font-black text-2xl">Your cart</SheetTitle>
+            <SheetTitle className="font-grotesk font-semibold text-2xl">Your cart</SheetTitle>
             <SheetDescription>
               {itemCount === 0
                 ? "Your cart is empty."
@@ -58,7 +58,7 @@ export function CartSidebarContent({ lines, onClear }: CartSidebarContentProps) 
       {lines.length === 0 ? (
         <div className="m-4 flex min-h-0 flex-1 flex-col items-center justify-center rounded-lg border border-dashed px-6 py-12 text-center sm:m-6">
           <div className="max-w-sm space-y-3">
-            <h3 className="font-black text-2xl">Ready when you are.</h3>
+            <h3 className="font-grotesk font-semibold text-2xl">Ready when you are.</h3>
             <p className="text-muted-foreground">
               Add hardgoods, softgoods, or accessories to see them here.
             </p>
