@@ -18,7 +18,7 @@ export default function VideosPage() {
       <div className="mx-auto max-w-7xl px-6 pt-8">
         <EmptyState
           title="Videos are coming soon"
-          description="We're working on it okay??."
+          description="We're working on it okay?"
         />
       </div>
     </main>

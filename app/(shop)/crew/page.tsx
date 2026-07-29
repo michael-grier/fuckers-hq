@@ -18,7 +18,7 @@ export default function CrewPage() {
       <div className="mx-auto max-w-7xl px-6 pt-8">
         <EmptyState
           title="Crew profiles are on the way"
-          description="Just give us a little more time alright??."
+          description="Just give us a little more time alright?"
         />
       </div>
     </main>
