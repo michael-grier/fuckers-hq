@@ -3,43 +3,30 @@ import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
-import type { productCategories } from "@/lib/catalog/categories";
+import { type ProductCategory, productCategories } from "@/lib/catalog/categories";
 
 // Landing page uses a self-contained "dusk" palette (charcoal ink surfaces,
 // fire-gold accent from the flame logo) instead of the global theme tokens.
 
-const categoryTiles: ReadonlyArray<{
-  value: (typeof productCategories)[number]["value"];
-  label: string;
-  caption: string;
-  imageSrc: string;
-}> = [
-  {
-    value: "hardgoods",
-    label: "Hardgoods",
-    caption: "Decks, trucks, and wheels",
-    imageSrc: "/hardgoods.jpg",
-  },
-  {
-    value: "softgoods",
-    label: "Softgoods",
-    caption: "Tees, hoods, and jackets",
-    imageSrc: "/softgoods.jpg",
-  },
-  {
-    value: "accessories",
-    label: "Accessories",
-    caption: "Bearings to wax",
-    imageSrc: "/accessories.jpg",
-  },
-];
+// Labels come from the catalog source of truth; only presentation extras live here.
+const categoryTileExtras: Record<ProductCategory, { caption: string; imageSrc: string }> = {
+  hardgoods: { caption: "Decks, trucks, and wheels", imageSrc: "/hardgoods.jpg" },
+  softgoods: { caption: "Tees, hoods, and jackets", imageSrc: "/softgoods.jpg" },
+  accessories: { caption: "Bearings to wax", imageSrc: "/accessories.jpg" },
+};
+
+const categoryTiles = productCategories.map(({ label, value }) => ({
+  label,
+  value,
+  ...categoryTileExtras[value],
+}));
 
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-[#101317] text-[#eceff2]">
       <section
         aria-label="Featured"
-        className="relative -mt-[68px] flex min-h-[620px] items-end md:h-svh"
+        className="relative -mt-[var(--header-height)] flex min-h-[620px] items-end md:h-svh"
       >
         <Image
           alt="Skater grinding the lip of a graffiti-covered bowl while the crowd watches"
@@ -63,7 +50,7 @@ export default function HomePage() {
             Gear that keeps up with the session.
           </h1>
           <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">
-            Shop-tested decks, wheels, and daily-wear. Picked by the crew, shipped same day.
+            Shop-tested decks, wheels, and daily-wear — picked by the crew.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
