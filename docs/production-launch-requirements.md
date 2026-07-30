@@ -13,24 +13,59 @@ decide, **Build** items are work that follows once the brand item arrives.
 
 ## 1. Stripe and business setup
 
-A bank account alone does not activate a Stripe account. Stripe requires business identity
-verification before it will accept live payments.
+A bank account alone does not activate a Stripe account. Stripe requires identity verification
+before it will accept live payments.
+
+**Incorporation is not required.** Stripe Canada supports an **individual / sole proprietor** account
+type, which is the expected path for a small unincorporated group. One person becomes the account
+owner.
 
 **Brand provides:**
 
-- Legal business name and business structure (sole proprietorship, corporation, partnership)
-- Business address and phone number
-- Government-issued photo ID for the account owner (Stripe identity verification)
+- Legal name, home address, and date of birth of the account owner
+- SIN for the account owner (Stripe requires this for Canadian individual accounts)
+- Government-issued photo ID for the account owner
 - Bank account details for payouts
-- Statement descriptor — the text customers see on their credit card statement
-- GST/HST number, if registered
+- Statement descriptor — the text customers see on their credit card statement (22 character limit)
+- GST/HST number, only if they are registered
 
 **Decisions required:**
 
-- Whether Stripe Tax is enabled. The app currently defaults `STRIPE_TAX_ENABLED` to `true`. If the
-  brand is not tax-registered, this must be explicitly set to `false` rather than left at the
-  default, and the tax jurisdictions must be registered inside Stripe if it stays on.
+- **Who is the Stripe account owner.** On an individual account this person is personally
+  responsible for chargebacks, refunds, disputes, and income tax on the revenue. It is their SIN,
+  their bank account, and their credit. Choose deliberately rather than by whoever fills out the form
+  first, and write down what the group agrees to regarding revenue, expenses, and what happens if
+  someone leaves. A shared document is sufficient.
+- **Where payouts land.** If payouts go to a personal chequing account in the owner's own name, no
+  filing is needed. If they want a business bank account under the "Fuckers Skateboards" name,
+  Alberta banks will require a **trade name registration** (declaration of trade name) first —
+  inexpensive and quick, but a prerequisite rather than an afterthought.
 - Confirmation that all prices are CAD. The admin variant form is currently labelled "Price (CAD)".
+
+### GST/HST and Stripe Tax
+
+Canada's small supplier threshold is $30,000 CAD in revenue across four consecutive calendar
+quarters. Below that, GST/HST registration is not required, and an apartment-scale operation is very
+likely under it.
+
+`STRIPE_TAX_ENABLED` therefore stays `false` for launch. Collecting tax the brand is not registered
+to remit is a worse problem than not collecting it. The schema default is `false` so that a missing
+variable in Vercel cannot silently enable collection; enabling it requires both an explicit `true`
+and registered tax jurisdictions inside Stripe.
+
+### Verify early, not late
+
+- **Complete Stripe onboarding well before launch week.** Stripe reviews account and business names,
+  and the brand name is profane. It is not expected to be blocked, but leave time to respond if
+  Stripe asks questions.
+- **Consider a softer statement descriptor.** This is what appears on customer credit card
+  statements. Something like `FCKRS SKATE` reads better on a shared household statement, and
+  surprising statement lines are a real source of chargebacks. The brand's call, but raise it.
+- **Calgary Home Occupation permit.** Running a business from a residence may require one. This is
+  between the brand and the city and is not a deploy blocker, but they should know it exists.
+
+> The tax and registration details above are the general shape only, from a developer rather than a
+> lawyer or accountant. An hour with an accountant before launch is cheap and worth it.
 
 **Build follow-up:** switch to live Stripe keys, register the live webhook endpoint, and verify the
 webhook signing secret in production.

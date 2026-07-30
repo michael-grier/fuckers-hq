@@ -20,10 +20,10 @@ const optionalIntegerString = z.preprocess(
   z.coerce.number().int().nonnegative().optional(),
 );
 
-const defaultTrueBooleanString = z.preprocess(
+const defaultFalseBooleanString = z.preprocess(
   (value) => {
     if (value == null || value === "") {
-      return "true";
+      return "false";
     }
 
     return typeof value === "string" ? value.toLowerCase() : value;
@@ -35,7 +35,9 @@ const envSchema = z.object({
   DATABASE_URL: optionalString,
   STRIPE_SECRET_KEY: optionalString,
   STRIPE_WEBHOOK_SECRET: optionalString,
-  STRIPE_TAX_ENABLED: defaultTrueBooleanString,
+  // Tax collection is opt-in: a missing flag must never cause the store to collect tax the
+  // brand is not registered to remit.
+  STRIPE_TAX_ENABLED: defaultFalseBooleanString,
   CLERK_SECRET_KEY: optionalString,
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: optionalString,
   RESEND_API_KEY: optionalString,

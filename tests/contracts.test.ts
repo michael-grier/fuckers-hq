@@ -104,10 +104,11 @@ describe("checkout contract", () => {
 });
 
 describe("environment contract", () => {
-  test("defaults Stripe Tax on and accepts an explicit false flag", () => {
-    expect(parseEnv({ NODE_ENV: "test" }).STRIPE_TAX_ENABLED).toBe(true);
-    expect(parseEnv({ NODE_ENV: "test", STRIPE_TAX_ENABLED: "false" }).STRIPE_TAX_ENABLED).toBe(
-      false,
+  test("defaults Stripe Tax off and accepts an explicit true flag", () => {
+    expect(parseEnv({ NODE_ENV: "test" }).STRIPE_TAX_ENABLED).toBe(false);
+    expect(parseEnv({ NODE_ENV: "test", STRIPE_TAX_ENABLED: "" }).STRIPE_TAX_ENABLED).toBe(false);
+    expect(parseEnv({ NODE_ENV: "test", STRIPE_TAX_ENABLED: "true" }).STRIPE_TAX_ENABLED).toBe(
+      true,
     );
   });
 
