@@ -1,6 +1,6 @@
 "use client";
 
-import { Menu, Search, ShoppingCart, X } from "lucide-react";
+import { Menu, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
@@ -77,12 +77,6 @@ export function SiteHeader() {
         </div>
         <DesktopNavigation />
         <div className="flex items-center gap-2">
-          <Button asChild className="text-white hover:bg-white/10" size="icon" variant="ghost">
-            <Link href="/products" onClick={closeMobileNavigation}>
-              <Search aria-hidden="true" />
-              <span className="sr-only">Search products</span>
-            </Link>
-          </Button>
           <SheetTrigger asChild>
             <Button
               className="relative text-white hover:bg-white/10"
