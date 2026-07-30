@@ -306,9 +306,88 @@ traffic to YouTube.
   first. Sequence this ahead of launch day.
 - **Domain name** — purchased, with DNS access. See [Email and DNS](#4-email-and-dns), which is the
   most common cause of launch delay on this list.
-- **Service account ownership** — decide who owns and pays for Vercel, Neon, Cloudflare R2, Resend,
-  Sentry, and the domain registrar. Recommend these live under the brand's email with the developer
-  added as a collaborator. It avoids a painful ownership handoff later.
+
+### New resources are required regardless of who owns the accounts
+
+Production must never point at demo resources. This is independent of the account ownership decision
+below. `docs/demo-deployment.md` carries the authoritative list under "Before real customers use the
+site": a dedicated Neon branch or project, live Stripe keys, a Clerk production instance, a
+production R2 bucket with least-privilege credentials, a verified Resend sending domain, a production
+Sentry project, and fresh Vercel secrets.
+
+### Service tiers and cost
+
+| Service | Tier needed | Notes |
+| --- | --- | --- |
+| Vercel | Pro (~$20/user/month) | Hobby is restricted to personal, non-commercial use under Vercel's terms. A storefront taking real payments is commercial. |
+| Neon | Paid (Launch) | The free tier suspends compute, causing cold starts on first visit, and has a short recovery window. A store wants always-on compute and real backups. |
+| Cloudflare R2 | Free tier is sufficient | A small product catalogue will not approach the limits. Requires a card on file. |
+| Clerk | Free tier is sufficient | Free to 10k monthly active users; this store has a handful of admins. |
+| Resend | Free tier probably sufficient | 3,000/month and **100/day**. Fine at launch, but a drop selling 100+ orders in one day would hit the daily cap. |
+| Sentry | Free developer tier is sufficient | Adequate at this scale. |
+| Stripe | No subscription | Per-transaction fees only. |
+| Domain | ~$15/year | Must be newly purchased in the brand's name. |
+
+**Clerk and Resend both need production instances, and both need DNS records** — Clerk for its
+frontend API and accounts portal, Resend for SPF and DKIM. Neither is optional.
+
+### Vercel: hosting under the developer's existing Pro team
+
+The developer already holds a Vercel Pro account, so the commercial-use requirement is already
+satisfied and the brand does not need to buy their own plan to launch.
+
+Two viable arrangements:
+
+1. **Host under the developer's existing Pro team.** Nothing new to buy. The brand has no direct
+   Vercel access, which is acceptable provided it is documented and the project is transferable.
+   Adding brand members to that team costs an additional seat each.
+2. **The brand creates their own Pro team** and the project is transferred to it. Vercel supports
+   transferring projects between teams, so this is not a one-way door and can be deferred until the
+   brand wants direct control.
+
+Option 1 is the sensible default for launch. Record that the project can be transferred on request so
+it does not become an unspoken dependency.
+
+### R2 needs a custom domain in production
+
+Cloudflare's `r2.dev` public bucket URL is rate-limited and is not recommended for production
+traffic. Production should serve images from a custom domain on the bucket — for example
+`images.theirdomain.com` — which becomes `R2_PUBLIC_URL`.
+
+This is another consumer of DNS access. The application requires no other change: `img-src` in the
+middleware CSP is `https:` and product images are `unoptimized`, so there are no `remotePatterns` to
+update.
+
+### Recommended ownership
+
+**The brand should own the domain, Stripe, Neon, R2, and Resend**, with the developer added as a
+collaborator on each.
+
+The reasoning is continuity, and it protects both parties. If the working relationship ends, for any
+reason, the brand keeps a functioning store and the developer keeps no open obligations. The
+developer also is not carrying the brand's infrastructure costs personally, and is not a single point
+of failure while unreachable. The painful version of this conversation happens years later when
+nobody remembers who controls the DNS.
+
+**Sentry may stay under the developer's account** — it is developer tooling rather than
+customer-facing infrastructure, and the brand will never sign into it.
+
+**Vercel** follows the arrangement chosen above.
+
+### Practical middle ground
+
+A small group running this from an apartment may not want to create and manage six accounts. A
+reasonable compromise: the brand creates the accounts that hold money or identity — **Stripe, the
+domain, and Vercel if they choose option 2** — and the developer manages Neon, R2, Resend, and Sentry
+with a written note that each can be transferred on request.
+
+What matters is that this is decided explicitly and written down, rather than defaulting to whoever
+happened to have a browser open.
+
+**Sequencing note:** have the brand create these accounts using an email the whole group can access,
+not one person's personal Gmail. A shared `hello@theirdomain.com` is ideal — which requires the
+domain first. **Domain purchase is the head of the dependency chain for nearly everything on this
+list.**
 
 ---
 
