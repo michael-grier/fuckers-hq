@@ -50,7 +50,7 @@ export default function HomePage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              className="rounded-full bg-[#ffc42e] px-6 py-3 font-semibold text-surface-chrome text-sm transition hover:brightness-105 md:hover:scale-[1.03]"
+              className="rounded-full bg-accent px-6 py-3 font-semibold text-surface-chrome text-sm transition hover:brightness-105 md:hover:scale-[1.03]"
               href="/products"
             >
               Shop our stuff
@@ -75,7 +75,7 @@ export default function HomePage() {
             Categories
           </h2>
           <Link
-            className="font-semibold text-sm underline decoration-[#ffc42e] decoration-2 underline-offset-4 hover:decoration-4"
+            className="font-semibold text-sm underline decoration-accent decoration-2 underline-offset-4 hover:decoration-4"
             href="/products"
           >
             Shop all
@@ -99,7 +99,7 @@ export default function HomePage() {
                 />
               </div>
               <div className="py-5 text-center">
-                <span className="font-grotesk font-semibold text-lg group-hover:underline group-hover:decoration-[#ffc42e] group-hover:decoration-2 group-hover:underline-offset-4">
+                <span className="font-grotesk font-semibold text-lg group-hover:underline group-hover:decoration-accent group-hover:decoration-2 group-hover:underline-offset-4">
                   {tile.label}
                 </span>
               </div>
