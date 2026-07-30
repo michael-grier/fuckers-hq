@@ -5,9 +5,6 @@ export function SiteFooter() {
         <p className="font-bold font-grotesk text-xl tracking-tight">
           Fuckers <span className="text-accent">Skateboards</span>
         </p>
-        <p className="text-sm text-white/60">
-          Guest checkout, Stripe-hosted payments, and admin-managed inventory.
-        </p>
       </div>
     </footer>
   );
