@@ -101,7 +101,7 @@ protection law effectively requires the refund and contact information.
 
 ---
 
-## 4. Email
+## 4. Email and DNS
 
 **Brand provides:**
 
@@ -109,9 +109,72 @@ protection law effectively requires the refund and contact information.
 - A customer support address (`SUPPORT_EMAIL`)
 - **DNS access to the domain** — not just proof of purchase
 
-DNS access is a hard blocker, not a convenience. Resend requires SPF and DKIM records published on
-the brand's domain before order confirmation emails will deliver reliably. The same access is needed
-to point the domain at Vercel.
+### What "DNS access" means
+
+DNS maps a domain name to servers. Buying a domain gets the *name*; pointing it somewhere and
+proving control of it happens through DNS records, edited either at the registrar or wherever the
+domain's nameservers are delegated.
+
+Owning a domain and being able to configure it are different things. Common blockers: a friend bought
+it and still holds the login, it sits inside a Wix or Squarespace subscription exposing only a
+limited DNS panel, or the account has 2FA tied to a phone nobody has anymore. "We bought the domain"
+does not answer the question.
+
+### Three parts of this stack need DNS records
+
+| Service | Records | Purpose |
+| --- | --- | --- |
+| Vercel | `A` on the apex plus `CNAME` on `www`, or nameserver delegation | Serving the site |
+| Resend | `TXT` for SPF and DKIM, ideally DMARC | Order confirmation email delivery |
+| Clerk | `CNAME` records for the frontend API and accounts portal | Admin sign-in on a production instance |
+
+Clerk is easy to overlook. The app uses `clerkMiddleware` with Clerk's hosted sign-in — there are no
+custom sign-in pages. Development keys work on `localhost` and preview URLs but will not carry a real
+production deployment, and promoting a Clerk instance to production requires those DNS records.
+
+### Why email delivery is the sharp edge
+
+Without valid SPF and DKIM, Gmail and Outlook junk or silently reject order confirmations. The
+failure mode is invisible from inside the app: Stripe charges the card, the order commits, the app
+records the confirmation as sent, and the customer receives nothing. They then ask whether their
+money disappeared, or skip that and file a chargeback. Nothing in the logs looks broken.
+
+This cannot be worked around in code, which is why DNS access is a launch blocker rather than a
+nice-to-have.
+
+### Preferred ways to obtain access, best first
+
+1. **The brand owns the registrar account and adds the developer as a delegate user.** Most
+   registrars support this. The asset stays theirs, access is scoped, no password sharing.
+2. **The brand delegates nameservers to Cloudflare or Vercel** and grants access to that zone. They
+   keep the registrar; the developer manages records.
+3. **The brand adds records themselves from exact values supplied by the developer.** Slower, usually
+   two or three rounds of correcting pasted values, but they retain full control.
+4. **Avoid: the brand emails registrar credentials.** This muddles ownership and puts their
+   credentials in the developer's hands.
+
+### Two technical gotchas to pre-empt
+
+- **If the domain already handles email** (Google Workspace, or a registrar mailbox), do not clobber
+  the existing `MX` or `SPF` records. A domain may have only **one** SPF `TXT` record — adding a
+  second silently breaks authentication for both senders. Resend's value must be merged into the
+  existing record, not appended as a new one.
+- **Prefer sending from a subdomain**, e.g. `send.theirdomain.com` rather than the apex.
+  Transactional email then has its own SPF and DKIM, isolated from their human email, so a
+  reputation problem on one side cannot damage the other. Customers still see the brand in the
+  from-address. This is the recommended default.
+
+**Scheduling note:** if the domain is moving between registrars, do it well before launch. Transfers
+hit a 60-day lock after registration or a prior transfer, and DNS changes can take up to 48 hours to
+propagate.
+
+### Questions to ask the brand
+
+> Who owns the account where the domain was purchased, and can that person log in right now? Is the
+> domain currently used for email? If yes, which provider? Can you add me as a delegate user on the
+> registrar account, or would you prefer to paste in DNS records I send you?
+
+Those three answers determine whether this is a ten-minute task or a two-week one.
 
 ---
 
@@ -169,7 +232,8 @@ traffic to YouTube.
 - **Admin emails** — each admin must create a Clerk account *before* launch. The `ADMIN_USER_IDS`
   environment variable takes Clerk user IDs, not email addresses, so the accounts have to exist
   first. Sequence this ahead of launch day.
-- **Domain name** — purchased, with DNS access (see Email above).
+- **Domain name** — purchased, with DNS access. See [Email and DNS](#4-email-and-dns), which is the
+  most common cause of launch delay on this list.
 - **Service account ownership** — decide who owns and pays for Vercel, Neon, Cloudflare R2, Resend,
   Sentry, and the domain registrar. Recommend these live under the brand's email with the developer
   added as a collaborator. It avoids a painful ownership handoff later.
