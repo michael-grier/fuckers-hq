@@ -199,10 +199,82 @@ Also needed: sizing charts and fit notes for any apparel.
 - Light-on-dark and dark-on-light logo variants — the site uses a dark header and footer with a
   white mid-band, so both get used
 - Favicon source image (see sizes below). There is currently no favicon in `public/`.
-- Social share / Open Graph image. No `openGraph` metadata is configured yet, so links shared to
-  social platforms currently render without a preview image.
+- Social share / Open Graph image (see below)
 - Confirmation of the brand accent colour and typeface. The site currently uses Space Grotesk with a
   gold accent sampled from the flame logo.
+
+### Social share / Open Graph image
+
+Open Graph is the set of `<meta>` tags that tell other platforms how to render a preview card when a
+link is pasted. It produces the image, title, and description shown when a URL is shared into an
+Instagram DM or story, iMessage, Discord, WhatsApp, Slack, Facebook, or X. X uses its own
+`twitter:card` tags, which fall back to Open Graph when absent.
+
+With the tags missing, platforms improvise — usually a bare grey box showing the domain. It reads as
+broken, and it gets clicked noticeably less.
+
+**Current state: nothing is configured.** `app/layout.tsx` sets `title` and `description` but no
+`openGraph` block and no `metadataBase`; there is no `opengraph-image` or `twitter-image` file in
+`app/`; and `generateMetadata` in `app/(shop)/products/[slug]/page.tsx` sets only `title` and
+`description`. Every shared link currently unfurls bare.
+
+This is worth prioritising above most polish items. A small skate brand's distribution *is* link
+sharing — drops get posted to stories and dropped into group chats and Discord servers, so the
+preview card is often a customer's first look at the site, competing against designed content in the
+same feed. It is roughly an hour of work and it affects every share permanently.
+
+#### Image specification
+
+**1200 × 630 px (1.91:1)** — accepted by every major platform.
+
+- **Format:** PNG or JPEG. Not WebP; several scrapers still do not handle it.
+- **File size:** under 1 MB as a practical target. Facebook's hard cap is 8 MB, but large files time
+  out during scraping.
+- **Text must be large.** These render small, sometimes 300 px wide in a chat list. Logo plus three
+  or four words maximum; body-copy sizes are unreadable.
+- **Keep content away from the edges.** Platforms crop inconsistently — some show the full 1.91:1,
+  others crop toward square. Assume the outer ~10% may be lost.
+
+#### Two levels of implementation
+
+1. **Static site-wide image.** Logo and wordmark on the brand's dark charcoal with the gold accent.
+   Next.js picks this up automatically at `app/opengraph-image.png` with no code required, covering
+   the homepage, crew, videos, and any page without its own.
+2. **Per-product images**, so sharing a specific deck shows that deck. The cheap version points Open
+   Graph at the product's existing primary R2 photo from the existing `generateMetadata`. Product
+   photos are square, so platforms will crop or letterbox them into 1.91:1 — acceptable, and far
+   better than nothing. The composed version generates a 1200 × 630 card per product at request time
+   via `ImageResponse` (product photo on brand background with name and price). Start with the cheap
+   version; upgrade if the brand wants it.
+
+#### Required build item: `metadataBase`
+
+Without `metadataBase`, Next.js emits Open Graph image URLs as relative paths, which external
+scrapers cannot resolve — the preview silently falls back to nothing. It must be set to the
+production origin, wired to `NEXT_PUBLIC_APP_URL` (currently defaulting to `http://localhost:3000`)
+once the real domain exists.
+
+This is a footgun: everything looks correct locally and produces no preview in production. Add
+`og:site_name`, `og:type`, `twitter:card: summary_large_image`, and alt text on the image alongside
+it.
+
+#### Testing caveat
+
+Open Graph previews cannot be tested from `localhost` — scrapers need a publicly reachable URL, so
+this is verified on a Vercel preview or production deploy using Facebook's Sharing Debugger and X's
+Card Validator.
+
+Platforms cache aggressively and some cache indefinitely. If a link is shared before the tags are
+correct, the bad preview can persist for a long time; Facebook allows a forced re-scrape, iMessage
+effectively does not. **Get this right before the launch announcement, not after.**
+
+#### Questions to ask the brand
+
+> Either send a designed 1200 × 630 social share image, or send the logo files plus a yes/no on us
+> composing one from the logo on the brand's dark background. Also: do you want a tagline on it, or
+> logo only?
+
+Logo only on a solid brand background is perfectly acceptable and is what most small brands ship.
 
 ---
 
