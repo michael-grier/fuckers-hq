@@ -43,7 +43,7 @@ export function AdminHeader() {
   return (
     // Sticky (not fixed) so the panel can push content down instead of overlapping it.
     // Matches the storefront header: a flush solid bar below lg, a floating translucent bar from lg up.
-    <header className="sticky top-0 z-40 border-white/10 border-b bg-neutral-950 text-white lg:top-3 lg:mx-3 lg:rounded-xl lg:border lg:bg-neutral-950/90 lg:backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-white/10 border-b bg-surface-chrome text-white lg:top-3 lg:mx-3 lg:rounded-xl lg:border">
       <div className="flex items-center justify-between gap-3 px-4 py-2.5 lg:px-5">
         <div className="flex min-w-0 items-center gap-2 lg:gap-6">
           <Button

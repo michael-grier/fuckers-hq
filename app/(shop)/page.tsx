@@ -23,7 +23,7 @@ const categoryTiles = productCategories.map(({ label, value }) => ({
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-[#101317] text-[#eceff2]">
+    <main className="min-h-screen bg-surface-chrome text-[#eceff2]">
       <section
         aria-label="Featured"
         className="relative flex h-[calc(100svh-var(--header-height))] min-h-[620px] items-end lg:-mt-[var(--header-height)] lg:h-svh"
@@ -38,7 +38,7 @@ export default function HomePage() {
         />
         <div
           aria-hidden="true"
-          className="absolute inset-0 bg-gradient-to-t from-[#101317] via-[#10131740] to-transparent"
+          className="absolute inset-0 bg-gradient-to-t from-surface-chrome via-surface-chrome/25 to-transparent"
         />
         {/* Hero copy anchors to the viewport edge (like the nav), not the content max-width. */}
         <div className="relative z-10 w-full px-6 pt-40 pb-12 lg:px-8">
@@ -50,7 +50,7 @@ export default function HomePage() {
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              className="rounded-full bg-[#ffc42e] px-6 py-3 font-semibold text-[#101317] text-sm transition hover:brightness-105 md:hover:scale-[1.03]"
+              className="rounded-full bg-[#ffc42e] px-6 py-3 font-semibold text-surface-chrome text-sm transition hover:brightness-105 md:hover:scale-[1.03]"
               href="/products"
             >
               Shop our stuff
@@ -66,7 +66,7 @@ export default function HomePage() {
       </section>
 
       {/* Light band: a deliberate visual break from the dark hero above and dark footer below. */}
-      <section aria-labelledby="trending-heading" className="bg-white py-16 text-[#101317]">
+      <section aria-labelledby="trending-heading" className="bg-white py-16 text-surface-chrome">
         <div className="flex flex-wrap items-baseline justify-between gap-4 px-6 pb-10 lg:px-8">
           <h2
             className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl"

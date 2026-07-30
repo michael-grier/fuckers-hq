@@ -49,7 +49,7 @@ export function SiteHeader() {
   }, [isMobileNavigationOpen]);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-white/10 border-b bg-neutral-950 text-white lg:inset-x-3 lg:top-3 lg:rounded-xl lg:border lg:bg-neutral-950/80 lg:backdrop-blur-md">
+    <header className="fixed inset-x-0 top-0 z-40 border-white/10 border-b bg-surface-chrome text-white lg:inset-x-3 lg:top-3 lg:rounded-xl lg:border">
       <div className="flex items-center justify-between gap-4 px-5 py-2.5">
         <div className="flex items-center gap-3">
           <Button
