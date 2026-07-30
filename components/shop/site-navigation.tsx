@@ -34,7 +34,7 @@ export function DesktopNavigation() {
         <div className="invisible absolute top-full left-1/2 z-40 w-56 -translate-x-1/2 pt-2 opacity-0 transition group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100">
           <ul
             aria-label="Shop categories"
-            className="space-y-1 rounded-xl border border-white/10 bg-neutral-950/80 p-2 shadow-xl backdrop-blur-md"
+            className="space-y-1 rounded-xl border border-white/10 bg-surface-chrome p-2 shadow-xl"
           >
             {shopNavigationLinks.map((link) => (
               <li key={link.href}>
