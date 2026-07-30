@@ -20,7 +20,8 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
   return (
     <div className="min-h-screen bg-muted/40">
       {/* Sticky (not fixed) so the wrapping nav can grow taller on narrow screens without overlapping content. */}
-      <header className="sticky top-3 z-40 mx-3 rounded-xl border border-white/10 bg-neutral-950/90 text-white backdrop-blur-md">
+      {/* Matches the storefront header: a flush solid bar below lg, a floating translucent bar from lg up. */}
+      <header className="sticky top-0 z-40 border-white/10 border-b bg-neutral-950 text-white lg:top-3 lg:mx-3 lg:rounded-xl lg:border lg:bg-neutral-950/90 lg:backdrop-blur-md">
         <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-2.5">
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
             <Link
