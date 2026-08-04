@@ -12,6 +12,8 @@ dependencies or perform broad refactors without explaining why they are necessar
 ## Development
 
 - Use Bun and the committed lockfile. Do not introduce a second package manager.
+- In a fresh `git worktree`, run `bun install` and `bun run setup:worktree` before running the app.
+  The second command links the main checkout's gitignored `.env.local` into the worktree.
 - Keep TypeScript explicit and readable; avoid `any` unless a boundary genuinely requires it.
 - Keep validation, authorization, and persistence boundaries visible.
 - Reuse existing components, utilities, and patterns before adding abstractions.

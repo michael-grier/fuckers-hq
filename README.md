@@ -79,6 +79,21 @@ surface.
 For the temporary public sandbox deployment and Git-based release setup, follow the
 [Vercel demo deployment runbook](docs/demo-deployment.md).
 
+### Git Worktrees
+
+`.env.local` is gitignored, so a new `git worktree` checkout starts without one. Next.js only
+loads env files from its own project root, so the app fails there with
+`@clerk/clerk-react: Missing publishableKey`. In each new worktree, run:
+
+```bash
+bun install
+bun run setup:worktree
+```
+
+`setup:worktree` symlinks the main checkout's `.env.local` into the worktree, so credential
+updates stay in one place. Replace the symlink with a real file if a worktree needs its own
+values (for example a separate Stripe webhook secret).
+
 ## Database
 
 The Drizzle schema lives in `lib/db/schema.ts`, and generated migrations live in `drizzle/`.

@@ -11,6 +11,7 @@
     "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "setup:worktree": "bash scripts/setup-worktree.sh",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run lib/db/migrate.ts",
     "db:seed": "bun run lib/db/seed.ts",
