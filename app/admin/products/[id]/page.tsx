@@ -90,13 +90,16 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
             Variants
           </h2>
           <p className="mt-1 text-muted-foreground text-sm">
-            Inventory shows on-hand, reserved, and currently available quantities.
+            Inventory shows on-hand, reserved, and currently available quantities. Variants appear
+            in this order on the storefront.
           </p>
         </div>
 
         <div className="space-y-4">
-          {product.variants.map((variant) => (
+          {product.variants.map((variant, index) => (
             <VariantForm
+              canMoveDown={index < product.variants.length - 1}
+              canMoveUp={index > 0}
               key={variant.id}
               productId={product.id}
               productStatus={product.status}

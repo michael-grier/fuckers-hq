@@ -102,10 +102,14 @@ export const productVariants = pgTable(
     priceCents: integer("price_cents").notNull(),
     inventoryQty: integer("inventory_qty").notNull().default(0),
     reservedQty: integer("reserved_qty").notNull().default(0),
+    // Admin-controlled display order within a product; lower positions render first.
+    position: integer("position").notNull().default(0),
   },
   (table) => [
     uniqueIndex("product_variants_sku_unique").on(table.sku),
     index("product_variants_product_id_idx").on(table.productId),
+    index("product_variants_product_id_position_idx").on(table.productId, table.position),
+    check("product_variants_position_nonnegative", sql`${table.position} >= 0`),
     check("product_variants_price_cents_nonnegative", sql`${table.priceCents} >= 0`),
     check("product_variants_inventory_qty_nonnegative", sql`${table.inventoryQty} >= 0`),
     check("product_variants_reserved_qty_nonnegative", sql`${table.reservedQty} >= 0`),

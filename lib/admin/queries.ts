@@ -124,7 +124,7 @@ export async function getAdminProducts() {
           inventoryQty: true,
           reservedQty: true,
         },
-        orderBy: (variants) => [asc(variants.sku)],
+        orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
       },
     },
     orderBy: (products, { desc }) => [desc(products.updatedAt)],
@@ -147,7 +147,7 @@ export async function getAdminProductById(input: unknown) {
         orderBy: (images) => [asc(images.position), asc(images.id)],
       },
       variants: {
-        orderBy: (variants) => [asc(variants.sku)],
+        orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
       },
     },
   });

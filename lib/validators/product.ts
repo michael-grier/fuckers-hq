@@ -155,6 +155,14 @@ export const adminVariantDeleteSchema = z
   })
   .strict();
 
+export const adminVariantMoveSchema = z
+  .object({
+    productId: adminEntityIdSchema,
+    variantId: adminEntityIdSchema,
+    direction: z.enum(["up", "down"]),
+  })
+  .strict();
+
 export const adminImageUploadFormSchema = z
   .object({
     alt: z.string().trim().max(180),

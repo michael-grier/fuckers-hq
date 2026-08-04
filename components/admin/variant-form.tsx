@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -8,7 +9,8 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionFailure } from "@/lib/actions/result";
-import { createVariant, deleteVariant, updateVariant } from "@/lib/actions/variants";
+import { createVariant, deleteVariant, moveVariant, updateVariant } from "@/lib/actions/variants";
+import type { VariantMoveDirection } from "@/lib/admin/variant-order";
 import { centsToDollars } from "@/lib/money";
 import { type AdminVariantFormInput, adminVariantFormSchema } from "@/lib/validators/product";
 
@@ -25,6 +27,8 @@ type VariantFormProps = {
   productId: string;
   productStatus: "draft" | "active" | "archived";
   variant?: ExistingVariant;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 };
 
 const emptyVariant: AdminVariantFormInput = {
@@ -36,11 +40,18 @@ const emptyVariant: AdminVariantFormInput = {
 
 const variantFieldNames = ["name", "sku", "price", "inventory"] as const;
 
-export function VariantForm({ productId, productStatus, variant }: VariantFormProps) {
+export function VariantForm({
+  productId,
+  productStatus,
+  variant,
+  canMoveUp = false,
+  canMoveDown = false,
+}: VariantFormProps) {
   const router = useRouter();
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isMoving, setIsMoving] = useState(false);
   const defaultValues = variant
     ? {
         name: variant.name,
@@ -84,6 +95,29 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
     router.refresh();
   }
 
+  async function onMove(direction: VariantMoveDirection) {
+    if (!variant) {
+      return;
+    }
+
+    setActionError(null);
+    setSuccessMessage(null);
+    setIsMoving(true);
+
+    try {
+      const result = await moveVariant({ productId, variantId: variant.id, direction });
+
+      if (!result.success) {
+        setActionError(result.message);
+        return;
+      }
+
+      router.refresh();
+    } finally {
+      setIsMoving(false);
+    }
+  }
+
   async function onDelete() {
     if (!variant || !window.confirm(`Delete ${variant.name}? This cannot be undone.`)) {
       return;
@@ -108,7 +142,7 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
   }
 
   const errors = form.formState.errors;
-  const busy = form.formState.isSubmitting || isDeleting;
+  const busy = form.formState.isSubmitting || isDeleting || isMoving;
 
   return (
     <form
@@ -116,6 +150,37 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
       noValidate
       onSubmit={form.handleSubmit(onSubmit)}
     >
+      {variant ? (
+        <div className="mb-4 flex items-center justify-between gap-3 border-b pb-3">
+          <p className="truncate font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+            {variant.name} · {variant.sku}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              className="size-8"
+              disabled={busy || !canMoveUp}
+              onClick={() => onMove("up")}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <ChevronUp aria-hidden="true" />
+              <span className="sr-only">Move {variant.name} up</span>
+            </Button>
+            <Button
+              className="size-8"
+              disabled={busy || !canMoveDown}
+              onClick={() => onMove("down")}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <ChevronDown aria-hidden="true" />
+              <span className="sr-only">Move {variant.name} down</span>
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <FormField error={errors.name?.message} id={`${variant?.id ?? "new"}-name`} label="Name">
           <Input
