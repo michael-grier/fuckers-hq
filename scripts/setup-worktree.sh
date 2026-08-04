@@ -26,7 +26,9 @@ fi
 
 if [ ! -f "$source_env" ]; then
   echo "No .env.local in the main checkout ($main_root)." >&2
-  echo "Create one there first: cp .env.example .env.local" >&2
+  # Absolute paths matter: a relative copy would land in this worktree, and the
+  # already-exists guard above would then skip linking on every later run.
+  echo "Create one there first: cp \"$main_root/.env.example\" \"$source_env\"" >&2
   exit 1
 fi
 

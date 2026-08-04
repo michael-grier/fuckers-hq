@@ -91,8 +91,18 @@ bun run setup:worktree
 ```
 
 `setup:worktree` symlinks the main checkout's `.env.local` into the worktree, so credential
-updates stay in one place. Replace the symlink with a real file if a worktree needs its own
-values (for example a separate Stripe webhook secret).
+updates stay in one place.
+
+If a worktree needs its own values (for example a separate Stripe webhook secret), delete the
+symlink before writing the override:
+
+```bash
+rm .env.local
+cp .env.example .env.local
+```
+
+Editing the linked `.env.local` in place writes through to the main checkout and changes the
+credentials every other worktree reads.
 
 ## Database
 
