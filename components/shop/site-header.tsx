@@ -51,7 +51,9 @@ export function SiteHeader() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-white/10 border-b bg-surface-chrome text-white lg:inset-x-3 lg:top-3 lg:rounded-xl lg:border">
-      <div className="flex items-center justify-between gap-4 px-5 py-2.5">
+      {/* Height comes from --header-bar-height rather than padding plus the tallest child,
+          so the layout spacers derived from it cannot fall out of sync with the bar. */}
+      <div className="flex h-[var(--header-bar-height)] items-center justify-between gap-4 px-5">
         <div className="flex items-center gap-3">
           <Button
             aria-controls="mobile-navigation"

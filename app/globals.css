@@ -32,11 +32,19 @@
 
 :root {
   --radius: 0.5rem;
-  /* Space the fixed site header occupies from the top of the viewport. Consumed by the
-     shop layout spacer and full-bleed heroes that pull under it, so it must match the
-     rendered bar or content hides beneath the opaque chrome.
-     Below lg: 10px padding + 40px cart button + 10px padding + 1px bottom border. */
-  --header-height: 61px;
+  /* Header geometry. --header-bar-height is applied directly to the bar element in both
+     SiteHeader and AdminHeader, so the bar cannot grow with its tallest child and drift
+     away from the spacer below it. Change the bar height here and everything follows.
+     The two headers deliberately share these values so the storefront and admin chrome
+     stay the same height at a given breakpoint. */
+  --header-bar-height: 60px;
+  /* The bar's own border, outside its box: bottom edge only until it starts floating. */
+  --header-border: 1px;
+  /* Gap between the viewport top and the bar; nonzero only once the bar floats. */
+  --header-inset: 0px;
+  /* Total space the header occupies from the top of the viewport. Consumed by the shop
+     and admin layout spacers and by full-bleed heroes that pull back under the bar. */
+  --header-height: calc(var(--header-inset) + var(--header-bar-height) + var(--header-border));
   /* The one dark surface: headers, footer, nav dropdown, and the dark page sections
      they meet, so those seams are invisible. Chrome uses it opaque on purpose — a
      translucent bar composites differently over the dark hero and the white category
@@ -63,19 +71,21 @@
   --ring: oklch(0.64 0.14 84);
 }
 
-/* Matches Tailwind's md breakpoint, where the logo steps up to 48px and becomes the
-   tallest item in the bar: 10px padding + 48px logo + 10px padding + 1px bottom border. */
+/* Matches Tailwind's md breakpoint, where the logo steps up to 48px and needs a taller
+   bar to sit in (48px logo + 10px breathing room above and below). */
 @media (min-width: 48rem) {
   :root {
-    --header-height: 69px;
+    --header-bar-height: 68px;
   }
 }
 
-/* Matches Tailwind's lg breakpoint, where the header switches to its floating style:
-   the md bar plus a second border (it is fully outlined) and the 12px top inset. */
+/* Matches Tailwind's lg breakpoint, where the bar stops being flush and floats as a
+   fully outlined card, so it clears the viewport edge and carries a border on both
+   horizontal edges rather than just the bottom. */
 @media (min-width: 64rem) {
   :root {
-    --header-height: 82px;
+    --header-border: 2px;
+    --header-inset: 12px;
   }
 }
 
