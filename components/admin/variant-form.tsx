@@ -147,6 +147,7 @@ export function VariantForm({
   return (
     <form
       className="rounded-lg border bg-background p-5"
+      data-reorder-key={variant?.id}
       noValidate
       onSubmit={form.handleSubmit(onSubmit)}
     >
