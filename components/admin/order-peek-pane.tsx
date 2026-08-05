@@ -18,8 +18,9 @@ type OrderPeekPaneProps = {
  * Presents the order preview in the layout that fits the viewport: a
  * viewport-height column beside the list from lg up, and a bottom sheet below it.
  *
- * The sheet is only mounted on small viewports, so the dialog never traps focus
- * or locks scrolling while the desktop pane is the visible surface.
+ * The sheet is only mounted once the client has confirmed a small viewport, so
+ * the dialog never traps focus or locks scrolling while the desktop pane is the
+ * visible surface.
  */
 export function OrderPeekPane({ title, children }: OrderPeekPaneProps) {
   const isDesktopSplit = useMediaQuery(desktopSplitQuery);
@@ -38,7 +39,11 @@ export function OrderPeekPane({ title, children }: OrderPeekPaneProps) {
         {children}
       </aside>
 
-      {isDesktopSplit ? null : (
+      {/* Strict false, not falsy: while the viewport is still unknown (server
+          render and hydration) the sheet must stay unmounted, or Radix would
+          briefly lock scrolling and pull focus on desktop before the media
+          query resolves. */}
+      {isDesktopSplit === false ? (
         <Sheet
           onOpenChange={(open) => {
             if (!open) {
@@ -57,16 +62,19 @@ export function OrderPeekPane({ title, children }: OrderPeekPaneProps) {
             {children}
           </SheetContent>
         </Sheet>
-      )}
+      ) : null}
     </>
   );
 }
 
 /**
- * Reads the match during the first client render (not in an effect), so the
- * sheet never mounts for a frame on desktop before being corrected away.
+ * Returns null until the client can measure the viewport, then the live match.
+ *
+ * React uses the server snapshot for both SSR and the hydration render, so a
+ * boolean default would make hydration claim a definite viewport it cannot know.
+ * Callers must therefore branch on `=== false` rather than falsiness.
  */
-function useMediaQuery(query: string): boolean {
+function useMediaQuery(query: string): boolean | null {
   const subscribe = useCallback(
     (onStoreChange: () => void) => {
       const mediaQueryList = window.matchMedia(query);
@@ -76,10 +84,9 @@ function useMediaQuery(query: string): boolean {
     [query],
   );
 
-  return useSyncExternalStore(
+  return useSyncExternalStore<boolean | null>(
     subscribe,
     () => window.matchMedia(query).matches,
-    // The server cannot know the viewport; the desktop pane is CSS-hidden below lg.
-    () => false,
+    () => null,
   );
 }

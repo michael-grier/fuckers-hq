@@ -41,6 +41,11 @@ describe("orderNeedsAction", () => {
       false,
     );
   });
+
+  test("ignores orders with no confirmation delivery record", () => {
+    // getAdminOrders maps a missing delivery relation to null.
+    expect(orderNeedsAction(order({ confirmationDeliveryStatus: null }))).toBe(false);
+  });
 });
 
 describe("matchesAdminOrderFilter", () => {

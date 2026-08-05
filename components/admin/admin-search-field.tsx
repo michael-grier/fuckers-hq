@@ -1,7 +1,7 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { parseAsString, useQueryStates } from "nuqs";
+import { debounce, parseAsString, useQueryStates } from "nuqs";
 import { useTransition } from "react";
 
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,15 @@ export function AdminSearchField({ id, label, placeholder }: AdminSearchFieldPro
   const [filters, setFilters] = useQueryStates(
     // `peek` is declared so a new search can clear a stale row selection.
     { q: parseAsString.withDefault(""), peek: parseAsString },
-    { ...adminFilterUrlOptions, startTransition },
+    {
+      ...adminFilterUrlOptions,
+      startTransition,
+      // The shared options set shallow:false, so each URL update re-runs the
+      // page's unbounded list query on the server. Debounce typing so a burst
+      // of keystrokes costs one query instead of one per character; the input
+      // itself stays responsive because nuqs updates local state immediately.
+      limitUrlUpdates: debounce(300),
+    },
   );
 
   return (

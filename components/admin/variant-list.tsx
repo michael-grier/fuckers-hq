@@ -23,6 +23,7 @@ type VariantListProps = {
 export function VariantList({ productId, productStatus, variants }: VariantListProps) {
   const router = useRouter();
   const [moveError, setMoveError] = useState<string | null>(null);
+  const [moveAnnouncement, setMoveAnnouncement] = useState("");
   const [, startTransition] = useTransition();
   const [optimisticVariants, applyOptimisticMove] = useOptimistic(
     variants,
@@ -33,8 +34,21 @@ export function VariantList({ productId, productStatus, variants }: VariantListP
   function handleMove(variantId: string, direction: VariantMoveDirection) {
     setMoveError(null);
 
+    // Derived before the reorder renders: the visual change is the only
+    // feedback a sighted user gets, so announce the same thing to assistive
+    // technology instead of leaving a successful move silent.
+    const reordered = moveVariantInList(optimisticVariants, variantId, direction);
+    const movedIndex = reordered?.findIndex((variant) => variant.id === variantId) ?? -1;
+    const movedVariant = movedIndex >= 0 ? reordered?.[movedIndex] : undefined;
+
     startTransition(async () => {
       applyOptimisticMove({ variantId, direction });
+
+      if (movedVariant && reordered) {
+        setMoveAnnouncement(
+          `${movedVariant.name} moved to position ${movedIndex + 1} of ${reordered.length}.`,
+        );
+      }
 
       const result = await moveVariant({ productId, variantId, direction });
 
@@ -56,6 +70,9 @@ export function VariantList({ productId, productStatus, variants }: VariantListP
           {moveError}
         </p>
       ) : null}
+      <p aria-live="polite" className="sr-only">
+        {moveAnnouncement}
+      </p>
       <ReorderableList className="space-y-4">
         {optimisticVariants.map((variant, index) => (
           <VariantForm

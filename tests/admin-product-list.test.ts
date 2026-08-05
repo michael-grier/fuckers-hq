@@ -62,7 +62,10 @@ describe("filterAdminProducts", () => {
   test("matches name, slug, and variant name case-insensitively", () => {
     expect(filterAdminProducts(products, { q: "DECK", status: "all" })).toHaveLength(1);
     expect(filterAdminProducts(products, { q: "old-grip", status: "all" })).toHaveLength(1);
-    expect(filterAdminProducts(products, { q: "l", status: "all" }).length).toBeGreaterThan(0);
+    // Matches only a variant name, so removing the variant branch fails this.
+    expect(
+      filterAdminProducts(products, { q: "8.25", status: "all" }).map((product) => product.slug),
+    ).toEqual(["blank-deck"]);
   });
 
   test("combines status and query, and ignores surrounding whitespace", () => {
