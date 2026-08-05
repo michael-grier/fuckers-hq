@@ -120,16 +120,28 @@ export async function getAdminProducts() {
     with: {
       variants: {
         columns: {
+          name: true,
           priceCents: true,
           inventoryQty: true,
           reservedQty: true,
         },
         orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
       },
+      // Only the first image is needed for the card grid thumbnail.
+      images: {
+        columns: {
+          url: true,
+          alt: true,
+        },
+        orderBy: (images) => [asc(images.position), asc(images.id)],
+        limit: 1,
+      },
     },
     orderBy: (products, { desc }) => [desc(products.updatedAt)],
   });
 }
+
+export type AdminProduct = Awaited<ReturnType<typeof getAdminProducts>>[number];
 
 export async function getAdminProductById(input: unknown) {
   await requireAdmin();
