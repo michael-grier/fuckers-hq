@@ -80,7 +80,11 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         </div>
       ) : null}
 
-      <div className="p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+      {/* Grows into the pane's spare height and scrolls when an order has many
+          lines. The 8rem floor (rather than min-h-0) keeps several rows visible
+          on short viewports, where the blocks below would otherwise squeeze this
+          region to a single line. */}
+      <div className="p-4 lg:min-h-32 lg:flex-1 lg:overflow-y-auto">
         <h3 className="mb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
           Items ({order.items.length})
         </h3>
