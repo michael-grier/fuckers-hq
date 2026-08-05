@@ -60,6 +60,12 @@ export const pendingCheckoutTokenSchema = z
   .max(128)
   .regex(/^[A-Za-z0-9_-]+$/);
 
+/**
+ * Unknown keys pass through deliberately. A Session created by a newer deploy can be paid while an
+ * older instance is still receiving webhooks, so rejecting an unrecognized metadata key would
+ * discard a verified payment and leave Stripe retrying against a permanent failure. Only the keys
+ * named here are ever read, and the signature check — not this schema — is what establishes trust.
+ */
 export const pendingCheckoutMetadataSchema = z
   .object({
     pendingCheckoutToken: pendingCheckoutTokenSchema,
@@ -68,7 +74,7 @@ export const pendingCheckoutMetadataSchema = z
     // how an order is fulfilled, because Session metadata is echoed back from an external system.
     fulfillmentMethod: fulfillmentMethodSchema.optional(),
   })
-  .strict();
+  .passthrough();
 
 export type CartLine = z.infer<typeof cartLineSchema>;
 export type FulfillmentMethodInput = z.infer<typeof fulfillmentMethodSchema>;
