@@ -19,8 +19,25 @@ fi
 target="$worktree_root/.env.local"
 source_env="$main_root/.env.local"
 
-if [ -e "$target" ] || [ -L "$target" ]; then
-  echo "$target already exists; leaving it unchanged."
+# Every linked worktree writes through to this one file, so `cp`, `>`, and `>>` from any of
+# them would rewrite the credentials all the others read. Dropping write permission blocks
+# that in the kernel, which covers every tool and agent harness rather than just the ones
+# that honour a config file. Reads are unaffected, so the dev server and build still work.
+harden_shared_env() {
+  if [ -w "$source_env" ]; then
+    chmod a-w "$source_env" && echo "Made $source_env read-only (chmod +w to rotate credentials)."
+  fi
+}
+
+if [ -L "$target" ]; then
+  echo "$target is already linked; leaving it unchanged."
+  harden_shared_env
+  exit 0
+fi
+
+if [ -e "$target" ]; then
+  # A real file here is a deliberate per-worktree override, so the shared file is not in play.
+  echo "$target already exists as a regular file; leaving it unchanged."
   exit 0
 fi
 
@@ -34,3 +51,4 @@ fi
 
 ln -s "$source_env" "$target"
 echo "Linked $target -> $source_env"
+harden_shared_env

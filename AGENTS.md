@@ -14,6 +14,11 @@ dependencies or perform broad refactors without explaining why they are necessar
 - Use Bun and the committed lockfile. Do not introduce a second package manager.
 - In a fresh `git worktree`, run `bun install` and `bun run setup:worktree` before running the app.
   The second command links the main checkout's gitignored `.env.local` into the worktree.
+- Never create, edit, or overwrite `.env` or `.env*.local`. Worktrees share one physical
+  `.env.local` by symlink, so writing to it from any worktree rewrites the credentials every other
+  worktree reads. `setup:worktree` makes that file read-only; treat a `Permission denied` on it as
+  the guard working, not as a problem to route around. Ask before changing any credential. Editing
+  the committed `.env.example` is fine and is how env-contract changes are proposed.
 - Keep TypeScript explicit and readable; avoid `any` unless a boundary genuinely requires it.
 - Keep validation, authorization, and persistence boundaries visible.
 - Reuse existing components, utilities, and patterns before adding abstractions.

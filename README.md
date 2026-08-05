@@ -91,7 +91,18 @@ bun run setup:worktree
 ```
 
 `setup:worktree` symlinks the main checkout's `.env.local` into the worktree, so credential
-updates stay in one place.
+updates stay in one place. Because every worktree then writes through to that single file, the
+script also drops its write permission. Rotating a credential is therefore:
+
+```bash
+chmod +w .env.local   # in the main checkout
+# edit
+chmod a-w .env.local
+```
+
+An unexpected `Permission denied` when writing `.env.local` is this guard, not a broken checkout.
+Claude Code additionally refuses to read or write `.env` and `.env*.local` via
+`.claude/settings.json`; that covers one agent harness, while the read-only bit covers all of them.
 
 If a worktree needs its own values (for example a separate Stripe webhook secret), delete the
 symlink before writing the override:
