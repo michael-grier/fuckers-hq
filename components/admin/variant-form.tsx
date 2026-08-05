@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,9 @@ export function VariantForm({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  const moveUpButtonRef = useRef<HTMLButtonElement>(null);
+  const moveDownButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingMoveFocusRef = useRef<VariantMoveDirection | null>(null);
   const defaultValues = variant
     ? {
         name: variant.name,
@@ -63,6 +66,38 @@ export function VariantForm({
   const form = useForm<AdminVariantFormInput>({
     defaultValues,
     resolver: zodResolver(adminVariantFormSchema),
+  });
+
+  // A variant that reaches either end of the list disables the arrow that was
+  // just pressed, and the browser drops focus to <body>. Hand focus to the
+  // opposite arrow so keyboard users keep their place. Runs after every render
+  // because the reordered props arrive with a later router.refresh() pass.
+  useEffect(() => {
+    const direction = pendingMoveFocusRef.current;
+
+    if (!direction) {
+      return;
+    }
+
+    if (isMoving) {
+      // Both arrows are disabled while the move is in flight; wait for it to settle.
+      return;
+    }
+
+    if (document.activeElement !== document.body) {
+      // Focus was kept on the arrow, or the user moved it deliberately.
+      pendingMoveFocusRef.current = null;
+      return;
+    }
+
+    const pressedButton = direction === "up" ? moveUpButtonRef.current : moveDownButtonRef.current;
+    const fallbackButton = direction === "up" ? moveDownButtonRef.current : moveUpButtonRef.current;
+    const target = pressedButton?.disabled ? fallbackButton : pressedButton;
+
+    if (target && !target.disabled) {
+      target.focus();
+      pendingMoveFocusRef.current = null;
+    }
   });
 
   function showActionFailure(result: ActionFailure) {
@@ -111,6 +146,8 @@ export function VariantForm({
         setActionError(result.message);
         return;
       }
+
+      pendingMoveFocusRef.current = direction;
 
       router.refresh();
     } finally {
@@ -161,6 +198,7 @@ export function VariantForm({
               className="size-8"
               disabled={busy || !canMoveUp}
               onClick={() => onMove("up")}
+              ref={moveUpButtonRef}
               size="icon"
               type="button"
               variant="outline"
@@ -172,6 +210,7 @@ export function VariantForm({
               className="size-8"
               disabled={busy || !canMoveDown}
               onClick={() => onMove("down")}
+              ref={moveDownButtonRef}
               size="icon"
               type="button"
               variant="outline"
