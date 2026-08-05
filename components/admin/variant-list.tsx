@@ -54,7 +54,10 @@ export function VariantList({ productId, productStatus, variants }: VariantListP
 
       if (!result.success) {
         // React drops the optimistic order when the transition ends, so the
-        // list snaps back to the server order on failure.
+        // list snaps back to the server order on failure. Clear the optimistic
+        // announcement too, or the live region keeps claiming a move that was
+        // rejected; the alert below carries the reason.
+        setMoveAnnouncement("");
         setMoveError(result.message);
         return;
       }
