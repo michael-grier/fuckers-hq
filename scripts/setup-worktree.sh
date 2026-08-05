@@ -29,6 +29,14 @@ harden_shared_env() {
   fi
 }
 
+# A link whose target has since been deleted or moved holds no data, and reporting success
+# would leave the worktree with an env the app cannot read. Clear it so the checks below
+# either relink or print how to restore the shared file.
+if [ -L "$target" ] && [ ! -e "$target" ]; then
+  echo "Removing dangling symlink $target -> $(readlink "$target")." >&2
+  rm "$target"
+fi
+
 if [ -L "$target" ]; then
   echo "$target is already linked; leaving it unchanged."
   harden_shared_env
