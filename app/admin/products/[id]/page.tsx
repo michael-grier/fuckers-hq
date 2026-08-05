@@ -3,9 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ProductForm } from "@/components/admin/product-form";
 import { ProductImageManager } from "@/components/admin/product-image-manager";
-import { ReorderableList } from "@/components/admin/reorderable-list";
 import { ProductStatusBadge } from "@/components/admin/status-badge";
 import { VariantForm } from "@/components/admin/variant-form";
+import { VariantList } from "@/components/admin/variant-list";
 import { Button } from "@/components/ui/button";
 import { getAdminProductById } from "@/lib/admin/queries";
 import { isR2Configured } from "@/lib/r2";
@@ -97,18 +97,11 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
         </div>
 
         <div className="space-y-4">
-          <ReorderableList className="space-y-4">
-            {product.variants.map((variant, index) => (
-              <VariantForm
-                canMoveDown={index < product.variants.length - 1}
-                canMoveUp={index > 0}
-                key={variant.id}
-                productId={product.id}
-                productStatus={product.status}
-                variant={variant}
-              />
-            ))}
-          </ReorderableList>
+          <VariantList
+            productId={product.id}
+            productStatus={product.status}
+            variants={product.variants}
+          />
           <div>
             <h3 className="mb-3 font-bold text-lg">Add variant</h3>
             <VariantForm productId={product.id} productStatus={product.status} />

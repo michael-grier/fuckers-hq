@@ -9,12 +9,12 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionFailure } from "@/lib/actions/result";
-import { createVariant, deleteVariant, moveVariant, updateVariant } from "@/lib/actions/variants";
+import { createVariant, deleteVariant, updateVariant } from "@/lib/actions/variants";
 import type { VariantMoveDirection } from "@/lib/admin/variant-order";
 import { centsToDollars } from "@/lib/money";
 import { type AdminVariantFormInput, adminVariantFormSchema } from "@/lib/validators/product";
 
-type ExistingVariant = {
+export type ExistingVariant = {
   id: string;
   name: string;
   sku: string;
@@ -29,6 +29,8 @@ type VariantFormProps = {
   variant?: ExistingVariant;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
+  /** Provided by VariantList, which owns the optimistic display order. */
+  onMove?: (direction: VariantMoveDirection) => void;
 };
 
 const emptyVariant: AdminVariantFormInput = {
@@ -46,12 +48,12 @@ export function VariantForm({
   variant,
   canMoveUp = false,
   canMoveDown = false,
+  onMove,
 }: VariantFormProps) {
   const router = useRouter();
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isMoving, setIsMoving] = useState(false);
   const moveUpButtonRef = useRef<HTMLButtonElement>(null);
   const moveDownButtonRef = useRef<HTMLButtonElement>(null);
   const pendingMoveFocusRef = useRef<VariantMoveDirection | null>(null);
@@ -70,17 +72,11 @@ export function VariantForm({
 
   // A variant that reaches either end of the list disables the arrow that was
   // just pressed, and the browser drops focus to <body>. Hand focus to the
-  // opposite arrow so keyboard users keep their place. Runs after every render
-  // because the reordered props arrive with a later router.refresh() pass.
+  // opposite arrow so keyboard users keep their place.
   useEffect(() => {
     const direction = pendingMoveFocusRef.current;
 
     if (!direction) {
-      return;
-    }
-
-    if (isMoving) {
-      // Both arrows are disabled while the move is in flight; wait for it to settle.
       return;
     }
 
@@ -130,29 +126,15 @@ export function VariantForm({
     router.refresh();
   }
 
-  async function onMove(direction: VariantMoveDirection) {
-    if (!variant) {
+  function handleMove(direction: VariantMoveDirection) {
+    if (!onMove) {
       return;
     }
 
-    setActionError(null);
-    setSuccessMessage(null);
-    setIsMoving(true);
-
-    try {
-      const result = await moveVariant({ productId, variantId: variant.id, direction });
-
-      if (!result.success) {
-        setActionError(result.message);
-        return;
-      }
-
-      pendingMoveFocusRef.current = direction;
-
-      router.refresh();
-    } finally {
-      setIsMoving(false);
-    }
+    // Recorded before the reorder renders so the effect above can restore
+    // focus if this arrow ends up disabled at the edge of the list.
+    pendingMoveFocusRef.current = direction;
+    onMove(direction);
   }
 
   async function onDelete() {
@@ -179,7 +161,7 @@ export function VariantForm({
   }
 
   const errors = form.formState.errors;
-  const busy = form.formState.isSubmitting || isDeleting || isMoving;
+  const busy = form.formState.isSubmitting || isDeleting;
 
   return (
     <form
@@ -197,7 +179,7 @@ export function VariantForm({
             <Button
               className="size-8"
               disabled={busy || !canMoveUp}
-              onClick={() => onMove("up")}
+              onClick={() => handleMove("up")}
               ref={moveUpButtonRef}
               size="icon"
               type="button"
@@ -209,7 +191,7 @@ export function VariantForm({
             <Button
               className="size-8"
               disabled={busy || !canMoveDown}
-              onClick={() => onMove("down")}
+              onClick={() => handleMove("down")}
               ref={moveDownButtonRef}
               size="icon"
               type="button"
