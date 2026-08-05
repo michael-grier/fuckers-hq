@@ -4,6 +4,7 @@ import { Menu, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { DesktopNavigation, MobileNavigation } from "@/components/shop/site-navigation";
 import { Button } from "@/components/ui/button";
 import { SheetTrigger } from "@/components/ui/sheet";
@@ -68,11 +69,11 @@ export function SiteHeader() {
             </span>
           </Button>
           <Link
-            className="font-bold font-grotesk text-xl tracking-tight"
+            className="flex items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
             href="/"
             onClick={closeMobileNavigation}
           >
-            Fuckers <span className="text-accent">Skateboards</span>
+            <BrandLogo />
           </Link>
         </div>
         <DesktopNavigation />

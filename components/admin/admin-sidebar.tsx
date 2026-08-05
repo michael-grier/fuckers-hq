@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 
 import { adminNavGroups, isAdminNavLinkActive } from "@/components/admin/admin-nav";
 import { AdminUserButton } from "@/components/admin/admin-user-button";
+import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 
 export function AdminSidebar() {
@@ -13,11 +14,8 @@ export function AdminSidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-surface-chrome text-white lg:flex">
-      <Link
-        className="px-6 pt-6 pb-4 font-bold font-grotesk text-lg leading-tight tracking-tight outline-none focus-visible:text-accent"
-        href="/admin"
-      >
-        Fuckers <span className="text-accent">Skateboards</span>
+      <Link className="px-6 pt-6 pb-4 outline-none focus-visible:text-accent" href="/admin">
+        <BrandLogo />
         <span className="mt-1 block font-sans font-semibold text-white/50 text-xs uppercase tracking-widest">
           Admin
         </span>

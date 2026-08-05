@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { adminNavLinks, isAdminNavLinkActive } from "@/components/admin/admin-nav";
 import { AdminUserButton } from "@/components/admin/admin-user-button";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -62,11 +63,14 @@ export function AdminHeader() {
             </span>
           </Button>
           <Link
-            className="truncate font-bold font-grotesk text-base tracking-tight"
+            className="flex min-w-0 items-center gap-2 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
             href="/admin"
             onClick={closeMobileNavigation}
           >
-            Fuckers <span className="text-accent">Skateboards</span> Admin
+            <BrandLogo className="h-8 shrink-0" />
+            <span className="truncate font-sans font-semibold text-white/50 text-xs uppercase tracking-widest">
+              Admin
+            </span>
           </Link>
         </div>
         <AdminUserButton />

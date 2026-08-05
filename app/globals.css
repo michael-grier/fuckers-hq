@@ -32,10 +32,11 @@
 
 :root {
   --radius: 0.5rem;
-  /* Height of the fixed site header. Below lg it is a flush, full-width bar (56px);
-     from lg up it floats with a 12px top inset (56px + 12px). Consumed by the shop
-     layout spacer and full-bleed heroes that pull under it. */
-  --header-height: 56px;
+  /* Space the fixed site header occupies from the top of the viewport. Consumed by the
+     shop layout spacer and full-bleed heroes that pull under it, so it must match the
+     rendered bar or content hides beneath the opaque chrome.
+     Below lg: 10px padding + 40px cart button + 10px padding + 1px bottom border. */
+  --header-height: 61px;
   /* The one dark surface: headers, footer, nav dropdown, and the dark page sections
      they meet, so those seams are invisible. Chrome uses it opaque on purpose — a
      translucent bar composites differently over the dark hero and the white category
@@ -62,10 +63,19 @@
   --ring: oklch(0.64 0.14 84);
 }
 
-/* Matches Tailwind's lg breakpoint, where the header switches to its floating style. */
+/* Matches Tailwind's md breakpoint, where the logo steps up to 48px and becomes the
+   tallest item in the bar: 10px padding + 48px logo + 10px padding + 1px bottom border. */
+@media (min-width: 48rem) {
+  :root {
+    --header-height: 69px;
+  }
+}
+
+/* Matches Tailwind's lg breakpoint, where the header switches to its floating style:
+   the md bar plus a second border (it is fully outlined) and the 12px top inset. */
 @media (min-width: 64rem) {
   :root {
-    --header-height: 68px;
+    --header-height: 82px;
   }
 }
 
