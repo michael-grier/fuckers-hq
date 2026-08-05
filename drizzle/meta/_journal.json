@@ -64,6 +64,13 @@
       "when": 1785961574454,
       "tag": "0008_local-pickup-fulfillment",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785970525040,
+      "tag": "0009_require-pickup-readiness-timestamp",
+      "breakpoints": true
     }
   ]
 }

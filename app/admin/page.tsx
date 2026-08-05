@@ -126,7 +126,10 @@ export default async function AdminPage() {
                       </td>
                       <td className="px-5 py-3.5 align-top">
                         <div className="flex flex-wrap items-start gap-1.5">
-                          <OrderStatusBadge status={order.status} />
+                          <OrderStatusBadge
+                            fulfillmentMethod={order.fulfillmentMethod}
+                            status={order.status}
+                          />
                           {order.inventoryStatus === "exception" ? (
                             <OrderInventoryStatusBadge status={order.inventoryStatus} />
                           ) : null}

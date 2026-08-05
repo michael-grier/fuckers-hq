@@ -88,9 +88,15 @@ export function OrderStatusBadge({
   status: Order["status"];
   fulfillmentMethod?: Order["fulfillmentMethod"];
 }) {
+  // `fulfilled` means shipped or collected depending on the method, so without one the label
+  // stays neutral rather than asserting a shipment that may never have happened.
   const label =
-    status === "fulfilled" && fulfillmentMethod === "pickup"
-      ? "Picked up"
+    status === "fulfilled"
+      ? fulfillmentMethod === "pickup"
+        ? "Picked up"
+        : fulfillmentMethod === "shipping"
+          ? "Shipped"
+          : "Completed"
       : orderStatusLabels[status];
 
   return (

@@ -330,9 +330,11 @@ describe("pickup confirmation template", () => {
           shippingCents: 0,
           shippingAddressLines: [],
           pickup: {
-            locationName: "The Shop",
-            addressLines: ["123 Test Street", "Calgary, AB T1T 1T1"],
-            hours: "Wed–Sun, 11am–6pm",
+            location: {
+              name: "The Shop",
+              addressLines: ["123 Test Street", "Calgary, AB T1T 1T1"],
+              hours: "Wed–Sun, 11am–6pm",
+            },
           },
         },
         supportEmail: "support@example.com",
@@ -342,6 +344,27 @@ describe("pickup confirmation template", () => {
     expect(html).toContain("Picking up at");
     expect(html).toContain("The Shop");
     expect(html).toContain("Free");
+    expect(html).not.toContain("Shipping to");
+  });
+
+  test("still identifies a pickup order when the location cannot be resolved", async () => {
+    const html = await render(
+      createElement(OrderConfirmationEmail, {
+        order: {
+          ...delivery.order,
+          shippingCents: 0,
+          shippingAddressLines: [],
+          // Configuration was unavailable when the receipt was rendered.
+          pickup: { location: null },
+        },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    // The receipt still goes out, and still tells the customer this is a pickup order rather
+    // than silently omitting every fulfillment detail.
+    expect(html).toContain("Picking up at");
+    expect(html).toContain("ready to collect");
     expect(html).not.toContain("Shipping to");
   });
 });

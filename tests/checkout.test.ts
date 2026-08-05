@@ -482,6 +482,20 @@ describe("local pickup checkout", () => {
     ).toThrow("Persisted Stripe Session request is invalid.");
   });
 
+  test("accepts a persisted session carrying metadata this deploy does not know", () => {
+    const params = buildStripeSessionParams(pickupReservation, pickupSettings) as unknown as {
+      metadata: Record<string, string>;
+    };
+    const fromNewerDeploy = {
+      ...params,
+      metadata: { ...params.metadata, somethingAddedLater: "x" },
+    };
+
+    // A rolling release can pay a Session created by a newer deploy. Rejecting the unknown key
+    // would strand a verified payment behind a permanent parse failure.
+    expect(parsePersistedStripeSessionParams(fromNewerDeploy, pickupReservation)).toBeDefined();
+  });
+
   test("treats a session persisted before pickup existed as shipping", () => {
     const shippingReservation = { ...pickupReservation, fulfillmentMethod: "shipping" as const };
     const legacyParams = buildStripeSessionParams(shippingReservation, {

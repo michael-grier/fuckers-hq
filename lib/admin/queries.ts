@@ -79,6 +79,7 @@ export async function getAdminRecentOrders() {
       email: true,
       status: true,
       inventoryStatus: true,
+      fulfillmentMethod: true,
       refundStatus: true,
       disputeStatus: true,
       totalCents: true,
@@ -272,7 +273,8 @@ export async function getAdminOrderById(input: unknown) {
 
 /**
  * The pickup desk queue: paid pickup orders still to be staged, then staged orders awaiting
- * collection. Orders blocked by an inventory exception are excluded — they cannot be handed over.
+ * collection. Orders blocked by an inventory exception are returned separately in `blocked`;
+ * they cannot be handed over until the exception is resolved.
  */
 export async function getAdminPickupQueue() {
   await requireAdmin();

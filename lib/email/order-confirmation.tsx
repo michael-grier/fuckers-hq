@@ -23,9 +23,12 @@ export type OrderConfirmationItem = {
 };
 
 export type OrderConfirmationPickup = {
-  locationName: string;
-  addressLines: string[];
-  hours: string;
+  /** Null when pickup configuration is unavailable; the section still states it is a pickup. */
+  location: {
+    name: string;
+    addressLines: string[];
+    hours: string;
+  } | null;
 };
 
 export type OrderConfirmationView = {
@@ -106,15 +109,20 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
               <Heading as="h2" style={styles.sectionHeading}>
                 Picking up at
               </Heading>
-              <Text style={styles.pickupLocationName}>{order.pickup.locationName}</Text>
-              {order.pickup.addressLines.map((line) => (
-                <Text key={line} style={styles.addressLine}>
-                  {line}
-                </Text>
-              ))}
-              <Text style={styles.pickupHours}>{order.pickup.hours}</Text>
+              {order.pickup.location ? (
+                <>
+                  <Text style={styles.pickupLocationName}>{order.pickup.location.name}</Text>
+                  {order.pickup.location.addressLines.map((line) => (
+                    <Text key={line} style={styles.addressLine}>
+                      {line}
+                    </Text>
+                  ))}
+                  <Text style={styles.pickupHours}>{order.pickup.location.hours}</Text>
+                </>
+              ) : null}
               <Text style={styles.pickupNote}>
-                Hold tight — we'll email you again when it's ready to collect.
+                Hold tight — we'll email you again when it's ready to collect, with the collection
+                address and hours.
               </Text>
             </Section>
           ) : order.shippingAddressLines.length > 0 ? (

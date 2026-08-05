@@ -193,19 +193,80 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_shipping"));
 
     // The database, not just the application, refuses to stage a shipping order for collection.
-    let violation: unknown;
+    expect(
+      await constraintViolation(() =>
+        database
+          .update(orders)
+          .set({ status: "ready_for_pickup", readyForPickupAt: new Date() })
+          .where(eq(orders.stripeSessionId, "cs_shipping")),
+      ),
+    ).toBe("orders_ready_for_pickup_requires_pickup");
+  });
 
-    try {
-      await database
-        .update(orders)
-        .set({ status: "ready_for_pickup", readyForPickupAt: new Date() })
-        .where(eq(orders.stripeSessionId, "cs_shipping"));
-    } catch (error) {
-      // Drizzle wraps the driver error, so the constraint name only appears on the cause.
-      violation = (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
-    }
+  test("rejects fulfilled pickup orders without a readiness timestamp", async () => {
+    await insertVariant(database, variantId, 1);
 
-    expect(violation).toBe("orders_ready_for_pickup_requires_pickup");
+    const reservation = await reserve(
+      checkoutRepository,
+      variantId,
+      "10000000-0000-4000-8000-00000000000d",
+      "pickup",
+    );
+
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_pickup_direct");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_pickup_direct"));
+
+    // A pickup order must pass through ready_for_pickup, so a direct jump to the terminal state
+    // cannot quietly discard the record of when the customer was told to collect it.
+    expect(
+      await constraintViolation(() =>
+        database
+          .update(orders)
+          .set({ status: "fulfilled" })
+          .where(eq(orders.stripeSessionId, "cs_pickup_direct")),
+      ),
+    ).toBe("orders_ready_for_pickup_at_required");
+
+    // With the timestamp present the same transition is accepted.
+    await database
+      .update(orders)
+      .set({ status: "fulfilled", readyForPickupAt: new Date() })
+      .where(eq(orders.stripeSessionId, "cs_pickup_direct"));
+
+    const order = await database.query.orders.findFirst({
+      columns: { status: true },
+      where: (row, { eq: matches }) => matches(row.stripeSessionId, "cs_pickup_direct"),
+    });
+
+    expect(order?.status).toBe("fulfilled");
+  });
+
+  test("rejects staging a pickup order whose stock was never allocated", async () => {
+    await insertVariant(database, variantId, 1);
+
+    const reservation = await reserve(
+      checkoutRepository,
+      variantId,
+      "10000000-0000-4000-8000-00000000000e",
+      "pickup",
+    );
+
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_pickup_blocked");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_pickup_blocked"));
+    await database
+      .update(orders)
+      .set({ inventoryStatus: "exception" })
+      .where(eq(orders.stripeSessionId, "cs_pickup_blocked"));
+
+    // An order that could not allocate stock has nothing to hand over, so it cannot be staged.
+    expect(
+      await constraintViolation(() =>
+        database
+          .update(orders)
+          .set({ status: "ready_for_pickup", readyForPickupAt: new Date() })
+          .where(eq(orders.stripeSessionId, "cs_pickup_blocked")),
+      ),
+    ).toBe("orders_fulfilled_inventory_allocated");
   });
 
   test("multi-line failures and transaction rollback never partially reserve", async () => {
@@ -462,6 +523,17 @@ function eventFor(reservation: Awaited<ReturnType<typeof reserve>>, stripeSessio
   };
 }
 
+/** Returns the violated constraint name, which Drizzle only exposes on the wrapped cause. */
+async function constraintViolation(run: () => Promise<unknown>): Promise<string | undefined> {
+  try {
+    await run();
+  } catch (error) {
+    return (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
+  }
+
+  return undefined;
+}
+
 async function variantStock(database: Database, id: string) {
   return database.query.productVariants.findFirst({
     columns: { inventoryQty: true, reservedQty: true },
@@ -583,7 +655,13 @@ const postgresTestSchema = [
       status <> 'ready_for_pickup' or fulfillment_method = 'pickup'
     ),
     constraint orders_ready_for_pickup_at_required check (
-      status <> 'ready_for_pickup' or ready_for_pickup_at is not null
+      status not in ('ready_for_pickup', 'fulfilled')
+      or fulfillment_method <> 'pickup'
+      or ready_for_pickup_at is not null
+    ),
+    -- Mirrors production: neither terminal nor staged orders may carry unallocated stock.
+    constraint orders_fulfilled_inventory_allocated check (
+      status not in ('fulfilled', 'ready_for_pickup') or inventory_status = 'allocated'
     )
   )`,
   `create table order_items (

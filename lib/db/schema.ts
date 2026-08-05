@@ -312,9 +312,14 @@ export const orders = pgTable(
       sql`${table.status}::text <> 'ready_for_pickup' OR ${table.fulfillmentMethod} = 'pickup'`,
     ),
     // The timestamp survives collection so the admin history keeps how long the order waited.
+    // Covers `fulfilled` as well, so a pickup order cannot reach its terminal state without the
+    // staging step that told the customer to collect it. The application already enforces the
+    // paid -> ready_for_pickup -> fulfilled path; this keeps a direct write from bypassing it.
     check(
       "orders_ready_for_pickup_at_required",
-      sql`${table.status}::text <> 'ready_for_pickup' OR ${table.readyForPickupAt} IS NOT NULL`,
+      sql`${table.status}::text NOT IN ('ready_for_pickup', 'fulfilled')
+        OR ${table.fulfillmentMethod} <> 'pickup'
+        OR ${table.readyForPickupAt} IS NOT NULL`,
     ),
   ],
 );

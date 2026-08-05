@@ -85,13 +85,20 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
         quantity: item.quantity,
       })),
       shippingAddressLines: getShippingAddressLines(order.shippingAddress),
-      pickup: pickupLocation
-        ? {
-            locationName: pickupLocation.name,
-            addressLines: pickupAddressLines,
-            hours: pickupLocation.hours,
-          }
-        : null,
+      // Keyed off the order, not off configuration, so a pickup receipt always says so even if
+      // the location cannot be resolved. The pickup-ready email carries the address regardless.
+      pickup:
+        order.fulfillmentMethod === "pickup"
+          ? {
+              location: pickupLocation
+                ? {
+                    name: pickupLocation.name,
+                    addressLines: pickupAddressLines,
+                    hours: pickupLocation.hours,
+                  }
+                : null,
+            }
+          : null,
     },
   };
 
