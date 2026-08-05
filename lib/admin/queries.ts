@@ -168,7 +168,7 @@ export async function getAdminProductById(input: unknown) {
 export async function getAdminOrders() {
   await requireAdmin();
 
-  return getDb().query.orders.findMany({
+  const rows = await getDb().query.orders.findMany({
     columns: {
       id: true,
       orderNumber: true,
@@ -188,10 +188,24 @@ export async function getAdminOrders() {
           quantity: true,
         },
       },
+      confirmationDelivery: {
+        columns: {
+          status: true,
+        },
+      },
     },
     orderBy: (orders, { desc }) => [desc(orders.createdAt)],
   });
+
+  // Flattened so list filtering does not need to reach through the relation.
+  return rows.map(({ confirmationDelivery, ...order }) => ({
+    ...order,
+    itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
+    confirmationDeliveryStatus: confirmationDelivery?.status ?? null,
+  }));
 }
+
+export type AdminOrderSummary = Awaited<ReturnType<typeof getAdminOrders>>[number];
 
 export async function getAdminOrderById(input: unknown) {
   await requireAdmin();
