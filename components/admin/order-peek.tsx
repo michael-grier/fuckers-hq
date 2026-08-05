@@ -83,8 +83,12 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
       {/* Grows into the pane's spare height and scrolls when an order has many
           lines. The 8rem floor (rather than min-h-0) keeps several rows visible
           on short viewports, where the blocks below would otherwise squeeze this
-          region to a single line. */}
-      <div className="p-4 lg:min-h-32 lg:flex-1 lg:overflow-y-auto">
+          region to a single line.
+
+          Below lg the sheet scrolls as one document and this list is unbounded,
+          so a long order would push the totals off-screen; the max-lg ordering
+          below lifts them above the list. */}
+      <div className="p-4 max-lg:order-2 lg:min-h-32 lg:flex-1 lg:overflow-y-auto">
         <h3 className="mb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
           Items ({order.items.length})
         </h3>
@@ -105,7 +109,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         </ul>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 max-lg:order-1">
         <dl className="space-y-1.5 text-sm">
           <PeekRow label="Customer">
             <a className="underline-offset-4 hover:underline" href={`mailto:${order.email}`}>
@@ -139,7 +143,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         </dl>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 max-lg:order-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
             Confirmation email
@@ -169,7 +173,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         )}
       </div>
 
-      <div className="p-4">
+      <div className="p-4 max-lg:order-4">
         <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
           Stripe references
         </h3>
