@@ -15,8 +15,8 @@ type OrderPeekPaneProps = {
 };
 
 /**
- * Presents the order preview in the layout that fits the viewport: a sticky
- * column beside the list from lg up, and a bottom sheet below it.
+ * Presents the order preview in the layout that fits the viewport: a
+ * viewport-height column beside the list from lg up, and a bottom sheet below it.
  *
  * The sheet is only mounted on small viewports, so the dialog never traps focus
  * or locks scrolling while the desktop pane is the visible surface.

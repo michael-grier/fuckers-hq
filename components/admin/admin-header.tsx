@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Compact top bar for viewports below lg, where the admin sidebar is hidden.
- * Sticky (not fixed) so the collapsible panel pushes content down instead of overlapping it.
+ * Fixed like the storefront header so the collapsible panel overlays content
+ * instead of pushing it down; the admin layout offsets it with --header-height.
  */
 export function AdminHeader() {
   const pathname = usePathname();
@@ -42,8 +43,8 @@ export function AdminHeader() {
   }, [isMobileNavigationOpen]);
 
   return (
-    <header className="sticky top-0 z-40 border-white/10 border-b bg-surface-chrome text-white lg:hidden">
-      <div className="flex items-center justify-between gap-3 px-4 py-2.5">
+    <header className="fixed inset-x-0 top-0 z-40 border-white/10 border-b bg-surface-chrome text-white lg:hidden">
+      <div className="flex items-center justify-between gap-4 px-5 py-2.5">
         <div className="flex min-w-0 items-center gap-2">
           <Button
             aria-controls="admin-mobile-navigation"
@@ -76,7 +77,7 @@ export function AdminHeader() {
         hidden={!isMobileNavigationOpen}
         id="admin-mobile-navigation"
       >
-        <div className="space-y-1 px-4 py-3">
+        <div className="space-y-1 px-6 py-4">
           {adminNavLinks.map((link) => {
             const isActive = isAdminNavLinkActive(pathname, link);
 
