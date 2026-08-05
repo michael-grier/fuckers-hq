@@ -33,7 +33,7 @@ export function OrderPeekPane({ title, children }: OrderPeekPaneProps) {
     <>
       <aside
         aria-label={`Preview of order ${title}`}
-        className="hidden overflow-hidden rounded-lg border bg-background lg:sticky lg:top-6 lg:block"
+        className="hidden rounded-lg border bg-background lg:block lg:overflow-y-auto"
       >
         {children}
       </aside>

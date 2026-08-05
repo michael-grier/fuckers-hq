@@ -21,7 +21,7 @@ export default async function AdminLayout({ children }: Readonly<{ children: Rea
       <AdminSidebar />
       <div className="min-w-0 flex-1">
         <AdminHeader />
-        <main className="mx-auto w-full max-w-6xl px-6 py-10">{children}</main>
+        <main className="mx-auto w-full max-w-7xl px-6 py-10">{children}</main>
       </div>
     </div>
   );

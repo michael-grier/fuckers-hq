@@ -13,6 +13,13 @@ type AdminOrdersPageProps = {
   searchParams: Promise<SearchParams>;
 };
 
+// Both columns share the grid row height, so the panels stay aligned whichever
+// side is taller, and each scrolls internally instead of growing the page as the
+// order list gets long. The 16rem offset covers the admin chrome above the split
+// (page padding, heading, and filter row).
+const splitLayoutClassName =
+  "grid gap-4 lg:h-[calc(100vh-16rem)] lg:min-h-[28rem] lg:grid-cols-[minmax(360px,460px)_1fr]";
+
 export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageProps) {
   const filters = await adminOrderSearchParamsCache.parse(searchParams);
   const orders = await getAdminOrders();
@@ -62,8 +69,8 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
       ) : visibleOrders.length === 0 ? (
         <NoMatches />
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-[minmax(320px,400px)_1fr]">
-          <div className="overflow-hidden rounded-lg border bg-background">
+        <div className={splitLayoutClassName}>
+          <div className="overflow-y-auto rounded-lg border bg-background">
             <ul className="divide-y">
               {visibleOrders.map((order) => (
                 <OrderListRow isSelected={order.id === peekId} key={order.id} order={order} />
@@ -76,7 +83,7 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
               <OrderPeek order={peekOrder} />
             </OrderPeekPane>
           ) : (
-            <aside className="hidden h-full min-h-64 items-center justify-center rounded-lg border border-dashed bg-background p-8 text-center lg:flex">
+            <aside className="hidden items-center justify-center rounded-lg border border-dashed bg-background p-8 text-center lg:flex">
               <p className="text-muted-foreground text-sm">
                 Select an order to preview its items, totals, and actions.
               </p>
