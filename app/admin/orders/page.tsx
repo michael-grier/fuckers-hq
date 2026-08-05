@@ -1,106 +1,106 @@
-import type { Route } from "next";
-import Link from "next/link";
+import type { SearchParams } from "nuqs/server";
 
-import {
-  DisputeStatusBadge,
-  OrderInventoryStatusBadge,
-  OrderStatusBadge,
-  RefundStatusBadge,
-} from "@/components/admin/status-badge";
-import { Button } from "@/components/ui/button";
-import { formatAdminDate } from "@/lib/admin/format";
-import { getAdminOrders } from "@/lib/admin/queries";
-import { formatMoney } from "@/lib/money";
+import { AdminFilterPills } from "@/components/admin/admin-filter-pills";
+import { AdminSearchField } from "@/components/admin/admin-search-field";
+import { OrderListRow } from "@/components/admin/order-list-row";
+import { OrderPeek } from "@/components/admin/order-peek";
+import { OrderPeekPane } from "@/components/admin/order-peek-pane";
+import { countAdminOrdersByFilter, filterAdminOrders } from "@/lib/admin/order-list";
+import { getAdminOrderById, getAdminOrders } from "@/lib/admin/queries";
+import { adminOrderSearchParamsCache } from "@/lib/admin/search-params";
 
-export default async function AdminOrdersPage() {
+type AdminOrdersPageProps = {
+  searchParams: Promise<SearchParams>;
+};
+
+// Both columns share the grid row height, so the panels stay aligned whichever
+// side is taller, and each scrolls internally instead of growing the page as the
+// order list gets long. The 16rem offset covers the admin chrome above the split
+// (page padding, heading, and filter row).
+const splitLayoutClassName =
+  "grid gap-4 lg:h-[calc(100vh-16rem)] lg:min-h-[28rem] lg:grid-cols-[minmax(360px,460px)_1fr]";
+
+export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageProps) {
+  const filters = await adminOrderSearchParamsCache.parse(searchParams);
   const orders = await getAdminOrders();
+  const counts = countAdminOrdersByFilter(orders);
+  const visibleOrders = filterAdminOrders(orders, filters);
+  // Only preview an order that survives the active filters, so the pane can
+  // never describe a row the operator cannot see.
+  const peekId = visibleOrders.some((order) => order.id === filters.peek) ? filters.peek : null;
+  const peekOrder = peekId ? await getAdminOrderById(peekId) : null;
 
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Orders</h1>
-        <p className="text-muted-foreground">Paid orders from verified Stripe webhook events.</p>
+        <p className="text-muted-foreground">
+          Select an order to preview and act on it without leaving the list.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminFilterPills
+          defaultValue="all"
+          label="Filter orders by workflow state"
+          name="filter"
+          options={[
+            { value: "all", label: "All", count: counts.all },
+            {
+              value: "needs-action",
+              label: "Needs action",
+              count: counts["needs-action"],
+              urgent: counts["needs-action"] > 0,
+            },
+            { value: "to-ship", label: "To ship", count: counts["to-ship"] },
+            { value: "shipped", label: "Shipped", count: counts.shipped },
+            { value: "refunded", label: "Refunded", count: counts.refunded },
+          ]}
+        />
+        <AdminSearchField
+          id="admin-order-search"
+          label="Search orders"
+          placeholder="Order number, email…"
+        />
       </div>
 
       {orders.length === 0 ? (
         <EmptyOrders />
+      ) : visibleOrders.length === 0 ? (
+        <NoMatches />
       ) : (
-        <div className="overflow-x-auto rounded-lg border bg-background">
-          <table className="w-full min-w-4xl text-left text-sm">
-            <caption className="sr-only">Orders sorted newest first</caption>
-            <thead className="border-b bg-muted/50">
-              <tr>
-                <TableHeading>Order</TableHeading>
-                <TableHeading>Status</TableHeading>
-                <TableHeading>Inventory</TableHeading>
-                <TableHeading>Customer</TableHeading>
-                <TableHeading>Items</TableHeading>
-                <TableHeading>Total</TableHeading>
-                <TableHeading>Created</TableHeading>
-                <TableHeading>
-                  <span className="sr-only">Actions</span>
-                </TableHeading>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {orders.map((order) => (
-                <tr key={order.id}>
-                  <td className="whitespace-nowrap px-4 py-4 align-top font-semibold">
-                    {order.orderNumber}
-                  </td>
-                  <td className="px-4 py-4 align-top">
-                    <div className="flex flex-col items-start gap-1.5">
-                      <OrderStatusBadge status={order.status} />
-                      {order.refundStatus !== "none" ? (
-                        <RefundStatusBadge status={order.refundStatus} />
-                      ) : null}
-                      {order.disputeStatus !== "none" ? (
-                        <DisputeStatusBadge status={order.disputeStatus} />
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 align-top">
-                    <OrderInventoryStatusBadge status={order.inventoryStatus} />
-                  </td>
-                  <td className="px-4 py-4 align-top">{order.email}</td>
-                  <td className="px-4 py-4 align-top">
-                    {order.items.reduce((total, item) => total + item.quantity, 0)}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4 align-top font-semibold">
-                    <span className="block">{formatMoney(order.totalCents, order.currency)}</span>
-                    {order.refundedCents > 0 ? (
-                      <span className="block font-normal text-muted-foreground text-xs">
-                        {formatMoney(order.refundedCents, order.currency)} refunded
-                      </span>
-                    ) : null}
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-4 align-top">
-                    <time dateTime={order.createdAt.toISOString()}>
-                      {formatAdminDate(order.createdAt)}
-                    </time>
-                  </td>
-                  <td className="px-4 py-4 text-right align-top">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/admin/orders/${order.id}` as Route} prefetch={false}>
-                        Details
-                      </Link>
-                    </Button>
-                  </td>
-                </tr>
+        <div className={splitLayoutClassName}>
+          <div className="overflow-y-auto rounded-lg border bg-background">
+            <ul className="divide-y">
+              {visibleOrders.map((order) => (
+                <OrderListRow isSelected={order.id === peekId} key={order.id} order={order} />
               ))}
-            </tbody>
-          </table>
+            </ul>
+          </div>
+
+          {peekOrder ? (
+            <OrderPeekPane title={peekOrder.orderNumber}>
+              <OrderPeek order={peekOrder} />
+            </OrderPeekPane>
+          ) : (
+            <aside className="hidden items-center justify-center rounded-lg border border-dashed bg-background p-8 text-center lg:flex">
+              <p className="text-muted-foreground text-sm">
+                Select an order to preview its items, totals, and actions.
+              </p>
+            </aside>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function TableHeading({ children }: { children: React.ReactNode }) {
+function NoMatches() {
   return (
-    <th className="whitespace-nowrap px-4 py-3 font-semibold" scope="col">
-      {children}
-    </th>
+    <section className="rounded-lg border border-dashed bg-background px-6 py-12 text-center">
+      <h2 className="font-bold text-xl">No orders match these filters</h2>
+      <p className="mt-2 text-muted-foreground">Try a different workflow state or search term.</p>
+    </section>
   );
 }
 

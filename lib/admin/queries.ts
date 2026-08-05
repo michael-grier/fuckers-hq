@@ -40,6 +40,71 @@ export async function getAdminDashboardSummary() {
   };
 }
 
+const recentOrderLimit = 5;
+
+export async function getAdminRecentOrders() {
+  await requireAdmin();
+
+  return getDb().query.orders.findMany({
+    columns: {
+      id: true,
+      orderNumber: true,
+      email: true,
+      status: true,
+      inventoryStatus: true,
+      refundStatus: true,
+      disputeStatus: true,
+      totalCents: true,
+      currency: true,
+      createdAt: true,
+    },
+    orderBy: (orders, { desc }) => [desc(orders.createdAt)],
+    limit: recentOrderLimit,
+  });
+}
+
+export async function getAdminAttentionItems() {
+  await requireAdmin();
+
+  const db = getDb();
+  const [inventoryExceptionOrders, failedConfirmationDeliveries] = await Promise.all([
+    db.query.orders.findMany({
+      columns: {
+        id: true,
+        orderNumber: true,
+        email: true,
+        totalCents: true,
+        currency: true,
+        createdAt: true,
+      },
+      where: (orders, { and, eq }) =>
+        and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception")),
+      orderBy: (orders, { asc }) => [asc(orders.createdAt)],
+    }),
+    db.query.orderConfirmationDeliveries.findMany({
+      columns: {
+        id: true,
+        attemptCount: true,
+        lastErrorCode: true,
+        lastAttemptAt: true,
+      },
+      // "failed" is terminal: the cron has exhausted retries and a human must intervene.
+      where: (deliveries, { eq }) => eq(deliveries.status, "failed"),
+      with: {
+        order: {
+          columns: {
+            id: true,
+            orderNumber: true,
+          },
+        },
+      },
+      orderBy: (deliveries, { asc }) => [asc(deliveries.lastAttemptAt)],
+    }),
+  ]);
+
+  return { inventoryExceptionOrders, failedConfirmationDeliveries };
+}
+
 export async function getAdminProducts() {
   await requireAdmin();
 
@@ -55,16 +120,28 @@ export async function getAdminProducts() {
     with: {
       variants: {
         columns: {
+          name: true,
           priceCents: true,
           inventoryQty: true,
           reservedQty: true,
         },
-        orderBy: (variants) => [asc(variants.sku)],
+        orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
+      },
+      // Only the first image is needed for the card grid thumbnail.
+      images: {
+        columns: {
+          url: true,
+          alt: true,
+        },
+        orderBy: (images) => [asc(images.position), asc(images.id)],
+        limit: 1,
       },
     },
     orderBy: (products, { desc }) => [desc(products.updatedAt)],
   });
 }
+
+export type AdminProduct = Awaited<ReturnType<typeof getAdminProducts>>[number];
 
 export async function getAdminProductById(input: unknown) {
   await requireAdmin();
@@ -82,7 +159,7 @@ export async function getAdminProductById(input: unknown) {
         orderBy: (images) => [asc(images.position), asc(images.id)],
       },
       variants: {
-        orderBy: (variants) => [asc(variants.sku)],
+        orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
       },
     },
   });
@@ -91,7 +168,7 @@ export async function getAdminProductById(input: unknown) {
 export async function getAdminOrders() {
   await requireAdmin();
 
-  return getDb().query.orders.findMany({
+  const rows = await getDb().query.orders.findMany({
     columns: {
       id: true,
       orderNumber: true,
@@ -111,10 +188,24 @@ export async function getAdminOrders() {
           quantity: true,
         },
       },
+      confirmationDelivery: {
+        columns: {
+          status: true,
+        },
+      },
     },
     orderBy: (orders, { desc }) => [desc(orders.createdAt)],
   });
+
+  // Flattened so list filtering does not need to reach through the relation.
+  return rows.map(({ confirmationDelivery, ...order }) => ({
+    ...order,
+    itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
+    confirmationDeliveryStatus: confirmationDelivery?.status ?? null,
+  }));
 }
+
+export type AdminOrderSummary = Awaited<ReturnType<typeof getAdminOrders>>[number];
 
 export async function getAdminOrderById(input: unknown) {
   await requireAdmin();

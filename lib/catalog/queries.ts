@@ -106,7 +106,9 @@ async function fetchActiveProducts() {
   return db.query.products.findMany({
     where: (products, { eq }) => eq(products.status, "active"),
     with: {
-      variants: true,
+      variants: {
+        orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
+      },
       images: {
         orderBy: (images) => [asc(images.position), asc(images.id)],
       },
@@ -174,7 +176,9 @@ export async function getProductBySlug(slug: string): Promise<CatalogProduct | n
   const product = await db.query.products.findFirst({
     where: (products, { and, eq }) => and(eq(products.slug, slug), eq(products.status, "active")),
     with: {
-      variants: true,
+      variants: {
+        orderBy: (variants) => [asc(variants.position), asc(variants.sku)],
+      },
       images: {
         orderBy: (images) => [asc(images.position), asc(images.id)],
       },

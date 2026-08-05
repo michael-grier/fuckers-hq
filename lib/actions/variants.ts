@@ -1,10 +1,11 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
+import { moveVariantInList } from "@/lib/admin/variant-order";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidateProduct } from "@/lib/catalog/cache";
 import { getDb } from "@/lib/db/client";
@@ -13,6 +14,7 @@ import { captureServerException } from "@/lib/observability/server";
 import {
   adminVariantCreateSchema,
   adminVariantDeleteSchema,
+  adminVariantMoveSchema,
   adminVariantUpdateSchema,
   toVariantMutationValues,
 } from "@/lib/validators/product";
@@ -57,6 +59,8 @@ export async function createVariant(input: unknown): Promise<ActionResult> {
     await db.insert(productVariants).values({
       productId: parsed.data.productId,
       ...toVariantMutationValues(parsed.data),
+      // Append to the end of the product's display order.
+      position: sql`coalesce((select max(${productVariants.position}) + 1 from ${productVariants} where ${productVariants.productId} = ${parsed.data.productId}), 0)`,
     });
 
     revalidateAdminVariant(parsed.data.productId, product.slug);
@@ -164,6 +168,86 @@ export async function updateVariant(input: unknown): Promise<ActionResult> {
     captureServerException(error, {
       area: "admin",
       operation: "admin.update-variant",
+    });
+    throw error;
+  }
+}
+
+export async function moveVariant(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = adminVariantMoveSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  const db = getDb();
+  const product = await db.query.products.findFirst({
+    columns: { slug: true },
+    where: (products, { eq }) => eq(products.id, parsed.data.productId),
+  });
+
+  if (!product) {
+    return {
+      success: false,
+      message: "Product not found.",
+    };
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const variants = await tx
+        .select({
+          id: productVariants.id,
+          position: productVariants.position,
+        })
+        .from(productVariants)
+        .where(eq(productVariants.productId, parsed.data.productId))
+        .orderBy(asc(productVariants.position), asc(productVariants.sku))
+        .for("update");
+
+      if (!variants.some((variant) => variant.id === parsed.data.variantId)) {
+        return "not_found" as const;
+      }
+
+      const reordered = moveVariantInList(variants, parsed.data.variantId, parsed.data.direction);
+
+      if (!reordered) {
+        // Already at the edge; nothing to change.
+        return "noop" as const;
+      }
+
+      // Rewrite sequential positions for the whole product. This also
+      // normalizes any duplicate positions left by concurrent inserts.
+      for (const [index, variant] of reordered.entries()) {
+        if (variant.position !== index) {
+          await tx
+            .update(productVariants)
+            .set({ position: index })
+            .where(eq(productVariants.id, variant.id));
+        }
+      }
+
+      return "moved" as const;
+    });
+
+    if (result === "not_found") {
+      return { success: false, message: "Variant not found." };
+    }
+
+    if (result === "moved") {
+      revalidateAdminVariant(parsed.data.productId, product.slug);
+    }
+
+    return {
+      success: true,
+      data: undefined,
+    };
+  } catch (error) {
+    captureServerException(error, {
+      area: "admin",
+      operation: "admin.move-variant",
     });
     throw error;
   }

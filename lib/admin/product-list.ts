@@ -1,0 +1,81 @@
+import type { AdminProductStatusFilter } from "@/lib/admin/search-params";
+
+/** A variant at or below this available quantity is surfaced as low stock. */
+export const lowStockThreshold = 3;
+
+type StockVariant = {
+  name: string;
+  inventoryQty: number;
+  reservedQty: number;
+};
+
+export type ProductStockSummary = {
+  totalAvailable: number;
+  isOutOfStock: boolean;
+  /** The scarcest variant, only set when it is at or below the low-stock threshold. */
+  lowStockVariant: { name: string; available: number } | null;
+};
+
+export function summarizeProductStock(variants: readonly StockVariant[]): ProductStockSummary {
+  if (variants.length === 0) {
+    return { totalAvailable: 0, isOutOfStock: true, lowStockVariant: null };
+  }
+
+  const availability = variants.map((variant) => ({
+    name: variant.name,
+    available: variant.inventoryQty - variant.reservedQty,
+  }));
+  const totalAvailable = availability.reduce((total, variant) => total + variant.available, 0);
+  const scarcest = availability.reduce((lowest, variant) =>
+    variant.available < lowest.available ? variant : lowest,
+  );
+
+  return {
+    totalAvailable,
+    isOutOfStock: totalAvailable <= 0,
+    lowStockVariant:
+      totalAvailable > 0 && scarcest.available <= lowStockThreshold ? scarcest : null,
+  };
+}
+
+type FilterableProduct = {
+  name: string;
+  slug: string;
+  status: string;
+  variants: ReadonlyArray<{ name: string }>;
+};
+
+export function filterAdminProducts<T extends FilterableProduct>(
+  products: readonly T[],
+  filters: { q: string; status: AdminProductStatusFilter },
+): T[] {
+  const query = filters.q.trim().toLowerCase();
+
+  return products.filter((product) => {
+    if (filters.status !== "all" && product.status !== filters.status) {
+      return false;
+    }
+
+    if (!query) {
+      return true;
+    }
+
+    return (
+      product.name.toLowerCase().includes(query) ||
+      product.slug.toLowerCase().includes(query) ||
+      product.variants.some((variant) => variant.name.toLowerCase().includes(query))
+    );
+  });
+}
+
+export function countProductsByStatus(
+  products: ReadonlyArray<{ status: string }>,
+): Record<string, number> {
+  const counts: Record<string, number> = { all: products.length };
+
+  for (const product of products) {
+    counts[product.status] = (counts[product.status] ?? 0) + 1;
+  }
+
+  return counts;
+}

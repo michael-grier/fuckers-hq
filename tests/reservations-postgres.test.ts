@@ -416,7 +416,8 @@ const postgresTestSchema = [
     inventory_qty integer not null default 0 check (inventory_qty >= 0),
     reserved_qty integer not null default 0 check (
       reserved_qty >= 0 and reserved_qty <= inventory_qty
-    )
+    ),
+    position integer not null default 0 check (position >= 0)
   )`,
   `create table pending_checkouts (
     id uuid primary key default gen_random_uuid(),

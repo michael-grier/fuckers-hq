@@ -1,15 +1,29 @@
 import type { Route } from "next";
 import Link from "next/link";
+import type { SearchParams } from "nuqs/server";
 
-import { ProductStatusBadge } from "@/components/admin/status-badge";
+import { AdminFilterPills } from "@/components/admin/admin-filter-pills";
+import { AdminProductCard } from "@/components/admin/admin-product-card";
+import { AdminSearchField } from "@/components/admin/admin-search-field";
 import { Button } from "@/components/ui/button";
-import { formatAdminDate } from "@/lib/admin/format";
+import { countProductsByStatus, filterAdminProducts } from "@/lib/admin/product-list";
 import { getAdminProducts } from "@/lib/admin/queries";
-import { getProductCategoryLabel, isProductCategory } from "@/lib/catalog/categories";
-import { formatMoney } from "@/lib/money";
+import { adminProductSearchParamsCache } from "@/lib/admin/search-params";
 
-export default async function AdminProductsPage() {
+type AdminProductsPageProps = {
+  searchParams: Promise<SearchParams>;
+};
+
+export default async function AdminProductsPage({ searchParams }: AdminProductsPageProps) {
+  const filters = await adminProductSearchParamsCache.parse(searchParams);
   const products = await getAdminProducts();
+  const counts = countProductsByStatus(products);
+  const visibleProducts = filterAdminProducts(products, filters);
+  const lowStockCount = products.filter((product) =>
+    product.variants.some(
+      (variant) => variant.inventoryQty - variant.reservedQty <= 0 && product.status === "active",
+    ),
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -17,118 +31,66 @@ export default async function AdminProductsPage() {
         <div className="space-y-2">
           <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Products</h1>
           <p className="text-muted-foreground">
-            Review every product, including draft and archived inventory.
+            {products.length} {products.length === 1 ? "product" : "products"}
+            {lowStockCount > 0 ? ` · ${lowStockCount} with an out-of-stock variant` : null}
           </p>
         </div>
-        <Button asChild>
+        <Button
+          asChild
+          className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+        >
           <Link href={"/admin/products/new" as Route} prefetch={false}>
             New product
           </Link>
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminFilterPills
+          defaultValue="all"
+          label="Filter products by status"
+          name="status"
+          options={[
+            { value: "all", label: "All", count: counts.all },
+            { value: "active", label: "Active", count: counts.active ?? 0 },
+            { value: "draft", label: "Draft", count: counts.draft ?? 0 },
+            { value: "archived", label: "Archived", count: counts.archived ?? 0 },
+          ]}
+        />
+        <AdminSearchField
+          id="admin-product-search"
+          label="Search products"
+          placeholder="Search name, slug, variant…"
+        />
+      </div>
+
       {products.length === 0 ? (
         <EmptyProducts />
+      ) : visibleProducts.length === 0 ? (
+        <NoMatches />
       ) : (
-        <div className="overflow-x-auto rounded-lg border bg-background">
-          <table className="w-full min-w-4xl text-left text-sm">
-            <caption className="sr-only">All products and inventory totals</caption>
-            <thead className="border-b bg-muted/50">
-              <tr>
-                <TableHeading>Product</TableHeading>
-                <TableHeading>Status</TableHeading>
-                <TableHeading>Variants</TableHeading>
-                <TableHeading>Inventory</TableHeading>
-                <TableHeading>Price range</TableHeading>
-                <TableHeading>Updated</TableHeading>
-                <TableHeading>
-                  <span className="sr-only">Actions</span>
-                </TableHeading>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {products.map((product) => {
-                const prices = product.variants.map((variant) => variant.priceCents);
-                const onHand = product.variants.reduce(
-                  (total, variant) => total + variant.inventoryQty,
-                  0,
-                );
-                const reserved = product.variants.reduce(
-                  (total, variant) => total + variant.reservedQty,
-                  0,
-                );
-                const categoryLabel = isProductCategory(product.category ?? "")
-                  ? getProductCategoryLabel(product.category)
-                  : (product.category ?? "Uncategorized");
-
-                return (
-                  <tr key={product.id}>
-                    <td className="px-4 py-4 align-top">
-                      <p className="font-semibold">{product.name}</p>
-                      <p className="mt-1 text-muted-foreground text-xs">
-                        {categoryLabel} · /{product.slug}
-                      </p>
-                    </td>
-                    <td className="px-4 py-4 align-top">
-                      <ProductStatusBadge status={product.status} />
-                    </td>
-                    <td className="px-4 py-4 align-top">{product.variants.length}</td>
-                    <td className="px-4 py-4 align-top">
-                      <span className="font-medium">{onHand - reserved} available</span>
-                      <span className="block text-muted-foreground text-xs">
-                        {onHand} on hand · {reserved} reserved
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 align-top">{formatPriceRange(prices)}</td>
-                    <td className="whitespace-nowrap px-4 py-4 align-top">
-                      <time dateTime={product.updatedAt.toISOString()}>
-                        {formatAdminDate(product.updatedAt)}
-                      </time>
-                    </td>
-                    <td className="px-4 py-4 text-right align-top">
-                      <div className="flex justify-end gap-2">
-                        {product.status === "active" ? (
-                          <Button asChild size="sm" variant="outline">
-                            <Link href={`/products/${product.slug}` as Route}>View</Link>
-                          </Button>
-                        ) : null}
-                        <Button asChild size="sm">
-                          <Link href={`/admin/products/${product.id}` as Route} prefetch={false}>
-                            Edit
-                          </Link>
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {visibleProducts.map((product) => (
+            <AdminProductCard key={product.id} product={product} />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function TableHeading({ children }: { children: React.ReactNode }) {
+function NoMatches() {
   return (
-    <th className="whitespace-nowrap px-4 py-3 font-semibold" scope="col">
-      {children}
-    </th>
+    <section className="rounded-lg border border-dashed bg-background px-6 py-12 text-center">
+      <h2 className="font-bold text-xl">No products match these filters</h2>
+      <p className="mt-2 text-muted-foreground">Try a different status or search term.</p>
+      <Button asChild className="mt-5" variant="outline">
+        <Link href={"/admin/products" as Route} prefetch={false}>
+          Clear filters
+        </Link>
+      </Button>
+    </section>
   );
-}
-
-function formatPriceRange(prices: number[]): string {
-  if (prices.length === 0) {
-    return "No variants";
-  }
-
-  const minimum = Math.min(...prices);
-  const maximum = Math.max(...prices);
-
-  return minimum === maximum
-    ? formatMoney(minimum)
-    : `${formatMoney(minimum)} – ${formatMoney(maximum)}`;
 }
 
 function EmptyProducts() {

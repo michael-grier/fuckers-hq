@@ -1,18 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ActionFailure } from "@/lib/actions/result";
 import { createVariant, deleteVariant, updateVariant } from "@/lib/actions/variants";
+import type { VariantMoveDirection } from "@/lib/admin/variant-order";
 import { centsToDollars } from "@/lib/money";
 import { type AdminVariantFormInput, adminVariantFormSchema } from "@/lib/validators/product";
 
-type ExistingVariant = {
+export type ExistingVariant = {
   id: string;
   name: string;
   sku: string;
@@ -25,6 +27,10 @@ type VariantFormProps = {
   productId: string;
   productStatus: "draft" | "active" | "archived";
   variant?: ExistingVariant;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  /** Provided by VariantList, which owns the optimistic display order. */
+  onMove?: (direction: VariantMoveDirection) => void;
 };
 
 const emptyVariant: AdminVariantFormInput = {
@@ -36,11 +42,21 @@ const emptyVariant: AdminVariantFormInput = {
 
 const variantFieldNames = ["name", "sku", "price", "inventory"] as const;
 
-export function VariantForm({ productId, productStatus, variant }: VariantFormProps) {
+export function VariantForm({
+  productId,
+  productStatus,
+  variant,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMove,
+}: VariantFormProps) {
   const router = useRouter();
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const moveUpButtonRef = useRef<HTMLButtonElement>(null);
+  const moveDownButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingMoveFocusRef = useRef<VariantMoveDirection | null>(null);
   const defaultValues = variant
     ? {
         name: variant.name,
@@ -52,6 +68,32 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
   const form = useForm<AdminVariantFormInput>({
     defaultValues,
     resolver: zodResolver(adminVariantFormSchema),
+  });
+
+  // A variant that reaches either end of the list disables the arrow that was
+  // just pressed, and the browser drops focus to <body>. Hand focus to the
+  // opposite arrow so keyboard users keep their place.
+  useEffect(() => {
+    const direction = pendingMoveFocusRef.current;
+
+    if (!direction) {
+      return;
+    }
+
+    if (document.activeElement !== document.body) {
+      // Focus was kept on the arrow, or the user moved it deliberately.
+      pendingMoveFocusRef.current = null;
+      return;
+    }
+
+    const pressedButton = direction === "up" ? moveUpButtonRef.current : moveDownButtonRef.current;
+    const fallbackButton = direction === "up" ? moveDownButtonRef.current : moveUpButtonRef.current;
+    const target = pressedButton?.disabled ? fallbackButton : pressedButton;
+
+    if (target && !target.disabled) {
+      target.focus();
+      pendingMoveFocusRef.current = null;
+    }
   });
 
   function showActionFailure(result: ActionFailure) {
@@ -84,6 +126,17 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
     router.refresh();
   }
 
+  function handleMove(direction: VariantMoveDirection) {
+    if (!onMove) {
+      return;
+    }
+
+    // Recorded before the reorder renders so the effect above can restore
+    // focus if this arrow ends up disabled at the edge of the list.
+    pendingMoveFocusRef.current = direction;
+    onMove(direction);
+  }
+
   async function onDelete() {
     if (!variant || !window.confirm(`Delete ${variant.name}? This cannot be undone.`)) {
       return;
@@ -113,9 +166,43 @@ export function VariantForm({ productId, productStatus, variant }: VariantFormPr
   return (
     <form
       className="rounded-lg border bg-background p-5"
+      data-reorder-key={variant?.id}
       noValidate
       onSubmit={form.handleSubmit(onSubmit)}
     >
+      {variant ? (
+        <div className="mb-4 flex items-center justify-between gap-3 border-b pb-3">
+          <p className="truncate font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+            {variant.name} · {variant.sku}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              className="size-8"
+              disabled={busy || !canMoveUp}
+              onClick={() => handleMove("up")}
+              ref={moveUpButtonRef}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <ChevronUp aria-hidden="true" />
+              <span className="sr-only">Move {variant.name} up</span>
+            </Button>
+            <Button
+              className="size-8"
+              disabled={busy || !canMoveDown}
+              onClick={() => handleMove("down")}
+              ref={moveDownButtonRef}
+              size="icon"
+              type="button"
+              variant="outline"
+            >
+              <ChevronDown aria-hidden="true" />
+              <span className="sr-only">Move {variant.name} down</span>
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <FormField error={errors.name?.message} id={`${variant?.id ?? "new"}-name`} label="Name">
           <Input

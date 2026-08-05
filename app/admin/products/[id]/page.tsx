@@ -5,6 +5,7 @@ import { ProductForm } from "@/components/admin/product-form";
 import { ProductImageManager } from "@/components/admin/product-image-manager";
 import { ProductStatusBadge } from "@/components/admin/status-badge";
 import { VariantForm } from "@/components/admin/variant-form";
+import { VariantList } from "@/components/admin/variant-list";
 import { Button } from "@/components/ui/button";
 import { getAdminProductById } from "@/lib/admin/queries";
 import { isR2Configured } from "@/lib/r2";
@@ -90,19 +91,17 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
             Variants
           </h2>
           <p className="mt-1 text-muted-foreground text-sm">
-            Inventory shows on-hand, reserved, and currently available quantities.
+            Inventory shows on-hand, reserved, and currently available quantities. Variants appear
+            in this order on the storefront.
           </p>
         </div>
 
         <div className="space-y-4">
-          {product.variants.map((variant) => (
-            <VariantForm
-              key={variant.id}
-              productId={product.id}
-              productStatus={product.status}
-              variant={variant}
-            />
-          ))}
+          <VariantList
+            productId={product.id}
+            productStatus={product.status}
+            variants={product.variants}
+          />
           <div>
             <h3 className="mb-3 font-bold text-lg">Add variant</h3>
             <VariantForm productId={product.id} productStatus={product.status} />
