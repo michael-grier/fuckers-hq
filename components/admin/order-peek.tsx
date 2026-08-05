@@ -12,7 +12,12 @@ import {
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
-import { formatAdminDate } from "@/lib/admin/format";
+import {
+  formatAdminDate,
+  formatConfirmationDeliveryError,
+  formatConfirmationDeliveryStatus,
+  formatOptionalAdminDate,
+} from "@/lib/admin/format";
 import type { getAdminOrderById } from "@/lib/admin/queries";
 import { formatMoney } from "@/lib/money";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
@@ -30,7 +35,9 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
   const delivery = order.confirmationDelivery;
 
   return (
-    <div className="divide-y">
+    // On the desktop pane this fills the fixed column height so the items
+    // region absorbs the slack; in the mobile sheet it flows normally.
+    <div className="flex flex-col divide-y lg:h-full">
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <OrderStatusBadge status={order.status} />
@@ -73,9 +80,9 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         </div>
       ) : null}
 
-      <div className="p-4">
+      <div className="p-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
         <h3 className="mb-2 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
-          Items
+          Items ({order.items.length})
         </h3>
         <ul className="space-y-2.5">
           {order.items.map((item) => (
@@ -111,40 +118,67 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           <PeekRow label="Subtotal">{formatMoney(order.subtotalCents, order.currency)}</PeekRow>
           <PeekRow label="Shipping">{formatMoney(order.shippingCents, order.currency)}</PeekRow>
           <PeekRow label="Tax">{formatMoney(order.taxCents, order.currency)}</PeekRow>
-          {order.refundedCents > 0 ? (
-            <PeekRow label="Refunded">{formatMoney(order.refundedCents, order.currency)}</PeekRow>
-          ) : null}
           <div className="flex items-center justify-between gap-4 border-t pt-2 font-semibold">
             <dt>Total</dt>
             <dd className="tabular-nums">{formatMoney(order.totalCents, order.currency)}</dd>
           </div>
+          {order.refundedCents > 0 ? (
+            <>
+              <PeekRow label="Refunded">
+                −{formatMoney(order.refundedCents, order.currency)}
+              </PeekRow>
+              <PeekRow label="Net paid">
+                {formatMoney(order.totalCents - order.refundedCents, order.currency)}
+              </PeekRow>
+            </>
+          ) : null}
         </dl>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 p-4">
-        <div className="text-sm">
-          <p className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+      <div className="p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
             Confirmation email
-          </p>
-          <p className="mt-1">
-            {delivery ? (
-              <>
-                {delivery.status === "sent" ? "Sent" : `Not sent (${delivery.status})`}
-                {delivery.attemptCount > 0 ? (
-                  <span className="text-muted-foreground">
-                    {" "}
-                    · {delivery.attemptCount} {delivery.attemptCount === 1 ? "attempt" : "attempts"}
-                  </span>
-                ) : null}
-              </>
-            ) : (
-              <span className="text-muted-foreground">No delivery record</span>
-            )}
-          </p>
+          </h3>
+          {delivery && delivery.status !== "sent" ? (
+            <RetryOrderConfirmationButton orderId={order.id} />
+          ) : null}
         </div>
-        {delivery && delivery.status !== "sent" ? (
-          <RetryOrderConfirmationButton orderId={order.id} />
-        ) : null}
+        {delivery ? (
+          <dl className="mt-2 space-y-1.5 text-sm">
+            <PeekRow label="Status">{formatConfirmationDeliveryStatus(delivery.status)}</PeekRow>
+            <PeekRow label="Attempts">{delivery.attemptCount}</PeekRow>
+            <PeekRow label="Delivered">{formatOptionalAdminDate(delivery.deliveredAt)}</PeekRow>
+            {delivery.status !== "sent" ? (
+              <>
+                <PeekRow label="Last attempt">
+                  {formatOptionalAdminDate(delivery.lastAttemptAt)}
+                </PeekRow>
+                <PeekRow label="Last error">
+                  {formatConfirmationDeliveryError(delivery.lastErrorCode)}
+                </PeekRow>
+              </>
+            ) : null}
+          </dl>
+        ) : (
+          <p className="mt-2 text-muted-foreground text-sm">No delivery record for this order.</p>
+        )}
+      </div>
+
+      <div className="p-4">
+        <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+          Stripe references
+        </h3>
+        <dl className="mt-2 space-y-1.5 text-sm">
+          <PeekRow label="Session">
+            <span className="break-all font-mono text-xs">{order.stripeSessionId}</span>
+          </PeekRow>
+          <PeekRow label="Payment intent">
+            <span className="break-all font-mono text-xs">
+              {order.stripePaymentIntentId ?? "Not recorded"}
+            </span>
+          </PeekRow>
+        </dl>
       </div>
     </div>
   );

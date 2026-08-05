@@ -13,7 +13,12 @@ import {
 } from "@/components/admin/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { formatAdminDate } from "@/lib/admin/format";
+import {
+  formatAdminDate,
+  formatConfirmationDeliveryError,
+  formatConfirmationDeliveryStatus,
+  formatOptionalAdminDate,
+} from "@/lib/admin/format";
 import { getAdminOrderById } from "@/lib/admin/queries";
 import type { OrderConfirmationDelivery } from "@/lib/db/schema";
 import { formatMoney } from "@/lib/money";
@@ -144,15 +149,15 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                 />
                 <DeliveryDetail
                   label="Last attempt"
-                  value={formatOptionalDate(order.confirmationDelivery.lastAttemptAt)}
+                  value={formatOptionalAdminDate(order.confirmationDelivery.lastAttemptAt)}
                 />
                 <DeliveryDetail
                   label="Delivered"
-                  value={formatOptionalDate(order.confirmationDelivery.deliveredAt)}
+                  value={formatOptionalAdminDate(order.confirmationDelivery.deliveredAt)}
                 />
                 <DeliveryDetail
                   label="Last error"
-                  value={formatDeliveryError(order.confirmationDelivery.lastErrorCode)}
+                  value={formatConfirmationDeliveryError(order.confirmationDelivery.lastErrorCode)}
                 />
               </dl>
             ) : (
@@ -248,16 +253,8 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
 
 type ConfirmationDeliveryStatus = OrderConfirmationDelivery["status"];
 
-const confirmationDeliveryLabels: Record<ConfirmationDeliveryStatus, string> = {
-  pending: "Pending",
-  processing: "Sending",
-  retry: "Retry scheduled",
-  sent: "Sent",
-  failed: "Needs attention",
-};
-
 function ConfirmationDeliveryBadge({ status }: { status: ConfirmationDeliveryStatus }) {
-  return <Badge variant="outline">{confirmationDeliveryLabels[status]}</Badge>;
+  return <Badge variant="outline">{formatConfirmationDeliveryStatus(status)}</Badge>;
 }
 
 function DeliveryDetail({ label, value }: { label: string; value: string }) {
@@ -267,25 +264,6 @@ function DeliveryDetail({ label, value }: { label: string; value: string }) {
       <dd className="mt-1">{value}</dd>
     </div>
   );
-}
-
-function formatOptionalDate(value: Date | null): string {
-  return value ? formatAdminDate(value) : "Not yet";
-}
-
-function formatDeliveryError(errorCode: string | null): string {
-  if (!errorCode) {
-    return "None";
-  }
-
-  const labels: Record<string, string> = {
-    configuration_error: "Email configuration",
-    delivery_error: "Delivery unavailable",
-    legacy_delivery_unknown: "Pre-outbox delivery unknown",
-    provider_error: "Provider rejected delivery",
-  };
-
-  return labels[errorCode] ?? "Delivery unavailable";
 }
 
 function TableHeading({ children }: { children: React.ReactNode }) {
