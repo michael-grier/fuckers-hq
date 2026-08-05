@@ -79,6 +79,42 @@ surface.
 For the temporary public sandbox deployment and Git-based release setup, follow the
 [Vercel demo deployment runbook](docs/demo-deployment.md).
 
+### Git Worktrees
+
+`.env.local` is gitignored, so a new `git worktree` checkout starts without one. Next.js only
+loads env files from its own project root, so the app fails there with
+`@clerk/clerk-react: Missing publishableKey`. In each new worktree, run:
+
+```bash
+bun install
+bun run setup:worktree
+```
+
+`setup:worktree` symlinks the main checkout's `.env.local` into the worktree, so credential
+updates stay in one place. Because every worktree then writes through to that single file, the
+script also drops its write permission. Rotating a credential is therefore:
+
+```bash
+chmod +w .env.local   # in the main checkout
+# edit
+chmod a-w .env.local
+```
+
+An unexpected `Permission denied` when writing `.env.local` is this guard, not a broken checkout.
+Claude Code additionally refuses to read or write `.env` and `.env*.local` via
+`.claude/settings.json`; that covers one agent harness, while the read-only bit covers all of them.
+
+If a worktree needs its own values (for example a separate Stripe webhook secret), delete the
+symlink before writing the override:
+
+```bash
+rm .env.local
+cp .env.example .env.local
+```
+
+Editing the linked `.env.local` in place writes through to the main checkout and changes the
+credentials every other worktree reads.
+
 ## Database
 
 The Drizzle schema lives in `lib/db/schema.ts`, and generated migrations live in `drizzle/`.
