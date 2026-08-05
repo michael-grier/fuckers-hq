@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
+import { eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -67,7 +68,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
 
     await client.unsafe(`
       truncate table
-        order_confirmation_deliveries,
+        order_email_deliveries,
         order_items,
         orders,
         inventory_reservation_items,
@@ -131,6 +132,82 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     expect(await database.$count(inventoryReservations)).toBe(1);
   });
 
+  test("carries the pickup method from the reserved checkout onto the paid order", async () => {
+    await insertVariant(database, variantId, 1);
+
+    const reservation = await reserve(
+      checkoutRepository,
+      variantId,
+      "10000000-0000-4000-8000-00000000000a",
+      "pickup",
+    );
+
+    expect(reservation.fulfillmentMethod).toBe("pickup");
+
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_pickup");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_pickup"));
+
+    const order = await database.query.orders.findFirst({
+      columns: { fulfillmentMethod: true, status: true, readyForPickupAt: true },
+    });
+
+    // The method comes from the server-written pending checkout, never from Stripe metadata.
+    expect(order).toEqual({
+      fulfillmentMethod: "pickup",
+      status: "paid",
+      readyForPickupAt: null,
+    });
+    expect(await variantStock(database, variantId)).toEqual({
+      inventoryQty: 0,
+      reservedQty: 0,
+    });
+  });
+
+  test("refuses to replay a checkout request under a different fulfillment method", async () => {
+    await insertVariant(database, variantId, 2);
+
+    const requestId = "10000000-0000-4000-8000-00000000000b";
+
+    await reserve(checkoutRepository, variantId, requestId, "shipping");
+
+    await expect(reserve(checkoutRepository, variantId, requestId, "pickup")).rejects.toThrow(
+      "another fulfillment method",
+    );
+    // The rejected replay must not reserve a second unit.
+    expect(await variantStock(database, variantId)).toEqual({
+      inventoryQty: 2,
+      reservedQty: 1,
+    });
+  });
+
+  test("rejects a ready-for-pickup status on a shipping order", async () => {
+    await insertVariant(database, variantId, 1);
+
+    const reservation = await reserve(
+      checkoutRepository,
+      variantId,
+      "10000000-0000-4000-8000-00000000000c",
+    );
+
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_shipping");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_shipping"));
+
+    // The database, not just the application, refuses to stage a shipping order for collection.
+    let violation: unknown;
+
+    try {
+      await database
+        .update(orders)
+        .set({ status: "ready_for_pickup", readyForPickupAt: new Date() })
+        .where(eq(orders.stripeSessionId, "cs_shipping"));
+    } catch (error) {
+      // Drizzle wraps the driver error, so the constraint name only appears on the cause.
+      violation = (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
+    }
+
+    expect(violation).toBe("orders_ready_for_pickup_requires_pickup");
+  });
+
   test("multi-line failures and transaction rollback never partially reserve", async () => {
     await insertVariant(database, variantId, 1);
     await insertVariant(database, secondVariantId, 0);
@@ -144,6 +221,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
           { variantId, quantity: 1 },
           { variantId: secondVariantId, quantity: 1 },
         ],
+        fulfillmentMethod: "shipping",
         expiresAt: new Date("2026-07-10T14:00:00.000Z"),
         nextReconcileAt: new Date("2026-07-10T13:05:00.000Z"),
       }),
@@ -345,6 +423,7 @@ async function reserve(
   repository: CheckoutRepository,
   reservedVariantId: string,
   requestId: string,
+  fulfillmentMethod: "shipping" | "pickup" = "shipping",
 ) {
   const suffix = requestId.slice(-12);
 
@@ -353,6 +432,7 @@ async function reserve(
     pendingCheckoutToken: `checkout_${suffix}_abcdef`,
     reservationToken: `reservation_${suffix}_abc`,
     items: [{ variantId: reservedVariantId, quantity: 1 }],
+    fulfillmentMethod,
     expiresAt: new Date("2026-07-10T14:00:00.000Z"),
     nextReconcileAt: new Date("2026-07-10T13:05:00.000Z"),
   });
@@ -424,6 +504,7 @@ const postgresTestSchema = [
     token text not null unique,
     items jsonb not null,
     line_items jsonb,
+    fulfillment_method text not null default 'shipping',
     stripe_session_id text unique,
     created_at timestamptz not null default now(),
     expires_at timestamptz not null,
@@ -484,6 +565,8 @@ const postgresTestSchema = [
     email text not null,
     status text not null,
     inventory_status text not null,
+    fulfillment_method text not null default 'shipping',
+    ready_for_pickup_at timestamptz,
     stripe_session_id text not null unique,
     stripe_payment_intent_id text unique,
     refund_status text not null default 'none',
@@ -495,7 +578,13 @@ const postgresTestSchema = [
     total_cents integer not null,
     currency text not null,
     shipping_address jsonb,
-    created_at timestamptz not null default now()
+    created_at timestamptz not null default now(),
+    constraint orders_ready_for_pickup_requires_pickup check (
+      status <> 'ready_for_pickup' or fulfillment_method = 'pickup'
+    ),
+    constraint orders_ready_for_pickup_at_required check (
+      status <> 'ready_for_pickup' or ready_for_pickup_at is not null
+    )
   )`,
   `create table order_items (
     id uuid primary key default gen_random_uuid(),
@@ -506,9 +595,10 @@ const postgresTestSchema = [
     unit_price_cents_snapshot integer not null,
     quantity integer not null
   )`,
-  `create table order_confirmation_deliveries (
+  `create table order_email_deliveries (
     id uuid primary key default gen_random_uuid(),
-    order_id uuid not null unique references orders(id) on delete cascade,
+    order_id uuid not null references orders(id) on delete cascade,
+    kind text not null default 'confirmation',
     status text not null default 'pending',
     idempotency_key text not null unique,
     attempt_count integer not null default 0,
@@ -519,7 +609,8 @@ const postgresTestSchema = [
     provider_message_id text,
     delivered_at timestamptz,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    unique (order_id, kind)
   )`,
   `create table stripe_payment_events (
     stripe_event_id text primary key,

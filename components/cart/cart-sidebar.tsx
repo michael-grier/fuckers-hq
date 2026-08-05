@@ -7,6 +7,7 @@ import { type ReactNode, useRef } from "react";
 import { CartLineItem } from "@/components/cart/cart-line-item";
 import { CartSummary } from "@/components/cart/cart-summary";
 import { CheckoutButton } from "@/components/cart/checkout-button";
+import { FulfillmentPicker } from "@/components/cart/fulfillment-picker";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Sheet,
@@ -20,18 +21,25 @@ import {
 import { getCartItemCount } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import type { CartDisplayLine } from "@/lib/cart/types";
+import type { PickupLocation } from "@/lib/checkout/pickup";
 import { cn } from "@/lib/utils";
 
 type CartSidebarProps = {
   children: ReactNode;
+  pickupLocation?: PickupLocation | null;
 };
 
 type CartSidebarContentProps = {
   lines: CartDisplayLine[];
   onClear: () => void;
+  pickupLocation?: PickupLocation | null;
 };
 
-export function CartSidebarContent({ lines, onClear }: CartSidebarContentProps) {
+export function CartSidebarContent({
+  lines,
+  onClear,
+  pickupLocation = null,
+}: CartSidebarContentProps) {
   const itemCount = getCartItemCount(lines);
   const itemLabel = itemCount === 1 ? "item" : "items";
 
@@ -76,9 +84,10 @@ export function CartSidebarContent({ lines, onClear }: CartSidebarContentProps) 
               <CartLineItem compact key={line.variantId} line={line} />
             ))}
           </div>
-          <SheetFooter className="shrink-0 gap-3 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
-            <CartSummary />
-            <CheckoutButton />
+          <SheetFooter className="shrink-0 gap-2.5 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+            <FulfillmentPicker compact pickupLocation={pickupLocation} />
+            <CartSummary compact isPickupAvailable={pickupLocation !== null} />
+            <CheckoutButton isPickupAvailable={pickupLocation !== null} />
             <SheetClose asChild>
               <Link
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
@@ -87,11 +96,6 @@ export function CartSidebarContent({ lines, onClear }: CartSidebarContentProps) 
                 View cart
               </Link>
             </SheetClose>
-            <SheetClose asChild>
-              <Button className="w-full" type="button" variant="ghost">
-                Continue shopping
-              </Button>
-            </SheetClose>
           </SheetFooter>
         </>
       )}
@@ -99,7 +103,7 @@ export function CartSidebarContent({ lines, onClear }: CartSidebarContentProps) 
   );
 }
 
-export function CartSidebar({ children }: CartSidebarProps) {
+export function CartSidebar({ children, pickupLocation = null }: CartSidebarProps) {
   const lines = useCartStore((state) => state.lines);
   const clear = useCartStore((state) => state.clear);
   const isCartOpen = useCartStore((state) => state.isCartOpen);
@@ -133,7 +137,7 @@ export function CartSidebar({ children }: CartSidebarProps) {
               : null;
         }}
       >
-        <CartSidebarContent lines={lines} onClear={clear} />
+        <CartSidebarContent lines={lines} onClear={clear} pickupLocation={pickupLocation} />
       </SheetContent>
     </Sheet>
   );

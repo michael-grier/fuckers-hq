@@ -10,17 +10,25 @@ const productStatusStyles: Record<Product["status"], string> = {
 const orderStatusStyles: Record<Order["status"], string> = {
   pending: "border-border bg-background text-muted-foreground",
   paid: "border-amber-200 bg-amber-50 text-amber-900",
+  ready_for_pickup: "border-sky-200 bg-sky-50 text-sky-900",
   fulfilled: "border-emerald-200 bg-emerald-50 text-emerald-800",
   cancelled: "border-red-200 bg-red-50 text-red-800",
   refunded: "border-border bg-muted text-muted-foreground",
 };
 
+// `fulfilled` reads differently per method, so its label is resolved alongside the method below.
 const orderStatusLabels: Record<Order["status"], string> = {
   pending: "Pending",
   paid: "Paid",
+  ready_for_pickup: "Ready for pickup",
   fulfilled: "Shipped",
   cancelled: "Cancelled",
   refunded: "Refunded",
+};
+
+const fulfillmentMethodLabels: Record<Order["fulfillmentMethod"], string> = {
+  shipping: "Shipping",
+  pickup: "Local pickup",
 };
 
 const orderInventoryStatusStyles: Record<Order["inventoryStatus"], string> = {
@@ -73,10 +81,36 @@ export function ProductStatusBadge({ status }: { status: Product["status"] }) {
   );
 }
 
-export function OrderStatusBadge({ status }: { status: Order["status"] }) {
+export function OrderStatusBadge({
+  status,
+  fulfillmentMethod,
+}: {
+  status: Order["status"];
+  fulfillmentMethod?: Order["fulfillmentMethod"];
+}) {
+  const label =
+    status === "fulfilled" && fulfillmentMethod === "pickup"
+      ? "Picked up"
+      : orderStatusLabels[status];
+
   return (
     <Badge className={orderStatusStyles[status]} variant="outline">
-      {orderStatusLabels[status]}
+      {label}
+    </Badge>
+  );
+}
+
+export function FulfillmentMethodBadge({ method }: { method: Order["fulfillmentMethod"] }) {
+  return (
+    <Badge
+      className={
+        method === "pickup"
+          ? "border-sky-200 bg-sky-50 text-sky-900"
+          : "border-border bg-background text-muted-foreground"
+      }
+      variant="outline"
+    >
+      {fulfillmentMethodLabels[method]}
     </Badge>
   );
 }

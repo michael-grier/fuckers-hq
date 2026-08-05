@@ -46,6 +46,10 @@ run a second, competing deployment.
   values are `SHIPPING_ALLOWED_COUNTRIES=CA,US`, `SHIPPING_STANDARD_RATE_CENTS=1500`, and
   `SHIPPING_FREE_THRESHOLD_CENTS=10000`.
 - The deployed webhook is configured after the stable Vercel production URL exists.
+- Local pickup is offered only when `PICKUP_ENABLED=true` and the location name, address, and
+  hours are all set. Pickup sessions collect no shipping address and carry no shipping rate, so
+  Stripe reports zero shipping on them. Because these values are read at build time, changing them
+  requires a redeploy.
 
 ### Clerk development instance
 
@@ -153,6 +157,11 @@ source maps are enabled.
 | `SHIPPING_ALLOWED_COUNTRIES` | Comma-separated ISO alpha-2 codes, e.g. `CA,US` | No |
 | `SHIPPING_STANDARD_RATE_CENTS` | Nonnegative integer cents | No |
 | `SHIPPING_FREE_THRESHOLD_CENTS` | Nonnegative integer cents | No |
+| `PICKUP_ENABLED` | `true` to offer local pickup at checkout; defaults to `false` | No |
+| `PICKUP_LOCATION_NAME` | Shop name shown at checkout and in pickup emails | No |
+| `PICKUP_ADDRESS` | Street address; newlines break it across lines | No |
+| `PICKUP_HOURS` | Collection hours, e.g. `Wed–Sun, 11am–6pm` | No |
+| `PICKUP_INSTRUCTIONS` | Optional extra note, e.g. buzzer or parking detail | No |
 
 For Preview, add only the Clerk development publishable and secret keys if authenticated preview
 pages are useful. Keep database, Stripe, R2, Resend, cron, and admin allowlist variables

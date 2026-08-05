@@ -5,8 +5,9 @@ import {
   buildStripeLineItemsFromSnapshots,
   getCheckoutSnapshotSubtotalCents,
 } from "@/lib/checkout/items";
+import { formatPickupAddressInline, type PickupLocation } from "@/lib/checkout/pickup";
 import { type AllowedShippingCountry, buildShippingOptions } from "@/lib/checkout/shipping";
-import type { JsonRecord, PendingCheckoutLineSnapshot } from "@/lib/db/schema";
+import type { FulfillmentMethod, JsonRecord, PendingCheckoutLineSnapshot } from "@/lib/db/schema";
 import type { CartLine } from "@/lib/validators/cart";
 import { checkoutSchema, pendingCheckoutMetadataSchema } from "@/lib/validators/cart";
 
@@ -22,6 +23,7 @@ export type CheckoutReservation = {
   stripeSessionId: string | null;
   stripeSessionParams: JsonRecord | null;
   expiresAt: Date;
+  fulfillmentMethod: FulfillmentMethod;
   lineItems: PendingCheckoutLineSnapshot[];
 };
 
@@ -31,6 +33,7 @@ export type CheckoutRepository = {
     pendingCheckoutToken: string;
     reservationToken: string;
     items: CartLine[];
+    fulfillmentMethod: FulfillmentMethod;
     expiresAt: Date;
     nextReconcileAt: Date;
   }) => Promise<CheckoutReservation>;
@@ -55,6 +58,7 @@ export type HostedCheckoutSettings = {
   standardShippingRateCents: number;
   freeShippingThresholdCents: number;
   taxEnabled: boolean;
+  pickupLocation: PickupLocation | null;
 };
 
 type HostedCheckoutDependencies = {
@@ -70,13 +74,21 @@ export async function createHostedCheckout(
   settings: HostedCheckoutSettings,
   dependencies: HostedCheckoutDependencies,
 ): Promise<{ url: string }> {
-  const { items, requestId } = checkoutSchema.parse(input);
+  const { items, requestId, fulfillmentMethod } = checkoutSchema.parse(input);
+
+  // Availability is decided here, on the server, so a crafted request cannot select pickup while
+  // it is turned off and skip both the shipping address and the shipping charge.
+  if (fulfillmentMethod === "pickup" && !settings.pickupLocation) {
+    throw new CheckoutError("Local pickup is not available.", 400);
+  }
+
   const now = dependencies.now?.() ?? new Date();
   const reservation = await dependencies.repository.reserveCheckout({
     requestId,
     pendingCheckoutToken: dependencies.createToken(),
     reservationToken: dependencies.createToken(),
     items,
+    fulfillmentMethod,
     expiresAt: new Date(now.getTime() + pendingCheckoutLifetimeMs),
     nextReconcileAt: new Date(now.getTime() + provisioningReconcileDelayMs),
   });
@@ -118,27 +130,46 @@ export async function createHostedCheckout(
 export function buildStripeSessionParams(
   reservation: Pick<
     CheckoutReservation,
-    "pendingCheckoutToken" | "reservationToken" | "expiresAt" | "lineItems"
+    "pendingCheckoutToken" | "reservationToken" | "expiresAt" | "lineItems" | "fulfillmentMethod"
   >,
   settings: HostedCheckoutSettings,
 ): Stripe.Checkout.SessionCreateParams {
   const appUrl = settings.appUrl.replace(/\/$/, "");
+  const isPickup = reservation.fulfillmentMethod === "pickup";
 
   return {
     mode: "payment",
     client_reference_id: reservation.reservationToken,
     line_items: buildStripeLineItemsFromSnapshots(reservation.lineItems),
     automatic_tax: { enabled: settings.taxEnabled },
-    shipping_address_collection: {
-      allowed_countries: settings.allowedCountries,
-    },
-    shipping_options: buildShippingOptions(
-      getCheckoutSnapshotSubtotalCents(reservation.lineItems),
-      {
-        standardRateCents: settings.standardShippingRateCents,
-        freeThresholdCents: settings.freeShippingThresholdCents,
-      },
-    ),
+    // Pickup collects no address and offers no shipping rate, so Stripe charges no shipping and
+    // reports none back on the paid Session.
+    ...(isPickup
+      ? {
+          // Automatic tax needs a customer location, and pickup collects no shipping address.
+          billing_address_collection: "required" as const,
+        }
+      : {
+          shipping_address_collection: {
+            allowed_countries: settings.allowedCountries,
+          },
+          shipping_options: buildShippingOptions(
+            getCheckoutSnapshotSubtotalCents(reservation.lineItems),
+            {
+              standardRateCents: settings.standardShippingRateCents,
+              freeThresholdCents: settings.freeShippingThresholdCents,
+            },
+          ),
+        }),
+    ...(isPickup && settings.pickupLocation
+      ? {
+          custom_text: {
+            submit: {
+              message: `Pick up at ${settings.pickupLocation.name}, ${formatPickupAddressInline(settings.pickupLocation)}. We'll email you when your order is ready.`,
+            },
+          },
+        }
+      : {}),
     success_url: `${appUrl}/order/success?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${appUrl}/cart`,
     expires_at: Math.floor(reservation.expiresAt.getTime() / 1000),
@@ -150,6 +181,7 @@ export function buildStripeSessionParams(
     metadata: {
       pendingCheckoutToken: reservation.pendingCheckoutToken,
       reservationToken: reservation.reservationToken,
+      fulfillmentMethod: reservation.fulfillmentMethod,
     },
   };
 }
@@ -166,7 +198,10 @@ const persistedStripeSessionParamsSchema = z
 
 export function parsePersistedStripeSessionParams(
   input: unknown,
-  reservation: Pick<CheckoutReservation, "pendingCheckoutToken" | "reservationToken" | "expiresAt">,
+  reservation: Pick<
+    CheckoutReservation,
+    "pendingCheckoutToken" | "reservationToken" | "expiresAt" | "fulfillmentMethod"
+  >,
 ): Stripe.Checkout.SessionCreateParams {
   const parsed = persistedStripeSessionParamsSchema.safeParse(input);
 
@@ -175,6 +210,8 @@ export function parsePersistedStripeSessionParams(
     parsed.data.client_reference_id !== reservation.reservationToken ||
     parsed.data.metadata.pendingCheckoutToken !== reservation.pendingCheckoutToken ||
     parsed.data.metadata.reservationToken !== reservation.reservationToken ||
+    // Sessions persisted before local pickup existed carry no method and are always shipping.
+    (parsed.data.metadata.fulfillmentMethod ?? "shipping") !== reservation.fulfillmentMethod ||
     parsed.data.expires_at !== Math.floor(reservation.expiresAt.getTime() / 1000)
   ) {
     throw new CheckoutError("Persisted Stripe Session request is invalid.", 500);

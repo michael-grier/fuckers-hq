@@ -1,7 +1,7 @@
 import { isOrderConfirmationCronAuthorized } from "@/lib/email/order-confirmation-cron";
-import { deliverDueOrderConfirmations } from "@/lib/email/order-confirmation-delivery";
-import { orderConfirmationDeliveryRepository } from "@/lib/email/order-confirmation-delivery-repository";
-import { sendOrderConfirmation } from "@/lib/email/send-order-confirmation";
+import { deliverDueOrderEmails } from "@/lib/email/order-email-delivery";
+import { orderEmailDeliveryRepository } from "@/lib/email/order-email-delivery-repository";
+import { sendOrderEmail } from "@/lib/email/send-order-email";
 import { env } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
 
@@ -13,25 +13,21 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const result = await deliverDueOrderConfirmations(
-      orderConfirmationDeliveryRepository,
-      sendOrderConfirmation,
-      {
-        reportError: (error) => {
-          captureServerException(error, {
-            area: "email",
-            operation: "email.retry-order-confirmation",
-          });
-        },
+    const result = await deliverDueOrderEmails(orderEmailDeliveryRepository, sendOrderEmail, {
+      reportError: (error) => {
+        captureServerException(error, {
+          area: "email",
+          operation: "email.retry-order-email",
+        });
       },
-    );
+    });
 
     return Response.json(result);
   } catch (error) {
     captureServerException(error, {
       area: "email",
-      operation: "email.process-order-confirmation-outbox",
+      operation: "email.process-order-email-outbox",
     });
-    return new Response("Order confirmation retry failed.", { status: 500 });
+    return new Response("Order email retry failed.", { status: 500 });
   }
 }

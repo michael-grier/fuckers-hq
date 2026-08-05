@@ -1,4 +1,4 @@
-import type { OrderConfirmationDelivery } from "@/lib/db/schema";
+import type { OrderEmailDelivery } from "@/lib/db/schema";
 
 const adminDateFormatter = new Intl.DateTimeFormat("en-CA", {
   dateStyle: "medium",
@@ -28,7 +28,7 @@ export function formatOptionalAdminDate(value: Date | null): string {
   return value ? formatAdminDate(value) : "Not yet";
 }
 
-const confirmationDeliveryLabels: Record<OrderConfirmationDelivery["status"], string> = {
+const confirmationDeliveryLabels: Record<OrderEmailDelivery["status"], string> = {
   pending: "Pending",
   processing: "Sending",
   retry: "Retry scheduled",
@@ -36,9 +36,7 @@ const confirmationDeliveryLabels: Record<OrderConfirmationDelivery["status"], st
   failed: "Needs attention",
 };
 
-export function formatConfirmationDeliveryStatus(
-  status: OrderConfirmationDelivery["status"],
-): string {
+export function formatConfirmationDeliveryStatus(status: OrderEmailDelivery["status"]): string {
   return confirmationDeliveryLabels[status];
 }
 

@@ -25,7 +25,7 @@ export default async function AdminPage() {
     getAdminRecentOrders(),
   ]);
   const attentionCount =
-    attention.inventoryExceptionOrders.length + attention.failedConfirmationDeliveries.length;
+    attention.inventoryExceptionOrders.length + attention.failedEmailDeliveries.length;
 
   return (
     <div className="space-y-8">
@@ -48,7 +48,7 @@ export default async function AdminPage() {
         </Button>
       </div>
 
-      <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <dl className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <SummaryCard
           href={"/admin/products" as Route}
           label="Products"
@@ -57,8 +57,18 @@ export default async function AdminPage() {
         <SummaryCard href={"/admin/orders" as Route} label="Orders" value={summary.orderCount} />
         <SummaryCard
           href={"/admin/orders" as Route}
-          label="Awaiting fulfillment"
+          label="Awaiting shipment"
           value={summary.awaitingFulfillmentCount}
+        />
+        <SummaryCard
+          href={"/admin/pickups" as Route}
+          label="Pickups to prepare"
+          value={summary.pickupToPrepareCount}
+        />
+        <SummaryCard
+          href={"/admin/pickups" as Route}
+          label="Awaiting collection"
+          value={summary.awaitingCollectionCount}
         />
         <SummaryCard
           highlight={summary.inventoryExceptionCount > 0}
@@ -156,7 +166,7 @@ export default async function AdminPage() {
           </div>
           {attentionCount === 0 ? (
             <p className="px-5 py-8 text-muted-foreground text-sm">
-              All clear. Inventory exceptions and failed confirmation emails show up here.
+              All clear. Inventory exceptions and failed order emails show up here.
             </p>
           ) : (
             <ul className="divide-y">
@@ -170,14 +180,20 @@ export default async function AdminPage() {
                   title={`${order.orderNumber} — inventory exception`}
                 />
               ))}
-              {attention.failedConfirmationDeliveries.map((delivery) => (
+              {attention.failedEmailDeliveries.map((delivery) => (
                 <AttentionItem
                   action="Retry email"
-                  description={`Gave up after ${delivery.attemptCount} ${delivery.attemptCount === 1 ? "attempt" : "attempts"}${delivery.lastErrorCode ? ` (${delivery.lastErrorCode})` : ""}. The customer has no receipt.`}
+                  description={`Gave up after ${delivery.attemptCount} ${delivery.attemptCount === 1 ? "attempt" : "attempts"}${delivery.lastErrorCode ? ` (${delivery.lastErrorCode})` : ""}. ${
+                    delivery.kind === "pickup_ready"
+                      ? "The customer has not been told their order is ready."
+                      : "The customer has no receipt."
+                  }`}
                   href={`/admin/orders/${delivery.order.id}` as Route}
                   icon={<MailWarning aria-hidden="true" className="size-4 text-amber-600" />}
                   key={delivery.id}
-                  title={`${delivery.order.orderNumber} — confirmation email failed`}
+                  title={`${delivery.order.orderNumber} — ${
+                    delivery.kind === "pickup_ready" ? "pickup" : "confirmation"
+                  } email failed`}
                 />
               ))}
             </ul>

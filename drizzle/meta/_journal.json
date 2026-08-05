@@ -57,6 +57,13 @@
       "when": 1785882701426,
       "tag": "0007_lowly_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785961574454,
+      "tag": "0008_local-pickup-fulfillment",
+      "breakpoints": true
     }
   ]
 }

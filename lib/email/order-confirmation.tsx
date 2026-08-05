@@ -22,6 +22,12 @@ export type OrderConfirmationItem = {
   quantity: number;
 };
 
+export type OrderConfirmationPickup = {
+  locationName: string;
+  addressLines: string[];
+  hours: string;
+};
+
 export type OrderConfirmationView = {
   orderNumber: string;
   currency: string;
@@ -31,6 +37,8 @@ export type OrderConfirmationView = {
   totalCents: number;
   items: OrderConfirmationItem[];
   shippingAddressLines: string[];
+  /** Set for local pickup orders, which have no shipping address to show instead. */
+  pickup: OrderConfirmationPickup | null;
 };
 
 type OrderConfirmationEmailProps = {
@@ -72,7 +80,14 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
             ))}
             <Hr style={styles.rule} />
             <TotalRow label="Subtotal" value={formatMoney(order.subtotalCents, order.currency)} />
-            <TotalRow label="Shipping" value={formatMoney(order.shippingCents, order.currency)} />
+            <TotalRow
+              label={order.pickup ? "Pickup" : "Shipping"}
+              value={
+                order.pickup && order.shippingCents === 0
+                  ? "Free"
+                  : formatMoney(order.shippingCents, order.currency)
+              }
+            />
             <TotalRow label="Tax" value={formatMoney(order.taxCents, order.currency)} />
             <Row>
               <Column>
@@ -86,7 +101,23 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
             </Row>
           </Section>
 
-          {order.shippingAddressLines.length > 0 ? (
+          {order.pickup ? (
+            <Section style={styles.section}>
+              <Heading as="h2" style={styles.sectionHeading}>
+                Picking up at
+              </Heading>
+              <Text style={styles.pickupLocationName}>{order.pickup.locationName}</Text>
+              {order.pickup.addressLines.map((line) => (
+                <Text key={line} style={styles.addressLine}>
+                  {line}
+                </Text>
+              ))}
+              <Text style={styles.pickupHours}>{order.pickup.hours}</Text>
+              <Text style={styles.pickupNote}>
+                Hold tight — we'll email you again when it's ready to collect.
+              </Text>
+            </Section>
+          ) : order.shippingAddressLines.length > 0 ? (
             <Section style={styles.section}>
               <Heading as="h2" style={styles.sectionHeading}>
                 Shipping to
@@ -215,6 +246,24 @@ const styles = {
     fontSize: "14px",
     lineHeight: "20px",
     margin: 0,
+  },
+  pickupLocationName: {
+    fontSize: "15px",
+    fontWeight: "700",
+    lineHeight: "20px",
+    margin: "0 0 4px",
+  },
+  pickupHours: {
+    fontSize: "14px",
+    fontWeight: "700",
+    lineHeight: "20px",
+    margin: "12px 0 0",
+  },
+  pickupNote: {
+    color: "#52525b",
+    fontSize: "14px",
+    lineHeight: "20px",
+    margin: "12px 0 0",
   },
   footer: {
     color: "#71717a",

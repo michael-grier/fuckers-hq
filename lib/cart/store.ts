@@ -4,12 +4,16 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { MAX_CART_LINE_QUANTITY } from "./constants";
-import type { AddCartLineInput, CartDisplayLine } from "./types";
+import type { AddCartLineInput, CartDisplayLine, CartFulfillmentMethod } from "./types";
 
 type CartState = {
   lines: CartDisplayLine[];
+  // A preference only. The server decides whether pickup is actually offered, and
+  // `resolveFulfillmentMethod` coerces this back to shipping when it is not.
+  fulfillmentMethod: CartFulfillmentMethod;
   isCartOpen: boolean;
   setCartOpen: (open: boolean) => void;
+  setFulfillmentMethod: (method: CartFulfillmentMethod) => void;
   addLine: (line: AddCartLineInput) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeLine: (variantId: string) => void;
@@ -24,8 +28,10 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       lines: [],
+      fulfillmentMethod: "shipping",
       isCartOpen: false,
       setCartOpen: (open) => set({ isCartOpen: open }),
+      setFulfillmentMethod: (method) => set({ fulfillmentMethod: method }),
       addLine: (line) => {
         const quantity = clampQuantity(line.quantity ?? 1);
 
@@ -79,7 +85,10 @@ export const useCartStore = create<CartState>()(
     {
       name: "fuckers-hq-cart",
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ lines: state.lines }),
+      partialize: (state) => ({
+        lines: state.lines,
+        fulfillmentMethod: state.fulfillmentMethod,
+      }),
     },
   ),
 );

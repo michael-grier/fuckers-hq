@@ -5,11 +5,13 @@ import Link from "next/link";
 import { CartLineItem } from "@/components/cart/cart-line-item";
 import { CartSummary } from "@/components/cart/cart-summary";
 import { CheckoutButton } from "@/components/cart/checkout-button";
+import { FulfillmentPicker } from "@/components/cart/fulfillment-picker";
 import { EmptyState } from "@/components/shop/empty-state";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/lib/cart/store";
+import type { PickupLocation } from "@/lib/checkout/pickup";
 
-export function CartPageClient() {
+export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocation | null }) {
   const lines = useCartStore((state) => state.lines);
   const clear = useCartStore((state) => state.clear);
 
@@ -43,8 +45,9 @@ export function CartPageClient() {
         </Button>
       </section>
       <div className="space-y-4">
-        <CartSummary />
-        <CheckoutButton />
+        <FulfillmentPicker pickupLocation={pickupLocation} />
+        <CartSummary isPickupAvailable={pickupLocation !== null} />
+        <CheckoutButton isPickupAvailable={pickupLocation !== null} />
       </div>
     </div>
   );

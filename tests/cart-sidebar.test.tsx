@@ -56,5 +56,46 @@ describe("cart sidebar", () => {
     expect(markup).toContain("Remove Database Deck");
     expect(markup).toContain("Checkout");
     expect(markup).toContain('href="/cart">View cart</a>');
+    // The sheet already closes via its X and backdrop, so the footer does not repeat that
+    // affordance and spend vertical space the item list needs on short viewports.
+    expect(markup).not.toContain("Continue shopping");
+  });
+
+  test("offers pickup as a compact segmented control, address not inflating the footer", () => {
+    const markup = renderToStaticMarkup(
+      <Sheet>
+        <CartSidebarContent
+          lines={[deck]}
+          onClear={() => undefined}
+          pickupLocation={{
+            name: "The Shop",
+            address: "123 Test Street\nCalgary, AB T1T 1T1",
+            hours: "Wed-Sun, 11am-6pm",
+            instructions: "Ring the buzzer.",
+          }}
+        />
+      </Sheet>,
+    );
+
+    expect(markup).toContain("How do you want it?");
+    expect(markup).toContain("Ship it");
+    expect(markup).toContain("Local pickup");
+    // Real radios keep arrow-key navigation working even though the control looks segmented.
+    expect(markup).toContain('type="radio"');
+    // The footer never carries the street address at rest; it lives behind a disclosure that
+    // only appears once pickup is chosen. Zustand serves its initial state to SSR, so that
+    // selected branch is only reachable in a browser, not in static markup.
+    expect(markup).not.toContain("123 Test Street");
+    expect(markup).not.toContain("Ring the buzzer.");
+  });
+
+  test("omits the picker entirely when pickup is not configured", () => {
+    const markup = renderToStaticMarkup(
+      <Sheet>
+        <CartSidebarContent lines={[deck]} onClear={() => undefined} />
+      </Sheet>,
+    );
+
+    expect(markup).not.toContain("How do you want it?");
   });
 });

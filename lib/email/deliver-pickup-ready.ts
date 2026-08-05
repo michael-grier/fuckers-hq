@@ -1,21 +1,21 @@
 import { createElement } from "react";
 
-import { OrderConfirmationEmail, type OrderConfirmationView } from "@/lib/email/order-confirmation";
 import {
   type OrderEmailClient,
   type OrderEmailConfig,
   OrderEmailDeliveryError,
 } from "@/lib/email/order-email-transport";
+import { PickupReadyEmail, type PickupReadyView } from "@/lib/email/pickup-ready";
 
-export type ConfirmationEmailDelivery = {
+export type PickupReadyDelivery = {
   orderId: string;
   idempotencyKey: string;
   recipientEmail: string;
-  order: OrderConfirmationView;
+  order: PickupReadyView;
 };
 
-export async function deliverOrderConfirmation(
-  delivery: ConfirmationEmailDelivery,
+export async function deliverPickupReady(
+  delivery: PickupReadyDelivery,
   config: OrderEmailConfig,
   client: OrderEmailClient,
 ): Promise<string> {
@@ -24,8 +24,8 @@ export async function deliverOrderConfirmation(
       from: config.from,
       to: delivery.recipientEmail,
       replyTo: config.supportEmail,
-      subject: `Order ${delivery.order.orderNumber} confirmed`,
-      react: createElement(OrderConfirmationEmail, {
+      subject: `Order ${delivery.order.orderNumber} is ready to pick up`,
+      react: createElement(PickupReadyEmail, {
         order: delivery.order,
         supportEmail: config.supportEmail,
       }),
