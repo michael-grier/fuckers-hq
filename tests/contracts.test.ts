@@ -36,7 +36,23 @@ describe("checkout contract", () => {
     ).toEqual({
       requestId,
       items: [{ variantId, quantity: 2 }],
+      // Omitted by clients that predate local pickup, so it defaults to shipping.
+      fulfillmentMethod: "shipping",
     });
+    expect(
+      checkoutSchema.parse({
+        requestId,
+        items: [{ variantId, quantity: 2 }],
+        fulfillmentMethod: "pickup",
+      }).fulfillmentMethod,
+    ).toBe("pickup");
+    expect(() =>
+      checkoutSchema.parse({
+        requestId,
+        items: [{ variantId, quantity: 2 }],
+        fulfillmentMethod: "courier",
+      }),
+    ).toThrow();
   });
 
   test("rejects empty carts and invalid UUIDs", () => {
@@ -138,9 +154,10 @@ describe("cart selectors", () => {
 
     expect(getCartItemCount(lines)).toBe(2);
     expect(getCartSubtotalCents(lines)).toBe(17800);
-    expect(toCheckoutRequest(lines, requestId)).toEqual({
+    expect(toCheckoutRequest(lines, requestId, "shipping")).toEqual({
       requestId,
       items: [{ variantId, quantity: 2 }],
+      fulfillmentMethod: "shipping",
     });
   });
 });

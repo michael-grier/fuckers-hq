@@ -53,7 +53,8 @@ export default async function AdminOrdersPage({ searchParams }: AdminOrdersPageP
               urgent: counts["needs-action"] > 0,
             },
             { value: "to-ship", label: "To ship", count: counts["to-ship"] },
-            { value: "shipped", label: "Shipped", count: counts.shipped },
+            // `fulfilled` covers both shipped and collected orders, so the label stays neutral.
+            { value: "shipped", label: "Completed", count: counts.shipped },
             { value: "refunded", label: "Refunded", count: counts.refunded },
           ]}
         />

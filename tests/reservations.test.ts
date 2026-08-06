@@ -20,6 +20,7 @@ const sessionParams = buildStripeSessionParams(
     pendingCheckoutToken,
     reservationToken,
     expiresAt,
+    fulfillmentMethod: "shipping",
     lineItems: [
       {
         variantId: "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6",
@@ -37,6 +38,7 @@ const sessionParams = buildStripeSessionParams(
     standardShippingRateCents: 1500,
     freeShippingThresholdCents: 10000,
     taxEnabled: true,
+    pickupLocation: null,
   },
 ) as unknown as JsonRecord;
 
@@ -54,6 +56,7 @@ function makeClaim(
     expiresAt,
     createdAt: new Date("2026-07-10T12:00:00.000Z"),
     attemptCount: 1,
+    fulfillmentMethod: "shipping",
     ...overrides,
   };
 }

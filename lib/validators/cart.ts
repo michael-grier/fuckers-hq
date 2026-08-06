@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import { MAX_CART_LINE_QUANTITY, MAX_CART_LINES } from "@/lib/cart/constants";
+import { fulfillmentMethodValues } from "@/lib/db/schema";
+
+export const fulfillmentMethodSchema = z.enum(fulfillmentMethodValues);
 
 export const cartLineSchema = z
   .object({
@@ -34,6 +37,8 @@ export const checkoutSchema = z
   .object({
     requestId: z.string().uuid(),
     items: cartSchema,
+    // Absent means shipping so a client that predates local pickup keeps working unchanged.
+    fulfillmentMethod: fulfillmentMethodSchema.default("shipping"),
   })
   .strict();
 
@@ -55,14 +60,24 @@ export const pendingCheckoutTokenSchema = z
   .max(128)
   .regex(/^[A-Za-z0-9_-]+$/);
 
+/**
+ * Unknown keys pass through deliberately. A Session created by a newer deploy can be paid while an
+ * older instance is still receiving webhooks, so rejecting an unrecognized metadata key would
+ * discard a verified payment and leave Stripe retrying against a permanent failure. Only the keys
+ * named here are ever read, and the signature check — not this schema — is what establishes trust.
+ */
 export const pendingCheckoutMetadataSchema = z
   .object({
     pendingCheckoutToken: pendingCheckoutTokenSchema,
     reservationToken: pendingCheckoutTokenSchema.optional(),
+    // Present for Stripe dashboard triage only. The pending checkout row stays authoritative for
+    // how an order is fulfilled, because Session metadata is echoed back from an external system.
+    fulfillmentMethod: fulfillmentMethodSchema.optional(),
   })
-  .strict();
+  .passthrough();
 
 export type CartLine = z.infer<typeof cartLineSchema>;
+export type FulfillmentMethodInput = z.infer<typeof fulfillmentMethodSchema>;
 export type CheckoutInput = z.infer<typeof checkoutSchema>;
 export type CheckoutResponse = z.infer<typeof checkoutResponseSchema>;
 export type PendingCheckoutMetadata = z.infer<typeof pendingCheckoutMetadataSchema>;

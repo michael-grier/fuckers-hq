@@ -3,8 +3,10 @@ import type Stripe from "stripe";
 
 import { isCompletedPaidCheckout } from "@/lib/checkout/completion";
 import {
+  buildStripeSessionParams,
   type CheckoutRepository,
   createHostedCheckout,
+  parsePersistedStripeSessionParams,
 } from "@/lib/checkout/create-hosted-checkout";
 import { toCheckoutErrorResponse } from "@/lib/checkout/error-response";
 import { CheckoutError } from "@/lib/checkout/errors";
@@ -44,6 +46,18 @@ const settings = {
   standardShippingRateCents: 1500,
   freeShippingThresholdCents: 10000,
   taxEnabled: true,
+  pickupLocation: null,
+};
+
+const pickupSettings = {
+  ...settings,
+  allowedCountries: [...settings.allowedCountries],
+  pickupLocation: {
+    name: "The Shop",
+    address: "123 Test Street\nCalgary, AB T1T 1T1",
+    hours: "Wed–Sun, 11am–6pm",
+    instructions: "Ring the buzzer.",
+  },
 };
 
 function makeRepository(overrides: Partial<CheckoutRepository> = {}): CheckoutRepository {
@@ -55,6 +69,7 @@ function makeRepository(overrides: Partial<CheckoutRepository> = {}): CheckoutRe
       stripeSessionId: null,
       stripeSessionParams: null,
       expiresAt: new Date("2026-07-10T13:00:00.000Z"),
+      fulfillmentMethod: "shipping",
       lineItems: reservationLineItems,
     }),
     prepareStripeSession: async (_reservationToken, params) => params,
@@ -213,6 +228,7 @@ describe("hosted checkout orchestration", () => {
           stripeSessionId: null,
           stripeSessionParams: null,
           expiresAt: checkout.expiresAt,
+          fulfillmentMethod: checkout.fulfillmentMethod,
           lineItems: reservationLineItems,
         };
       },
@@ -262,6 +278,7 @@ describe("hosted checkout orchestration", () => {
           { variantId, quantity: 1 },
           { variantId, quantity: 1 },
         ],
+        fulfillmentMethod: "shipping",
         expiresAt: new Date("2026-07-10T13:00:00.000Z"),
         nextReconcileAt: new Date("2026-07-10T12:05:00.000Z"),
       },
@@ -269,6 +286,7 @@ describe("hosted checkout orchestration", () => {
     expect(sessionParams?.metadata).toEqual({
       pendingCheckoutToken: "checkout_abcDEF123456789",
       reservationToken: "reservation_abcDEF123456",
+      fulfillmentMethod: "shipping",
     });
     expect(sessionParams?.client_reference_id).toBe("reservation_abcDEF123456");
     expect(sessionParams?.after_expiration).toEqual({ recovery: { enabled: false } });
@@ -356,5 +374,143 @@ describe("hosted checkout orchestration", () => {
     ).rejects.toThrow("Database link failed.");
 
     expect(releases).toEqual([]);
+  });
+});
+
+describe("local pickup checkout", () => {
+  const pickupReservation = {
+    pendingCheckoutToken: "checkout_abcDEF123456789",
+    reservationToken: "reservation_abcDEF123456",
+    expiresAt: new Date("2026-07-10T13:00:00.000Z"),
+    fulfillmentMethod: "pickup" as const,
+    lineItems: reservationLineItems,
+  };
+
+  test("collects no address and offers no shipping rate", () => {
+    const params = buildStripeSessionParams(pickupReservation, pickupSettings);
+
+    expect(params.shipping_address_collection).toBeUndefined();
+    expect(params.shipping_options).toBeUndefined();
+    // Automatic tax still needs a customer location for a pickup order.
+    expect(params.billing_address_collection).toBe("required");
+    expect(params.metadata?.fulfillmentMethod).toBe("pickup");
+    const submitText = params.custom_text?.submit;
+
+    expect(submitText && typeof submitText === "object" ? submitText.message : null).toContain(
+      "The Shop",
+    );
+  });
+
+  test("keeps shipping collection and rates for a shipping order", () => {
+    const params = buildStripeSessionParams(
+      { ...pickupReservation, fulfillmentMethod: "shipping" },
+      pickupSettings,
+    );
+
+    expect(params.shipping_address_collection?.allowed_countries).toEqual(["CA", "US"]);
+    expect(params.shipping_options).toHaveLength(1);
+    expect(params.billing_address_collection).toBeUndefined();
+    expect(params.metadata?.fulfillmentMethod).toBe("shipping");
+  });
+
+  test("refuses a pickup request while pickup is switched off", async () => {
+    let repositoryCalled = false;
+
+    await expect(
+      createHostedCheckout(
+        { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "pickup" },
+        { ...settings, allowedCountries: [...settings.allowedCountries] },
+        {
+          repository: makeRepository({
+            reserveCheckout: async () => {
+              repositoryCalled = true;
+              throw new Error("Unexpected reservation call.");
+            },
+          }),
+          sessions: { create: async () => ({ id: "cs_unused", url: null }) },
+          createToken: () => "unused-token",
+        },
+      ),
+    ).rejects.toThrow("Local pickup is not available.");
+
+    // Stock must not be reserved for a checkout that can never be paid.
+    expect(repositoryCalled).toBe(false);
+  });
+
+  test("carries the pickup choice into the reservation the server persists", async () => {
+    const reservationWrites: Parameters<CheckoutRepository["reserveCheckout"]>[0][] = [];
+    const repository = makeRepository({
+      reserveCheckout: async (checkout) => {
+        reservationWrites.push(checkout);
+        return {
+          pendingCheckoutToken: checkout.pendingCheckoutToken,
+          reservationToken: checkout.reservationToken,
+          stripeCreateIdempotencyKey: `checkout-session/${checkout.reservationToken}`,
+          stripeSessionId: null,
+          stripeSessionParams: null,
+          expiresAt: checkout.expiresAt,
+          fulfillmentMethod: checkout.fulfillmentMethod,
+          lineItems: reservationLineItems,
+        };
+      },
+    });
+
+    await createHostedCheckout(
+      { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "pickup" },
+      pickupSettings,
+      {
+        repository,
+        sessions: {
+          create: async () => ({ id: "cs_test_pickup", url: "https://checkout.stripe.com/pickup" }),
+        },
+        createToken: () => "checkout_abcDEF123456789",
+      },
+    );
+
+    expect(reservationWrites[0]?.fulfillmentMethod).toBe("pickup");
+  });
+
+  test("rejects a persisted session request whose method no longer matches", () => {
+    const params = buildStripeSessionParams(pickupReservation, pickupSettings) as unknown;
+
+    expect(parsePersistedStripeSessionParams(params, pickupReservation)).toBeDefined();
+    expect(() =>
+      parsePersistedStripeSessionParams(params, {
+        ...pickupReservation,
+        fulfillmentMethod: "shipping",
+      }),
+    ).toThrow("Persisted Stripe Session request is invalid.");
+  });
+
+  test("accepts a persisted session carrying metadata this deploy does not know", () => {
+    const params = buildStripeSessionParams(pickupReservation, pickupSettings) as unknown as {
+      metadata: Record<string, string>;
+    };
+    const fromNewerDeploy = {
+      ...params,
+      metadata: { ...params.metadata, somethingAddedLater: "x" },
+    };
+
+    // A rolling release can pay a Session created by a newer deploy. Rejecting the unknown key
+    // would strand a verified payment behind a permanent parse failure.
+    expect(parsePersistedStripeSessionParams(fromNewerDeploy, pickupReservation)).toBeDefined();
+  });
+
+  test("treats a session persisted before pickup existed as shipping", () => {
+    const shippingReservation = { ...pickupReservation, fulfillmentMethod: "shipping" as const };
+    const legacyParams = buildStripeSessionParams(shippingReservation, {
+      ...settings,
+      allowedCountries: [...settings.allowedCountries],
+    }) as unknown as {
+      metadata: Record<string, string>;
+    };
+    const { fulfillmentMethod: _omitted, ...legacyMetadata } = legacyParams.metadata;
+
+    expect(
+      parsePersistedStripeSessionParams(
+        { ...legacyParams, metadata: legacyMetadata },
+        shippingReservation,
+      ),
+    ).toBeDefined();
   });
 });

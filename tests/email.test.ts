@@ -4,21 +4,23 @@ import { createElement } from "react";
 import type { CreateEmailOptions } from "resend";
 
 import {
+  type ConfirmationEmailDelivery,
   deliverOrderConfirmation,
-  type OrderConfirmationDelivery,
-  OrderConfirmationDeliveryError,
 } from "@/lib/email/deliver-order-confirmation";
 import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
 import {
-  attemptOrderConfirmationDelivery,
-  deliverDueOrderConfirmations,
-  makeOrderConfirmationIdempotencyKey,
-  type OrderConfirmationDeliveryRepository,
-} from "@/lib/email/order-confirmation-delivery";
+  attemptOrderEmailDelivery,
+  deliverDueOrderEmails,
+  makeOrderEmailIdempotencyKey,
+  type OrderEmailDeliveryRepository,
+  type OrderEmailRef,
+} from "@/lib/email/order-email-delivery";
+import { OrderEmailDeliveryError } from "@/lib/email/order-email-transport";
+import { PickupReadyEmail, type PickupReadyView } from "@/lib/email/pickup-ready";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 
-const delivery: OrderConfirmationDelivery = {
+const delivery: ConfirmationEmailDelivery = {
   orderId: "9c786325-fb57-46e3-b3ed-a60b653b3ad8",
   idempotencyKey: "order-confirmation/9c786325-fb57-46e3-b3ed-a60b653b3ad8",
   recipientEmail: "skater@example.com",
@@ -38,7 +40,22 @@ const delivery: OrderConfirmationDelivery = {
       },
     ],
     shippingAddressLines: ["Test Skater", "123 Test Street", "Calgary, AB T1T 1T1", "CA"],
+    pickup: null,
   },
+};
+
+const confirmationRef: OrderEmailRef = { orderId: delivery.orderId, kind: "confirmation" };
+const pickupReadyRef: OrderEmailRef = { orderId: delivery.orderId, kind: "pickup_ready" };
+
+const pickupReadyView: PickupReadyView = {
+  orderNumber: "FHQ-20260713-ABC12345",
+  currency: "cad",
+  totalCents: 8900,
+  items: [{ productName: "Database Deck", variantName: '8.25"', quantity: 1 }],
+  pickupLocationName: "The Shop",
+  pickupAddressLines: ["123 Test Street", "Calgary, AB T1T 1T1"],
+  pickupHours: "Wed\u2013Sun, 11am\u20136pm",
+  pickupInstructions: "Ring the buzzer.",
 };
 
 describe("order confirmation template", () => {
@@ -131,15 +148,15 @@ describe("order confirmation delivery", () => {
           }),
         },
       ),
-    ).rejects.toThrow(OrderConfirmationDeliveryError);
+    ).rejects.toThrow(OrderEmailDeliveryError);
   });
 });
 
 describe("post-commit email boundary", () => {
   test("attempts delivery for new orders and idempotent webhook replays", async () => {
-    const sentOrderIds: string[] = [];
-    const attempt = async (orderId: string) => {
-      sentOrderIds.push(orderId);
+    const sentRefs: OrderEmailRef[] = [];
+    const attempt = async (ref: OrderEmailRef) => {
+      sentRefs.push(ref);
       return { status: "sent" } as const;
     };
 
@@ -172,7 +189,7 @@ describe("post-commit email boundary", () => {
     expect(await sendConfirmationAfterOrderCommit({ handled: false }, attempt, () => {})).toBe(
       false,
     );
-    expect(sentOrderIds).toEqual([delivery.orderId, delivery.orderId]);
+    expect(sentRefs).toEqual([confirmationRef, confirmationRef]);
   });
 
   test("reports email failure without rejecting the persisted webhook result", async () => {
@@ -193,14 +210,15 @@ describe("post-commit email boundary", () => {
 
 describe("durable order confirmation retries", () => {
   test("records a first failure and succeeds later with the same idempotency key", async () => {
-    const idempotencyKey = makeOrderConfirmationIdempotencyKey(delivery.orderId);
+    const idempotencyKey = makeOrderEmailIdempotencyKey(delivery.orderId, "confirmation");
     let attemptCount = 0;
     const failedAttempts: number[] = [];
     const completedAttempts: number[] = [];
-    const repository: OrderConfirmationDeliveryRepository = {
+    const repository: OrderEmailDeliveryRepository = {
       claimDelivery: mock(async () => ({
         id: "delivery_123",
         orderId: delivery.orderId,
+        kind: "confirmation" as const,
         idempotencyKey,
         attemptCount: ++attemptCount,
       })),
@@ -214,10 +232,10 @@ describe("durable order confirmation retries", () => {
         expect(attempt.terminal).toBe(false);
         return true;
       }),
-      findDueOrderIds: mock(async () => [delivery.orderId]),
+      findDueDeliveries: mock(async () => [confirmationRef]),
     };
     const usedKeys: string[] = [];
-    const send = mock(async (_orderId: string, key: string) => {
+    const send = mock(async (_ref: OrderEmailRef, key: string) => {
       usedKeys.push(key);
 
       if (usedKeys.length === 1) {
@@ -227,8 +245,8 @@ describe("durable order confirmation retries", () => {
       return "email_123";
     });
 
-    const first = await attemptOrderConfirmationDelivery(delivery.orderId, repository, send);
-    const retry = await deliverDueOrderConfirmations(repository, send);
+    const first = await attemptOrderEmailDelivery(confirmationRef, repository, send);
+    const retry = await deliverDueOrderEmails(repository, send);
 
     expect(first).toMatchObject({ status: "failed", terminal: false });
     expect(retry).toEqual({ attempted: 1, sent: 1, failed: 0 });
@@ -239,7 +257,7 @@ describe("durable order confirmation retries", () => {
 
   test("does not send again after a successful delivery claim is no longer available", async () => {
     let available = true;
-    const repository: OrderConfirmationDeliveryRepository = {
+    const repository: OrderEmailDeliveryRepository = {
       claimDelivery: mock(async () => {
         if (!available) {
           return null;
@@ -249,22 +267,182 @@ describe("durable order confirmation retries", () => {
         return {
           id: "delivery_123",
           orderId: delivery.orderId,
+          kind: "confirmation" as const,
           idempotencyKey: delivery.idempotencyKey,
           attemptCount: 1,
         };
       }),
       markDelivered: mock(async () => true),
       markFailed: mock(async () => true),
-      findDueOrderIds: mock(async () => []),
+      findDueDeliveries: mock(async () => []),
     };
     const send = mock(async () => "email_123");
 
     expect(
-      await attemptOrderConfirmationDelivery(delivery.orderId, repository, send, { force: true }),
+      await attemptOrderEmailDelivery(confirmationRef, repository, send, { force: true }),
     ).toEqual({ status: "sent" });
     expect(
-      await attemptOrderConfirmationDelivery(delivery.orderId, repository, send, { force: true }),
+      await attemptOrderEmailDelivery(confirmationRef, repository, send, { force: true }),
     ).toEqual({ status: "skipped" });
     expect(send).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("pickup-ready template", () => {
+  test("renders the collection address, hours, and instructions", async () => {
+    const html = await render(
+      createElement(PickupReadyEmail, {
+        order: pickupReadyView,
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(html).toContain("FHQ-20260713-ABC12345");
+    expect(html).toContain("The Shop");
+    expect(html).toContain("123 Test Street");
+    expect(html).toContain("Ring the buzzer.");
+    expect(html).toContain("Database Deck");
+    expect(html).toContain("support@example.com");
+    // Nothing is owed on collection, so no shipping or balance-due language belongs here.
+    expect(html).not.toContain("Shipping");
+    expect(html).not.toContain(delivery.orderId);
+  });
+
+  test("omits optional instructions when none are configured", async () => {
+    const html = await render(
+      createElement(PickupReadyEmail, {
+        order: { ...pickupReadyView, pickupInstructions: null },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(html).not.toContain("Ring the buzzer.");
+    expect(html).toContain("The Shop");
+  });
+});
+
+describe("pickup confirmation template", () => {
+  test("shows the pickup location instead of a shipping address", async () => {
+    const html = await render(
+      createElement(OrderConfirmationEmail, {
+        order: {
+          ...delivery.order,
+          shippingCents: 0,
+          shippingAddressLines: [],
+          pickup: {
+            location: {
+              name: "The Shop",
+              addressLines: ["123 Test Street", "Calgary, AB T1T 1T1"],
+              hours: "Wed–Sun, 11am–6pm",
+            },
+          },
+        },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(html).toContain("Picking up at");
+    expect(html).toContain("The Shop");
+    expect(html).toContain("Free");
+    expect(html).not.toContain("Shipping to");
+  });
+
+  test("still identifies a pickup order when the location cannot be resolved", async () => {
+    const html = await render(
+      createElement(OrderConfirmationEmail, {
+        order: {
+          ...delivery.order,
+          shippingCents: 0,
+          shippingAddressLines: [],
+          // Configuration was unavailable when the receipt was rendered.
+          pickup: { location: null },
+        },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    // The receipt still goes out, and still tells the customer this is a pickup order rather
+    // than silently omitting every fulfillment detail.
+    expect(html).toContain("Picking up at");
+    expect(html).toContain("ready to collect");
+    expect(html).not.toContain("Shipping to");
+  });
+});
+
+describe("order email idempotency keys", () => {
+  test("keeps the original confirmation prefix and separates the pickup email", () => {
+    const orderId = delivery.orderId;
+
+    // Pre-existing confirmation rows were sent under this exact key; it must not change.
+    expect(makeOrderEmailIdempotencyKey(orderId, "confirmation")).toBe(
+      `order-confirmation/${orderId}`,
+    );
+    expect(makeOrderEmailIdempotencyKey(orderId, "pickup_ready")).toBe(
+      `order-pickup-ready/${orderId}`,
+    );
+    expect(makeOrderEmailIdempotencyKey(orderId, "confirmation")).not.toBe(
+      makeOrderEmailIdempotencyKey(orderId, "pickup_ready"),
+    );
+  });
+});
+
+describe("pickup-ready outbox", () => {
+  test("retries the pickup email independently of the confirmation email", async () => {
+    const claimed: OrderEmailRef[] = [];
+    const repository: OrderEmailDeliveryRepository = {
+      claimDelivery: mock(async (ref) => {
+        claimed.push(ref);
+        return {
+          id: `delivery_${ref.kind}`,
+          orderId: ref.orderId,
+          kind: ref.kind,
+          idempotencyKey: makeOrderEmailIdempotencyKey(ref.orderId, ref.kind),
+          attemptCount: 1,
+        };
+      }),
+      markDelivered: mock(async () => true),
+      markFailed: mock(async () => true),
+      findDueDeliveries: mock(async () => [pickupReadyRef]),
+    };
+    const sent: Array<{ kind: string; key: string }> = [];
+    const send = mock(async (ref: OrderEmailRef, key: string) => {
+      sent.push({ kind: ref.kind, key });
+      return "email_123";
+    });
+
+    expect(await deliverDueOrderEmails(repository, send)).toEqual({
+      attempted: 1,
+      sent: 1,
+      failed: 0,
+    });
+    expect(claimed).toEqual([pickupReadyRef]);
+    expect(sent).toEqual([{ kind: "pickup_ready", key: `order-pickup-ready/${delivery.orderId}` }]);
+  });
+
+  test("defers a pickup email that cannot name a configured location", async () => {
+    const repository: OrderEmailDeliveryRepository = {
+      claimDelivery: mock(async (ref) => ({
+        id: "delivery_pickup",
+        orderId: ref.orderId,
+        kind: ref.kind,
+        idempotencyKey: makeOrderEmailIdempotencyKey(ref.orderId, ref.kind),
+        attemptCount: 1,
+      })),
+      markDelivered: mock(async () => true),
+      markFailed: mock(async (attempt) => {
+        // Misconfiguration is operator-fixable, so the row stays retryable rather than failing out.
+        expect(attempt.errorCode).toBe("configuration_error");
+        expect(attempt.terminal).toBe(false);
+        return true;
+      }),
+      findDueDeliveries: mock(async () => []),
+    };
+
+    expect(
+      await attemptOrderEmailDelivery(pickupReadyRef, repository, async () => {
+        throw new Error("PICKUP_LOCATION is required.");
+      }),
+    ).toMatchObject({ status: "failed", terminal: false });
+    expect(repository.markFailed).toHaveBeenCalledTimes(1);
   });
 });

@@ -85,11 +85,16 @@ export function derivePaymentLifecycleState(
   };
 }
 
+/**
+ * Whether payment state still permits fulfillment work. `ready_for_pickup` counts because a pickup
+ * order stays awaiting hand-off after it is staged, and a refund or dispute landing in the meantime
+ * has to stop the hand-off just as it would stop a shipment.
+ */
 export function isOrderFulfillmentEligible(
   order: Pick<Order, "status" | "refundStatus" | "disputeStatus">,
 ): boolean {
   return (
-    order.status === "paid" &&
+    (order.status === "paid" || order.status === "ready_for_pickup") &&
     order.refundStatus !== "full" &&
     (order.disputeStatus === "none" || order.disputeStatus === "won")
   );

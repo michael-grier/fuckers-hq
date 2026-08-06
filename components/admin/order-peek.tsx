@@ -2,11 +2,12 @@ import { AlertTriangle } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 
-import { MarkOrderShippedButton } from "@/components/admin/mark-order-shipped-button";
+import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-button";
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
-import { RetryOrderConfirmationButton } from "@/components/admin/retry-order-confirmation-button";
+import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import {
   DisputeStatusBadge,
+  FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
   OrderStatusBadge,
   RefundStatusBadge,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/admin/format";
 import type { getAdminOrderById } from "@/lib/admin/queries";
 import { formatMoney } from "@/lib/money";
+import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 
@@ -32,6 +34,7 @@ export type PeekableOrder = NonNullable<Awaited<ReturnType<typeof getAdminOrderB
 export function OrderPeek({ order }: { order: PeekableOrder }) {
   const shippingAddressLines = getShippingAddressLines(order.shippingAddress);
   const canFulfill = isOrderFulfillmentEligible(order);
+  const nextTransition = resolveNextFulfillmentTransition(order);
   const delivery = order.confirmationDelivery;
 
   return (
@@ -40,7 +43,8 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
     <div className="flex flex-col divide-y lg:h-full">
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <OrderStatusBadge status={order.status} />
+          <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
+          <FulfillmentMethodBadge method={order.fulfillmentMethod} />
           <OrderInventoryStatusBadge status={order.inventoryStatus} />
           {order.refundStatus !== "none" ? <RefundStatusBadge status={order.refundStatus} /> : null}
           {order.disputeStatus !== "none" ? (
@@ -55,8 +59,8 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {order.inventoryStatus === "allocated" && canFulfill ? (
-            <MarkOrderShippedButton orderId={order.id} />
+          {order.inventoryStatus === "allocated" && canFulfill && nextTransition ? (
+            <FulfillmentActionButton orderId={order.id} size="sm" transition={nextTransition} />
           ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href={`/admin/orders/${order.id}` as Route} prefetch={false}>
@@ -149,7 +153,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
             Confirmation email
           </h3>
           {delivery && delivery.status !== "sent" ? (
-            <RetryOrderConfirmationButton orderId={order.id} />
+            <RetryOrderEmailButton kind="confirmation" orderId={order.id} />
           ) : null}
         </div>
         {delivery ? (

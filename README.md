@@ -134,8 +134,18 @@ paid orders. Existing orders are backfilled as `failed` with the non-sensitive
 `legacy_delivery_unknown` code so the scheduler does not unexpectedly email historical customers;
 an administrator may explicitly retry one after checking its delivery history. To roll back, deploy
 the previous application first, then use a reviewed follow-up migration to drop
-`order_confirmation_deliveries` and `confirmation_delivery_status`. Rolling back removes retry
+`order_email_deliveries` and `order_email_delivery_status`. Rolling back removes retry
 history but does not alter orders or payments.
+
+Migration `0008_local-pickup-fulfillment.sql` adds local pickup. It renames that outbox from
+`order_confirmation_deliveries` to `order_email_deliveries` (and its status enum to
+`order_email_delivery_status`) because the table now carries the pickup-ready email as well as the
+confirmation, keyed by a new `kind` column. The rename preserves every existing row and its
+delivery history. It also adds the `ready_for_pickup` order status and the `fulfillment_method`
+columns on `orders` and `pending_checkouts`, both defaulting to `shipping` so existing orders are
+unaffected. Apply and verify it on a disposable database branch before deployment. To roll back,
+deploy the previous application first, then use a reviewed follow-up migration that reverses the
+renames; note that Postgres cannot remove the `ready_for_pickup` enum value, so leave it in place.
 
 ## Stripe Webhooks
 

@@ -2,11 +2,12 @@ import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { MarkOrderShippedButton } from "@/components/admin/mark-order-shipped-button";
+import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-button";
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
-import { RetryOrderConfirmationButton } from "@/components/admin/retry-order-confirmation-button";
+import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import {
   DisputeStatusBadge,
+  FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
   OrderStatusBadge,
   RefundStatusBadge,
@@ -20,8 +21,11 @@ import {
   formatOptionalAdminDate,
 } from "@/lib/admin/format";
 import { getAdminOrderById } from "@/lib/admin/queries";
-import type { OrderConfirmationDelivery } from "@/lib/db/schema";
+import { resolvePickupLocation, splitPickupAddressLines } from "@/lib/checkout/pickup";
+import type { OrderEmailDelivery, OrderEmailKind } from "@/lib/db/schema";
+import { env } from "@/lib/env";
 import { formatMoney } from "@/lib/money";
+import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 
@@ -40,6 +44,9 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   }
 
   const shippingAddressLines = getShippingAddressLines(order.shippingAddress);
+  const isPickup = order.fulfillmentMethod === "pickup";
+  const pickupLocation = isPickup ? resolvePickupLocation(env) : null;
+  const nextTransition = resolveNextFulfillmentTransition(order);
 
   return (
     <div className="space-y-8">
@@ -54,7 +61,8 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             <h1 className="font-grotesk font-semibold text-4xl tracking-tight">
               {order.orderNumber}
             </h1>
-            <OrderStatusBadge status={order.status} />
+            <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
+            <FulfillmentMethodBadge method={order.fulfillmentMethod} />
             <OrderInventoryStatusBadge status={order.inventoryStatus} />
             {order.refundStatus !== "none" ? (
               <RefundStatusBadge status={order.refundStatus} />
@@ -72,8 +80,10 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           <p className="font-grotesk font-semibold text-3xl">
             {formatMoney(order.totalCents, order.currency)}
           </p>
-          {order.inventoryStatus === "allocated" && isOrderFulfillmentEligible(order) ? (
-            <MarkOrderShippedButton orderId={order.id} />
+          {order.inventoryStatus === "allocated" &&
+          isOrderFulfillmentEligible(order) &&
+          nextTransition ? (
+            <FulfillmentActionButton orderId={order.id} transition={nextTransition} />
           ) : null}
         </div>
       </div>
@@ -111,9 +121,35 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         </section>
         <section aria-labelledby="shipping-heading" className="rounded-lg border bg-background p-6">
           <h2 className="font-bold text-xl" id="shipping-heading">
-            Shipping address
+            {isPickup ? "Pickup" : "Shipping address"}
           </h2>
-          {shippingAddressLines.length > 0 ? (
+          {isPickup ? (
+            <div className="mt-3 space-y-3 text-muted-foreground">
+              {pickupLocation ? (
+                <address className="not-italic">
+                  <span className="block font-semibold text-foreground">{pickupLocation.name}</span>
+                  {splitPickupAddressLines(pickupLocation.address).map((line) => (
+                    <span className="block" key={line}>
+                      {line}
+                    </span>
+                  ))}
+                  <span className="mt-2 block">{pickupLocation.hours}</span>
+                </address>
+              ) : (
+                <p>Pickup is not currently configured for this store.</p>
+              )}
+              {order.readyForPickupAt ? (
+                <p>
+                  Marked ready{" "}
+                  <time dateTime={order.readyForPickupAt.toISOString()}>
+                    {formatAdminDate(order.readyForPickupAt)}
+                  </time>
+                </p>
+              ) : (
+                <p>Not yet marked ready for pickup.</p>
+              )}
+            </div>
+          ) : shippingAddressLines.length > 0 ? (
             <address className="mt-3 not-italic text-muted-foreground">
               {shippingAddressLines.map((line) => (
                 <span className="block" key={line}>
@@ -127,50 +163,25 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         </section>
       </div>
 
-      <section
-        aria-labelledby="confirmation-delivery-heading"
-        className="rounded-lg border bg-background p-6"
-      >
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h2 className="font-bold text-xl" id="confirmation-delivery-heading">
-                Confirmation email
-              </h2>
-              {order.confirmationDelivery ? (
-                <ConfirmationDeliveryBadge status={order.confirmationDelivery.status} />
-              ) : null}
-            </div>
-            {order.confirmationDelivery ? (
-              <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                <DeliveryDetail
-                  label="Attempts"
-                  value={order.confirmationDelivery.attemptCount.toString()}
-                />
-                <DeliveryDetail
-                  label="Last attempt"
-                  value={formatOptionalAdminDate(order.confirmationDelivery.lastAttemptAt)}
-                />
-                <DeliveryDetail
-                  label="Delivered"
-                  value={formatOptionalAdminDate(order.confirmationDelivery.deliveredAt)}
-                />
-                <DeliveryDetail
-                  label="Last error"
-                  value={formatConfirmationDeliveryError(order.confirmationDelivery.lastErrorCode)}
-                />
-              </dl>
-            ) : (
-              <p className="mt-3 text-muted-foreground text-sm">
-                No confirmation delivery record exists for this order.
-              </p>
-            )}
-          </div>
-          {order.confirmationDelivery?.status !== "sent" && order.confirmationDelivery ? (
-            <RetryOrderConfirmationButton orderId={order.id} />
-          ) : null}
-        </div>
-      </section>
+      <EmailDeliverySection
+        delivery={order.confirmationDelivery}
+        emptyMessage="No confirmation delivery record exists for this order."
+        heading="Confirmation email"
+        id="confirmation-delivery"
+        kind="confirmation"
+        orderId={order.id}
+      />
+
+      {isPickup ? (
+        <EmailDeliverySection
+          delivery={order.pickupReadyDelivery}
+          emptyMessage="This order has not been marked ready for pickup yet, so no pickup email is queued."
+          heading="Pickup-ready email"
+          id="pickup-ready-delivery"
+          kind="pickup_ready"
+          orderId={order.id}
+        />
+      ) : null}
 
       <section aria-labelledby="items-heading" className="space-y-4">
         <h2 className="font-bold text-2xl" id="items-heading">
@@ -251,7 +262,62 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   );
 }
 
-type ConfirmationDeliveryStatus = OrderConfirmationDelivery["status"];
+type EmailDeliverySectionProps = {
+  delivery: OrderEmailDelivery | null;
+  emptyMessage: string;
+  heading: string;
+  id: string;
+  kind: OrderEmailKind;
+  orderId: string;
+};
+
+function EmailDeliverySection({
+  delivery,
+  emptyMessage,
+  heading,
+  id,
+  kind,
+  orderId,
+}: EmailDeliverySectionProps) {
+  return (
+    <section aria-labelledby={`${id}-heading`} className="rounded-lg border bg-background p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 className="font-bold text-xl" id={`${id}-heading`}>
+              {heading}
+            </h2>
+            {delivery ? <ConfirmationDeliveryBadge status={delivery.status} /> : null}
+          </div>
+          {delivery ? (
+            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+              <DeliveryDetail label="Attempts" value={delivery.attemptCount.toString()} />
+              <DeliveryDetail
+                label="Last attempt"
+                value={formatOptionalAdminDate(delivery.lastAttemptAt)}
+              />
+              <DeliveryDetail
+                label="Delivered"
+                value={formatOptionalAdminDate(delivery.deliveredAt)}
+              />
+              <DeliveryDetail
+                label="Last error"
+                value={formatConfirmationDeliveryError(delivery.lastErrorCode)}
+              />
+            </dl>
+          ) : (
+            <p className="mt-3 text-muted-foreground text-sm">{emptyMessage}</p>
+          )}
+        </div>
+        {delivery && delivery.status !== "sent" ? (
+          <RetryOrderEmailButton kind={kind} orderId={orderId} />
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+type ConfirmationDeliveryStatus = OrderEmailDelivery["status"];
 
 function ConfirmationDeliveryBadge({ status }: { status: ConfirmationDeliveryStatus }) {
   return <Badge variant="outline">{formatConfirmationDeliveryStatus(status)}</Badge>;

@@ -1,4 +1,4 @@
-import type { Order, OrderConfirmationDelivery } from "@/lib/db/schema";
+import type { Order, OrderEmailDelivery } from "@/lib/db/schema";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 
 export const adminOrderFilterValues = [
@@ -12,9 +12,15 @@ export type AdminOrderFilter = (typeof adminOrderFilterValues)[number];
 
 type FilterableOrder = Pick<
   Order,
-  "orderNumber" | "email" | "status" | "inventoryStatus" | "refundStatus" | "disputeStatus"
+  | "orderNumber"
+  | "email"
+  | "status"
+  | "inventoryStatus"
+  | "refundStatus"
+  | "disputeStatus"
+  | "fulfillmentMethod"
 > & {
-  confirmationDeliveryStatus: OrderConfirmationDelivery["status"] | null;
+  confirmationDeliveryStatus: OrderEmailDelivery["status"] | null;
 };
 
 /**
@@ -29,8 +35,14 @@ export function orderNeedsAction(order: FilterableOrder): boolean {
   return order.inventoryStatus === "exception" || order.confirmationDeliveryStatus === "failed";
 }
 
+// Pickup orders have their own queue at /admin/pickups, so they must not appear in a
+// shipping-only lane. `isOrderFulfillmentEligible` alone would also match a staged pickup order.
 function isAwaitingShipment(order: FilterableOrder): boolean {
-  return order.inventoryStatus === "allocated" && isOrderFulfillmentEligible(order);
+  return (
+    order.fulfillmentMethod === "shipping" &&
+    order.inventoryStatus === "allocated" &&
+    isOrderFulfillmentEligible(order)
+  );
 }
 
 export function matchesAdminOrderFilter(order: FilterableOrder, filter: AdminOrderFilter): boolean {

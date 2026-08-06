@@ -15,6 +15,7 @@ import {
 } from "@/lib/checkout/items";
 import type { Database } from "@/lib/db/client";
 import { getDb } from "@/lib/db/client";
+import type { FulfillmentMethod } from "@/lib/db/schema";
 import {
   inventoryReservationItems,
   inventoryReservations,
@@ -51,10 +52,19 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
           }
 
           assertSameCart(existing.pendingCheckout.items, checkout.items);
+
+          if (existing.pendingCheckout.fulfillmentMethod !== checkout.fulfillmentMethod) {
+            throw new CheckoutError(
+              "Checkout request ID was already used for another fulfillment method.",
+              409,
+            );
+          }
+
           const reservation = toCheckoutReservation(
             existing,
             parsePendingCheckoutLineSnapshots(existing.pendingCheckout.lineItems),
             existing.pendingCheckout.token,
+            existing.pendingCheckout.fulfillmentMethod,
           );
 
           if (existing.stripeSessionParams) {
@@ -91,6 +101,7 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
             token: checkout.pendingCheckoutToken,
             items: combinedItems,
             lineItems,
+            fulfillmentMethod: checkout.fulfillmentMethod,
             expiresAt: checkout.expiresAt,
           })
           .returning({ id: pendingCheckouts.id });
@@ -154,6 +165,7 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
           stripeSessionId: null,
           stripeSessionParams: null,
           expiresAt: checkout.expiresAt,
+          fulfillmentMethod: checkout.fulfillmentMethod,
           lineItems,
         };
       });
@@ -175,7 +187,7 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
         }
 
         const pendingCheckout = await tx.query.pendingCheckouts.findFirst({
-          columns: { token: true },
+          columns: { token: true, fulfillmentMethod: true },
           where: (checkouts, { eq }) => eq(checkouts.id, reservation.pendingCheckoutId),
         });
 
@@ -190,6 +202,7 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
           stripeSessionId: reservation.stripeSessionId,
           stripeSessionParams: reservation.stripeSessionParams,
           expiresAt: reservation.expiresAt,
+          fulfillmentMethod: pendingCheckout.fulfillmentMethod,
           lineItems: [],
         };
 
@@ -464,6 +477,7 @@ function toCheckoutReservation(
   reservation: typeof inventoryReservations.$inferSelect,
   lineItems: ReturnType<typeof parsePendingCheckoutLineSnapshots>,
   pendingCheckoutToken: string,
+  fulfillmentMethod: FulfillmentMethod,
 ): CheckoutReservation {
   return {
     pendingCheckoutToken,
@@ -472,6 +486,7 @@ function toCheckoutReservation(
     stripeSessionId: reservation.stripeSessionId,
     stripeSessionParams: reservation.stripeSessionParams,
     expiresAt: reservation.expiresAt,
+    fulfillmentMethod,
     lineItems,
   };
 }

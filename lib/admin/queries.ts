@@ -11,32 +11,59 @@ export async function getAdminDashboardSummary() {
   await requireAdmin();
 
   const db = getDb();
-  const [productRows, orderRows, awaitingFulfillmentRows, inventoryExceptionRows] =
-    await Promise.all([
-      db.select({ count: count() }).from(products),
-      db.select({ count: count() }).from(orders),
-      db
-        .select({ count: count() })
-        .from(orders)
-        .where(
-          and(
-            eq(orders.status, "paid"),
-            eq(orders.inventoryStatus, "allocated"),
-            ne(orders.refundStatus, "full"),
-            inArray(orders.disputeStatus, ["none", "won"]),
-          ),
+  const paymentEligible = and(
+    ne(orders.refundStatus, "full"),
+    inArray(orders.disputeStatus, ["none", "won"]),
+  );
+  const [
+    productRows,
+    orderRows,
+    awaitingFulfillmentRows,
+    inventoryExceptionRows,
+    pickupToPrepareRows,
+    awaitingCollectionRows,
+  ] = await Promise.all([
+    db.select({ count: count() }).from(products),
+    db.select({ count: count() }).from(orders),
+    db
+      .select({ count: count() })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.status, "paid"),
+          eq(orders.fulfillmentMethod, "shipping"),
+          eq(orders.inventoryStatus, "allocated"),
+          paymentEligible,
         ),
-      db
-        .select({ count: count() })
-        .from(orders)
-        .where(and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception"))),
-    ]);
+      ),
+    db
+      .select({ count: count() })
+      .from(orders)
+      .where(and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception"))),
+    db
+      .select({ count: count() })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.status, "paid"),
+          eq(orders.fulfillmentMethod, "pickup"),
+          eq(orders.inventoryStatus, "allocated"),
+          paymentEligible,
+        ),
+      ),
+    db
+      .select({ count: count() })
+      .from(orders)
+      .where(and(eq(orders.status, "ready_for_pickup"), paymentEligible)),
+  ]);
 
   return {
     productCount: productRows[0]?.count ?? 0,
     orderCount: orderRows[0]?.count ?? 0,
     awaitingFulfillmentCount: awaitingFulfillmentRows[0]?.count ?? 0,
     inventoryExceptionCount: inventoryExceptionRows[0]?.count ?? 0,
+    pickupToPrepareCount: pickupToPrepareRows[0]?.count ?? 0,
+    awaitingCollectionCount: awaitingCollectionRows[0]?.count ?? 0,
   };
 }
 
@@ -52,6 +79,7 @@ export async function getAdminRecentOrders() {
       email: true,
       status: true,
       inventoryStatus: true,
+      fulfillmentMethod: true,
       refundStatus: true,
       disputeStatus: true,
       totalCents: true,
@@ -67,7 +95,7 @@ export async function getAdminAttentionItems() {
   await requireAdmin();
 
   const db = getDb();
-  const [inventoryExceptionOrders, failedConfirmationDeliveries] = await Promise.all([
+  const [inventoryExceptionOrders, failedEmailDeliveries] = await Promise.all([
     db.query.orders.findMany({
       columns: {
         id: true,
@@ -81,9 +109,10 @@ export async function getAdminAttentionItems() {
         and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception")),
       orderBy: (orders, { asc }) => [asc(orders.createdAt)],
     }),
-    db.query.orderConfirmationDeliveries.findMany({
+    db.query.orderEmailDeliveries.findMany({
       columns: {
         id: true,
+        kind: true,
         attemptCount: true,
         lastErrorCode: true,
         lastAttemptAt: true,
@@ -102,7 +131,7 @@ export async function getAdminAttentionItems() {
     }),
   ]);
 
-  return { inventoryExceptionOrders, failedConfirmationDeliveries };
+  return { inventoryExceptionOrders, failedEmailDeliveries };
 }
 
 export async function getAdminProducts() {
@@ -175,6 +204,7 @@ export async function getAdminOrders() {
       email: true,
       status: true,
       inventoryStatus: true,
+      fulfillmentMethod: true,
       refundStatus: true,
       refundedCents: true,
       disputeStatus: true,
@@ -188,8 +218,9 @@ export async function getAdminOrders() {
           quantity: true,
         },
       },
-      confirmationDelivery: {
+      emailDeliveries: {
         columns: {
+          kind: true,
           status: true,
         },
       },
@@ -198,10 +229,11 @@ export async function getAdminOrders() {
   });
 
   // Flattened so list filtering does not need to reach through the relation.
-  return rows.map(({ confirmationDelivery, ...order }) => ({
+  return rows.map(({ emailDeliveries, ...order }) => ({
     ...order,
     itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
-    confirmationDeliveryStatus: confirmationDelivery?.status ?? null,
+    confirmationDeliveryStatus:
+      emailDeliveries.find((delivery) => delivery.kind === "confirmation")?.status ?? null,
   }));
 }
 
@@ -216,13 +248,73 @@ export async function getAdminOrderById(input: unknown) {
     return null;
   }
 
-  return getDb().query.orders.findFirst({
+  const order = await getDb().query.orders.findFirst({
     where: (orders, { eq }) => eq(orders.id, parsedOrderId.data),
     with: {
-      confirmationDelivery: true,
+      emailDeliveries: true,
       items: {
         orderBy: (items) => [asc(items.productNameSnapshot), asc(items.variantNameSnapshot)],
       },
     },
   });
+
+  if (!order) {
+    return null;
+  }
+
+  const { emailDeliveries, ...rest } = order;
+
+  return {
+    ...rest,
+    confirmationDelivery: emailDeliveries.find((row) => row.kind === "confirmation") ?? null,
+    pickupReadyDelivery: emailDeliveries.find((row) => row.kind === "pickup_ready") ?? null,
+  };
+}
+
+/**
+ * The pickup desk queue: paid pickup orders still to be staged, then staged orders awaiting
+ * collection. Orders blocked by an inventory exception are returned separately in `blocked`;
+ * they cannot be handed over until the exception is resolved.
+ */
+export async function getAdminPickupQueue() {
+  await requireAdmin();
+
+  const pickupOrders = await getDb().query.orders.findMany({
+    where: (orders, { and, eq, inArray, ne }) =>
+      and(
+        eq(orders.fulfillmentMethod, "pickup"),
+        inArray(orders.status, ["paid", "ready_for_pickup"]),
+        ne(orders.refundStatus, "full"),
+        inArray(orders.disputeStatus, ["none", "won"]),
+      ),
+    columns: {
+      id: true,
+      orderNumber: true,
+      email: true,
+      status: true,
+      inventoryStatus: true,
+      refundStatus: true,
+      disputeStatus: true,
+      totalCents: true,
+      currency: true,
+      readyForPickupAt: true,
+      createdAt: true,
+    },
+    with: {
+      items: {
+        columns: { quantity: true },
+      },
+    },
+    orderBy: (orders, { asc: ascending }) => [ascending(orders.createdAt)],
+  });
+
+  return {
+    toPrepare: pickupOrders.filter(
+      (order) => order.status === "paid" && order.inventoryStatus === "allocated",
+    ),
+    awaitingCollection: pickupOrders.filter((order) => order.status === "ready_for_pickup"),
+    blocked: pickupOrders.filter(
+      (order) => order.status === "paid" && order.inventoryStatus === "exception",
+    ),
+  };
 }

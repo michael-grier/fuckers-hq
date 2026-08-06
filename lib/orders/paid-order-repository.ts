@@ -7,14 +7,14 @@ import { getDb } from "@/lib/db/client";
 import {
   inventoryReservationItems,
   inventoryReservations,
-  orderConfirmationDeliveries,
+  orderEmailDeliveries,
   orderItems,
   orders,
   pendingCheckouts,
   productVariants,
   stripePaymentEvents,
 } from "@/lib/db/schema";
-import { makeOrderConfirmationIdempotencyKey } from "@/lib/email/order-confirmation-delivery";
+import { makeOrderEmailIdempotencyKey } from "@/lib/email/order-email-delivery";
 import {
   assertInventoryDecremented,
   assertPendingCheckoutItemsMatchSnapshots,
@@ -142,6 +142,9 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
             email: checkout.email,
             status: paymentState.refundStatus === "full" ? "refunded" : "paid",
             inventoryStatus,
+            // Taken from the pending checkout the server wrote at reservation time, not from the
+            // Stripe Session metadata that round-tripped through the browser and Stripe.
+            fulfillmentMethod: pendingCheckout.fulfillmentMethod,
             stripeSessionId: checkout.stripeSessionId,
             stripePaymentIntentId: checkout.stripePaymentIntentId,
             refundStatus: paymentState.refundStatus,
@@ -193,9 +196,10 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           })),
         );
 
-        await tx.insert(orderConfirmationDeliveries).values({
+        await tx.insert(orderEmailDeliveries).values({
           orderId: order.id,
-          idempotencyKey: makeOrderConfirmationIdempotencyKey(order.id),
+          kind: "confirmation",
+          idempotencyKey: makeOrderEmailIdempotencyKey(order.id, "confirmation"),
         });
 
         const completedCheckouts = await tx
