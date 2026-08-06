@@ -139,6 +139,10 @@ export function buildStripeSessionParams(
 
   return {
     mode: "payment",
+    // Pinning the list opts out of Stripe's dynamic payment methods, so pay-later options such as
+    // Affirm and Klarna cannot reach checkout from a Dashboard toggle. "card" still covers the
+    // Apple Pay and Google Pay wallets.
+    payment_method_types: ["card"],
     client_reference_id: reservation.reservationToken,
     line_items: buildStripeLineItemsFromSnapshots(reservation.lineItems),
     automatic_tax: { enabled: settings.taxEnabled },
