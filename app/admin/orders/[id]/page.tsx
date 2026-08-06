@@ -28,6 +28,7 @@ import { formatMoney } from "@/lib/money";
 import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
+import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
 
 type AdminOrderPageProps = {
   params: Promise<{
@@ -47,6 +48,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const isPickup = order.fulfillmentMethod === "pickup";
   const pickupLocation = isPickup ? resolvePickupLocation(env) : null;
   const nextTransition = resolveNextFulfillmentTransition(order);
+  const tracking = resolveOrderTracking(order);
 
   return (
     <div className="space-y-8">
@@ -149,16 +151,51 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                 <p>Not yet marked ready for pickup.</p>
               )}
             </div>
-          ) : shippingAddressLines.length > 0 ? (
-            <address className="mt-3 not-italic text-muted-foreground">
-              {shippingAddressLines.map((line) => (
-                <span className="block" key={line}>
-                  {line}
-                </span>
-              ))}
-            </address>
           ) : (
-            <p className="mt-3 text-muted-foreground">No shipping address was recorded.</p>
+            <div className="mt-3 space-y-3 text-muted-foreground">
+              {shippingAddressLines.length > 0 ? (
+                <address className="not-italic">
+                  {shippingAddressLines.map((line) => (
+                    <span className="block" key={line}>
+                      {line}
+                    </span>
+                  ))}
+                </address>
+              ) : (
+                <p>No shipping address was recorded.</p>
+              )}
+              {order.shippedAt ? (
+                <p>
+                  Shipped{" "}
+                  <time dateTime={order.shippedAt.toISOString()}>
+                    {formatAdminDate(order.shippedAt)}
+                  </time>
+                </p>
+              ) : (
+                <p>Not yet marked as shipped.</p>
+              )}
+              {tracking ? (
+                <p>
+                  <span className="block font-semibold text-foreground">
+                    {tracking.carrierName}
+                  </span>
+                  {tracking.trackingUrl ? (
+                    <a
+                      className="font-mono text-sm underline-offset-4 hover:underline"
+                      href={tracking.trackingUrl}
+                      rel="noreferrer noopener"
+                      target="_blank"
+                    >
+                      {tracking.trackingNumber}
+                    </a>
+                  ) : (
+                    <span className="font-mono text-sm">{tracking.trackingNumber}</span>
+                  )}
+                </p>
+              ) : order.shippedAt ? (
+                <p>Shipped without a tracking number.</p>
+              ) : null}
+            </div>
           )}
         </section>
       </div>
@@ -181,7 +218,16 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           kind="pickup_ready"
           orderId={order.id}
         />
-      ) : null}
+      ) : (
+        <EmailDeliverySection
+          delivery={order.shippedDelivery}
+          emptyMessage="This order has not been marked as shipped yet, so no shipping email is queued."
+          heading="Shipping email"
+          id="shipped-delivery"
+          kind="shipped"
+          orderId={order.id}
+        />
+      )}
 
       <section aria-labelledby="items-heading" className="space-y-4">
         <h2 className="font-bold text-2xl" id="items-heading">

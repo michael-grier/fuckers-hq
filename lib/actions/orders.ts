@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import type { OrderEmailKind } from "@/lib/db/schema";
 import { attemptOrderEmailDelivery } from "@/lib/email/order-email-delivery";
 import { orderEmailDeliveryRepository } from "@/lib/email/order-email-delivery-repository";
 import { retryOrderEmailForAdmin } from "@/lib/email/retry-order-email";
@@ -15,33 +16,69 @@ import {
   applyOrderFulfillmentTransition,
   OrderFulfillmentError,
   type OrderFulfillmentTransition,
+  type OrderShipment,
+  orderFulfillmentTransitionRules,
 } from "@/lib/orders/order-fulfillment";
 import {
   InventoryExceptionResolutionError,
   resolveInventoryException,
 } from "@/lib/orders/resolve-inventory-exception";
 import {
+  adminOrderIdSchema,
   markOrderShippedSchema,
   retryOrderEmailSchema,
   retryOrderInventoryAllocationSchema,
 } from "@/lib/validators/admin";
 
-async function runFulfillmentTransition(
-  input: unknown,
-  transition: OrderFulfillmentTransition,
-  operation: string,
-  afterCommit?: (orderId: string) => Promise<void>,
-): Promise<ActionResult> {
-  await requireAdmin();
+/** Kept stable across kinds so existing Sentry queries for the pickup email keep matching. */
+const fulfillmentEmailOperations: Record<OrderEmailKind, string> = {
+  confirmation: "email.confirmation",
+  pickup_ready: "email.pickup-ready",
+  shipped: "email.shipped",
+};
 
-  const parsed = markOrderShippedSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return validationFailure(parsed.error);
-  }
+/**
+ * Delivers the notification a committed transition owes.
+ *
+ * The outbox row was written inside the transition, so a failure here only defers the email to the
+ * retry cron. It must never turn a completed transition into an error.
+ */
+async function deliverQueuedFulfillmentEmail(orderId: string, kind: OrderEmailKind): Promise<void> {
+  const operation = fulfillmentEmailOperations[kind];
 
   try {
-    await applyOrderFulfillmentTransition(parsed.data.orderId, transition, adminOrderRepository);
+    const attempt = await attemptOrderEmailDelivery(
+      { orderId, kind },
+      orderEmailDeliveryRepository,
+      sendOrderEmail,
+    );
+
+    if (attempt.status === "failed") {
+      captureServerException(attempt.error, { area: "email", operation });
+    }
+  } catch (error) {
+    captureServerException(error, { area: "email", operation });
+  }
+}
+
+type FulfillmentTransitionRequest = {
+  orderId: string;
+  transition: OrderFulfillmentTransition;
+  operation: string;
+  shipment?: OrderShipment | null;
+};
+
+/** Applies one fulfillment step. Callers authorize and validate the request before calling. */
+async function runFulfillmentTransition(
+  request: FulfillmentTransitionRequest,
+): Promise<ActionResult> {
+  try {
+    await applyOrderFulfillmentTransition(
+      request.orderId,
+      request.transition,
+      adminOrderRepository,
+      { shipment: request.shipment },
+    );
   } catch (error) {
     if (error instanceof OrderFulfillmentError) {
       return {
@@ -50,17 +87,21 @@ async function runFulfillmentTransition(
       };
     }
 
-    captureServerException(error, { area: "admin", operation });
+    captureServerException(error, { area: "admin", operation: request.operation });
     throw error;
   }
 
-  // Runs only after the status commit, so a notification failure cannot undo the transition.
-  await afterCommit?.(parsed.data.orderId);
+  const queuedEmailKind = orderFulfillmentTransitionRules[request.transition].queuedEmailKind;
+
+  if (queuedEmailKind) {
+    // Runs only after the status commit, so a notification failure cannot undo the transition.
+    await deliverQueuedFulfillmentEmail(request.orderId, queuedEmailKind);
+  }
 
   revalidatePath("/admin");
   revalidatePath("/admin/orders");
   revalidatePath("/admin/pickups");
-  revalidatePath(`/admin/orders/${parsed.data.orderId}`);
+  revalidatePath(`/admin/orders/${request.orderId}`);
 
   return {
     success: true,
@@ -68,40 +109,50 @@ async function runFulfillmentTransition(
   };
 }
 
+/** Shared entry point for the fulfillment steps whose only input is the order to advance. */
+async function runOrderIdTransition(
+  input: unknown,
+  transition: OrderFulfillmentTransition,
+  operation: string,
+): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = adminOrderIdSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  return runFulfillmentTransition({ orderId: parsed.data.orderId, transition, operation });
+}
+
 export async function markOrderAsShipped(input: unknown): Promise<ActionResult> {
-  return runFulfillmentTransition(input, "ship", "admin.mark-order-shipped");
+  await requireAdmin();
+
+  const parsed = markOrderShippedSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  const { orderId, trackingCarrier, trackingNumber } = parsed.data;
+
+  return runFulfillmentTransition({
+    orderId,
+    transition: "ship",
+    operation: "admin.mark-order-shipped",
+    // The schema already rejects a half-filled pair; this narrows it for the domain type.
+    shipment:
+      trackingCarrier && trackingNumber ? { carrier: trackingCarrier, trackingNumber } : null,
+  });
 }
 
 export async function markOrderReadyForPickup(input: unknown): Promise<ActionResult> {
-  return runFulfillmentTransition(
-    input,
-    "ready_for_pickup",
-    "admin.mark-order-ready-for-pickup",
-    async (orderId) => {
-      // The outbox row was written inside the transition, so a failure here only defers the email
-      // to the retry cron. It must never turn a completed transition into an error.
-      try {
-        const attempt = await attemptOrderEmailDelivery(
-          { orderId, kind: "pickup_ready" },
-          orderEmailDeliveryRepository,
-          sendOrderEmail,
-        );
-
-        if (attempt.status === "failed") {
-          captureServerException(attempt.error, {
-            area: "email",
-            operation: "email.pickup-ready",
-          });
-        }
-      } catch (error) {
-        captureServerException(error, { area: "email", operation: "email.pickup-ready" });
-      }
-    },
-  );
+  return runOrderIdTransition(input, "ready_for_pickup", "admin.mark-order-ready-for-pickup");
 }
 
 export async function markOrderPickedUp(input: unknown): Promise<ActionResult> {
-  return runFulfillmentTransition(input, "picked_up", "admin.mark-order-picked-up");
+  return runOrderIdTransition(input, "picked_up", "admin.mark-order-picked-up");
 }
 
 export async function retryOrderInventoryAllocation(input: unknown): Promise<ActionResult> {

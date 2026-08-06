@@ -15,7 +15,7 @@ import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import type { InventoryExceptionRepository } from "@/lib/orders/resolve-inventory-exception";
 
 export const adminOrderRepository: OrderFulfillmentRepository & InventoryExceptionRepository = {
-  async applyFulfillmentTransition(orderId, transition, occurredAt) {
+  async applyFulfillmentTransition(orderId, transition, occurredAt, shipment) {
     const rule = orderFulfillmentTransitionRules[transition];
 
     return getDb().transaction(async (tx) => {
@@ -41,6 +41,14 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
           status: rule.toStatus,
           // Recorded once, when the order is staged, and kept after it is collected.
           ...(rule.toStatus === "ready_for_pickup" ? { readyForPickupAt: occurredAt } : {}),
+          // Written as a set so a re-shipped order cannot keep tracking from an earlier attempt.
+          ...(transition === "ship"
+            ? {
+                shippedAt: occurredAt,
+                trackingCarrier: shipment?.carrier ?? null,
+                trackingNumber: shipment?.trackingNumber ?? null,
+              }
+            : {}),
         })
         .where(
           and(
@@ -58,15 +66,15 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
         return false;
       }
 
-      if (rule.toStatus === "ready_for_pickup") {
-        // Queued in the same transaction as the status change so an order can never be staged
+      if (rule.queuedEmailKind) {
+        // Queued in the same transaction as the status change so an order can never reach a state
         // without the notification the customer needs. Delivery itself happens after commit.
         await tx
           .insert(orderEmailDeliveries)
           .values({
             orderId,
-            kind: "pickup_ready",
-            idempotencyKey: makeOrderEmailIdempotencyKey(orderId, "pickup_ready"),
+            kind: rule.queuedEmailKind,
+            idempotencyKey: makeOrderEmailIdempotencyKey(orderId, rule.queuedEmailKind),
           })
           .onConflictDoNothing({
             target: [orderEmailDeliveries.orderId, orderEmailDeliveries.kind],

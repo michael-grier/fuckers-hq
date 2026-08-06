@@ -3,10 +3,12 @@ import { render } from "@react-email/components";
 import { createElement } from "react";
 import type { CreateEmailOptions } from "resend";
 
+import { orderEmailKindValues } from "@/lib/db/schema";
 import {
   type ConfirmationEmailDelivery,
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
+import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
 import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
 import {
   attemptOrderEmailDelivery,
@@ -16,9 +18,16 @@ import {
   type OrderEmailRef,
 } from "@/lib/email/order-email-delivery";
 import { OrderEmailDeliveryError } from "@/lib/email/order-email-transport";
+import { OrderShippedEmail, type OrderShippedView } from "@/lib/email/order-shipped";
 import { PickupReadyEmail, type PickupReadyView } from "@/lib/email/pickup-ready";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
+import {
+  getShippingCarrierLabel,
+  getShippingCarrierTrackingUrl,
+  resolveOrderTracking,
+  shippingCarrierValues,
+} from "@/lib/orders/shipping-carriers";
 
 const delivery: ConfirmationEmailDelivery = {
   orderId: "9c786325-fb57-46e3-b3ed-a60b653b3ad8",
@@ -46,6 +55,18 @@ const delivery: ConfirmationEmailDelivery = {
 
 const confirmationRef: OrderEmailRef = { orderId: delivery.orderId, kind: "confirmation" };
 const pickupReadyRef: OrderEmailRef = { orderId: delivery.orderId, kind: "pickup_ready" };
+const shippedRef: OrderEmailRef = { orderId: delivery.orderId, kind: "shipped" };
+
+const shippedView: OrderShippedView = {
+  orderNumber: "FHQ-20260713-ABC12345",
+  items: [{ productName: "Database Deck", variantName: '8.25"', quantity: 1 }],
+  shippingAddressLines: ["Test Skater", "123 Test Street", "Calgary, AB T1T 1T1", "CA"],
+  tracking: {
+    carrierName: "Canada Post",
+    trackingNumber: "1234 5678",
+    trackingUrl: getShippingCarrierTrackingUrl("canada_post", "1234 5678"),
+  },
+};
 
 const pickupReadyView: PickupReadyView = {
   orderNumber: "FHQ-20260713-ABC12345",
@@ -370,19 +391,188 @@ describe("pickup confirmation template", () => {
 });
 
 describe("order email idempotency keys", () => {
-  test("keeps the original confirmation prefix and separates the pickup email", () => {
+  test("gives every kind its own stable key for one order", () => {
     const orderId = delivery.orderId;
 
-    // Pre-existing confirmation rows were sent under this exact key; it must not change.
+    // Pre-existing rows were sent under these exact keys; they must not change.
     expect(makeOrderEmailIdempotencyKey(orderId, "confirmation")).toBe(
       `order-confirmation/${orderId}`,
     );
     expect(makeOrderEmailIdempotencyKey(orderId, "pickup_ready")).toBe(
       `order-pickup-ready/${orderId}`,
     );
-    expect(makeOrderEmailIdempotencyKey(orderId, "confirmation")).not.toBe(
-      makeOrderEmailIdempotencyKey(orderId, "pickup_ready"),
+    expect(makeOrderEmailIdempotencyKey(orderId, "shipped")).toBe(`order-shipped/${orderId}`);
+
+    const keys = orderEmailKindValues.map((kind) => makeOrderEmailIdempotencyKey(orderId, kind));
+    expect(new Set(keys).size).toBe(orderEmailKindValues.length);
+  });
+});
+
+describe("shipped template", () => {
+  test("renders the carrier, a tracking link, the destination, and the contents", async () => {
+    const html = await render(
+      createElement(OrderShippedEmail, {
+        order: shippedView,
+        supportEmail: "support@example.com",
+      }),
     );
+
+    expect(html).toContain("FHQ-20260713-ABC12345");
+    expect(html).toContain("Canada Post");
+    expect(html).toContain("1234 5678");
+    expect(html).toContain("Track this shipment");
+    expect(html).toContain("canadapost-postescanada.ca");
+    expect(html).toContain("123 Test Street");
+    expect(html).toContain("Database Deck");
+    expect(html).toContain("support@example.com");
+    // The confirmation email is the receipt; repeating money here reads as a second charge.
+    expect(html).not.toContain("$104.00");
+    expect(html).not.toContain(delivery.orderId);
+  });
+
+  test("still notifies the customer when the shipment has no tracking number", async () => {
+    const html = await render(
+      createElement(OrderShippedEmail, {
+        order: { ...shippedView, tracking: null },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(html).toContain("Your order is on its way.");
+    expect(html).toContain("does not have a tracking number");
+    expect(html).not.toContain("Track this shipment");
+    expect(html).not.toContain("1234 5678");
+  });
+
+  test("renders an unlinkable carrier's number as plain text", async () => {
+    const html = await render(
+      createElement(OrderShippedEmail, {
+        order: {
+          ...shippedView,
+          tracking: {
+            carrierName: getShippingCarrierLabel("other"),
+            trackingNumber: "ABC123",
+            trackingUrl: getShippingCarrierTrackingUrl("other", "ABC123"),
+          },
+        },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(html).toContain("Other carrier");
+    expect(html).toContain("ABC123");
+    expect(html).not.toContain("Track this shipment");
+  });
+});
+
+describe("carrier tracking links", () => {
+  test("builds a per-carrier tracking URL and escapes the number", () => {
+    expect(getShippingCarrierTrackingUrl("ups", "1Z999AA10123456784")).toBe(
+      "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+    );
+    expect(getShippingCarrierTrackingUrl("canada_post", "1234 5678")).toContain("1234%205678");
+    // "Other" exists so an operator can still record a number from a carrier with no link form.
+    expect(getShippingCarrierTrackingUrl("other", "ABC123")).toBeNull();
+
+    for (const carrier of shippingCarrierValues) {
+      expect(getShippingCarrierLabel(carrier).length).toBeGreaterThan(0);
+    }
+  });
+
+  test("resolves an order's stored tracking columns into one renderable shape", () => {
+    expect(
+      resolveOrderTracking({ trackingCarrier: "ups", trackingNumber: "1Z999AA10123456784" }),
+    ).toEqual({
+      carrierName: "UPS",
+      trackingNumber: "1Z999AA10123456784",
+      trackingUrl: "https://www.ups.com/track?tracknum=1Z999AA10123456784",
+    });
+    expect(resolveOrderTracking({ trackingCarrier: null, trackingNumber: null })).toBeNull();
+    // Half-filled rows are barred by a check constraint, but the resolver must not render one.
+    expect(resolveOrderTracking({ trackingCarrier: "ups", trackingNumber: null })).toBeNull();
+    expect(resolveOrderTracking({ trackingCarrier: null, trackingNumber: "1Z999" })).toBeNull();
+  });
+});
+
+describe("shipped delivery", () => {
+  test("sends the shipment notice under the order's shipped idempotency key", async () => {
+    let message: CreateEmailOptions | undefined;
+    let idempotencyKey: string | undefined;
+
+    const emailId = await deliverOrderShipped(
+      {
+        orderId: delivery.orderId,
+        idempotencyKey: makeOrderEmailIdempotencyKey(delivery.orderId, "shipped"),
+        recipientEmail: "skater@example.com",
+        order: shippedView,
+      },
+      { from: "Fuckers Skateboards <orders@example.com>", supportEmail: "support@example.com" },
+      {
+        send: async (input, options) => {
+          message = input;
+          idempotencyKey = options.idempotencyKey;
+          return { data: { id: "email_456" }, error: null, headers: null };
+        },
+      },
+    );
+
+    expect(emailId).toBe("email_456");
+    expect(message).toMatchObject({
+      to: "skater@example.com",
+      replyTo: "support@example.com",
+      subject: "Order FHQ-20260713-ABC12345 is on its way",
+    });
+    expect(idempotencyKey).toBe(`order-shipped/${delivery.orderId}`);
+  });
+
+  test("turns Resend API errors into catchable delivery errors", async () => {
+    await expect(
+      deliverOrderShipped(
+        {
+          orderId: delivery.orderId,
+          idempotencyKey: makeOrderEmailIdempotencyKey(delivery.orderId, "shipped"),
+          recipientEmail: "skater@example.com",
+          order: shippedView,
+        },
+        { from: "Fuckers Skateboards <orders@example.com>", supportEmail: "support@example.com" },
+        {
+          send: async () => ({
+            data: null,
+            error: { message: "Rate limited.", name: "rate_limit_exceeded", statusCode: 429 },
+            headers: null,
+          }),
+        },
+      ),
+    ).rejects.toThrow(OrderEmailDeliveryError);
+  });
+
+  test("retries the shipping email independently of the other order emails", async () => {
+    const claimed: OrderEmailRef[] = [];
+    const repository: OrderEmailDeliveryRepository = {
+      claimDelivery: mock(async (ref) => {
+        claimed.push(ref);
+        return {
+          id: `delivery_${ref.kind}`,
+          orderId: ref.orderId,
+          kind: ref.kind,
+          idempotencyKey: makeOrderEmailIdempotencyKey(ref.orderId, ref.kind),
+          attemptCount: 1,
+        };
+      }),
+      markDelivered: mock(async () => true),
+      markFailed: mock(async () => true),
+      findDueDeliveries: mock(async () => [shippedRef]),
+    };
+    const sent: Array<{ kind: string; key: string }> = [];
+
+    expect(
+      await deliverDueOrderEmails(repository, async (ref, key) => {
+        sent.push({ kind: ref.kind, key });
+        return "email_456";
+      }),
+    ).toEqual({ attempted: 1, sent: 1, failed: 0 });
+    expect(claimed).toEqual([shippedRef]);
+    expect(sent).toEqual([{ kind: "shipped", key: `order-shipped/${delivery.orderId}` }]);
   });
 });
 

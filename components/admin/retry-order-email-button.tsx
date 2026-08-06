@@ -16,6 +16,10 @@ const emailCopy: Record<OrderEmailKind, { confirm: string; idle: string }> = {
     confirm: "Resend the pickup-ready email to this customer?",
     idle: "Resend pickup email",
   },
+  shipped: {
+    confirm: "Resend the shipping notification to this customer?",
+    idle: "Resend shipping email",
+  },
 };
 
 export function RetryOrderEmailButton({
