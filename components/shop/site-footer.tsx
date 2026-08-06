@@ -1,5 +1,7 @@
 import { Instagram, Youtube } from "lucide-react";
 
+import { BrandLogo } from "@/components/brand-logo";
+
 const socialLinks: ReadonlyArray<{
   href: string;
   label: string;
@@ -13,9 +15,7 @@ export function SiteFooter() {
   return (
     <footer className="border-t bg-surface-chrome text-white">
       <div className="flex flex-row items-center justify-between gap-2 px-6 py-4 lg:px-8">
-        <p className="font-bold font-grotesk text-xl tracking-tight">
-          Fuckers <span className="text-accent">Skateboards</span>
-        </p>
+        <BrandLogo />
         <ul aria-label="Social media" className="flex items-center gap-2">
           {socialLinks.map(({ href, label, Icon }) => (
             <li key={href}>

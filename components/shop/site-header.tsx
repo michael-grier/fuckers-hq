@@ -4,6 +4,7 @@ import { Menu, ShoppingCart, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { BrandLogo } from "@/components/brand-logo";
 import { DesktopNavigation, MobileNavigation } from "@/components/shop/site-navigation";
 import { Button } from "@/components/ui/button";
 import { SheetTrigger } from "@/components/ui/sheet";
@@ -50,7 +51,9 @@ export function SiteHeader() {
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-white/10 border-b bg-surface-chrome text-white lg:inset-x-3 lg:top-3 lg:rounded-xl lg:border">
-      <div className="flex items-center justify-between gap-4 px-5 py-2.5">
+      {/* Height comes from --header-bar-height rather than padding plus the tallest child,
+          so the layout spacers derived from it cannot fall out of sync with the bar. */}
+      <div className="flex h-[var(--header-bar-height)] items-center justify-between gap-4 px-5">
         <div className="flex items-center gap-3">
           <Button
             aria-controls="mobile-navigation"
@@ -68,11 +71,11 @@ export function SiteHeader() {
             </span>
           </Button>
           <Link
-            className="font-bold font-grotesk text-xl tracking-tight"
+            className="flex items-center rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
             href="/"
             onClick={closeMobileNavigation}
           >
-            Fuckers <span className="text-accent">Skateboards</span>
+            <BrandLogo />
           </Link>
         </div>
         <DesktopNavigation />
