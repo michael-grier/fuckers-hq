@@ -1,6 +1,6 @@
 # Fuckers HQ - Codex Build Plan
 
-Source document: `fuckers-hq-architecture.md`
+Source document: `docs/architecture.md`
 
 This plan turns the architecture into implementation handoffs for Codex agents. It is written so agents can work in sequence or in small parallel tracks without re-deciding the core architecture.
 
@@ -242,7 +242,7 @@ README.md
 ### Handoff Prompt
 
 ```text
-You are Agent 0 for the Fuckers HQ build. Scaffold the Next.js 15 App Router project in this repository using Bun locally, Biome, Tailwind, and shadcn/ui. Preserve the architecture decisions in fuckers-hq-architecture.md and fuckers-hq-build-plan.md. Add .env.example, base route structure, typed routes if supported, a Zod env parser, and a concise README. Do not implement database, checkout, admin CRUD, or webhook logic yet. Verify with lint and build.
+You are Agent 0 for the Fuckers HQ build. Scaffold the Next.js 15 App Router project in this repository using Bun locally, Biome, Tailwind, and shadcn/ui. Preserve the architecture decisions in docs/architecture.md and docs/build-plan.md. Add .env.example, base route structure, typed routes if supported, a Zod env parser, and a concise README. Do not implement database, checkout, admin CRUD, or webhook logic yet. Verify with lint and build.
 ```
 
 ## Workstream 1 - Database, Schema, Migrations, Validation
@@ -403,7 +403,7 @@ checkoutSchema = z.object({ items: cartSchema });
 ### Handoff Prompt
 
 ```text
-You are Agent 1 for the Fuckers HQ build. Implement the Drizzle/Neon data layer, migrations, seed script, and shared Zod validation schemas exactly from fuckers-hq-architecture.md and fuckers-hq-build-plan.md. Preserve integer cents, order snapshots, unique stripeSessionId idempotency, and product variant inventory. Add validator exports for products, variants, images, orders, and cart/checkout. Verify migration generation, migration application, seed execution, lint, and build.
+You are Agent 1 for the Fuckers HQ build. Implement the Drizzle/Neon data layer, migrations, seed script, and shared Zod validation schemas exactly from docs/architecture.md and docs/build-plan.md. Preserve integer cents, order snapshots, unique stripeSessionId idempotency, and product variant inventory. Add validator exports for products, variants, images, orders, and cart/checkout. Verify migration generation, migration application, seed execution, lint, and build.
 ```
 
 ## Workstream 2 - Shop Shell, UI System, And Layout
@@ -480,7 +480,7 @@ components/shop/
 ### Handoff Prompt
 
 ```text
-You are Agent 2 for the Fuckers HQ build. Build the customer-facing shop shell, layout, reusable shop components, and route placeholders. Follow fuckers-hq-architecture.md and fuckers-hq-build-plan.md. Use shadcn/ui, Tailwind, and lucide-react. Make the app feel like a real shop immediately, not a marketing landing page. Do not implement checkout, webhook, admin, or database mutations. Verify responsive layout, lint, and build.
+You are Agent 2 for the Fuckers HQ build. Build the customer-facing shop shell, layout, reusable shop components, and route placeholders. Follow docs/architecture.md and docs/build-plan.md. Use shadcn/ui, Tailwind, and lucide-react. Make the app feel like a real shop immediately, not a marketing landing page. Do not implement checkout, webhook, admin, or database mutations. Verify responsive layout, lint, and build.
 ```
 
 ## Workstream 3 - Catalog Reads, ISR, Search Params, Product Detail
@@ -639,7 +639,7 @@ The checkout route will ignore client-side display prices and re-read prices fro
 ### Handoff Prompt
 
 ```text
-You are Agent 4 for the Fuckers HQ build. Implement the Zustand persisted cart and cart UI. The cart may store display snapshots, but checkout must send only variantId and quantity as defined in fuckers-hq-build-plan.md. Integrate add-to-cart from product surfaces if available. Do not trust client prices. Do not implement Stripe session creation beyond calling /api/checkout from the checkout button. Verify cart persistence, item updates, checkout payload shape, lint, and build.
+You are Agent 4 for the Fuckers HQ build. Implement the Zustand persisted cart and cart UI. The cart may store display snapshots, but checkout must send only variantId and quantity as defined in docs/build-plan.md. Integrate add-to-cart from product surfaces if available. Do not trust client prices. Do not implement Stripe session creation beyond calling /api/checkout from the checkout button. Verify cart persistence, item updates, checkout payload shape, lint, and build.
 ```
 
 ## Workstream 5 - Checkout Session Route
@@ -1395,8 +1395,8 @@ The build is done when:
 
 Every implementation agent should start by reading:
 
-1. `fuckers-hq-architecture.md`
-2. `fuckers-hq-build-plan.md`
+1. `docs/architecture.md`
+2. `docs/build-plan.md`
 3. Existing README and package scripts
 4. The files in their assigned workstream
 
