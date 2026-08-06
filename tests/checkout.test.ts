@@ -313,6 +313,27 @@ describe("hosted checkout orchestration", () => {
     });
   });
 
+  test("offers card payment only, so no pay-later method can reach checkout", () => {
+    const shippingReservation = {
+      pendingCheckoutToken: "checkout_abcDEF123456789",
+      reservationToken: "reservation_abcDEF123456",
+      expiresAt: new Date("2026-07-10T13:00:00.000Z"),
+      fulfillmentMethod: "shipping" as const,
+      lineItems: reservationLineItems,
+    };
+
+    for (const fulfillmentMethod of ["shipping", "pickup"] as const) {
+      const params = buildStripeSessionParams(
+        { ...shippingReservation, fulfillmentMethod },
+        pickupSettings,
+      );
+
+      // An explicit list turns off dynamic payment methods, so enabling Affirm or Klarna in the
+      // Stripe Dashboard cannot put them back in front of a buyer.
+      expect(params.payment_method_types).toEqual(["card"]);
+    }
+  });
+
   test("releases confirmed Stripe rejections but preserves ambiguous failures", async () => {
     const releases: string[] = [];
     const repository = makeRepository({
