@@ -45,7 +45,9 @@ export function CartSidebarContent({
 
   return (
     <>
-      <SheetHeader className="shrink-0 border-b px-4 py-5 pr-14 sm:px-6">
+      {/* pr-14 must be repeated at sm: because sm:px-6 would otherwise reset the
+          right padding that keeps header content clear of the absolute close button. */}
+      <SheetHeader className="shrink-0 border-b px-4 py-5 pr-14 sm:px-6 sm:pr-14">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <SheetTitle className="font-grotesk font-semibold text-2xl">Your cart</SheetTitle>
