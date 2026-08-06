@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions/orders";
 import type { OrderFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import {
+  carrierHasTrackingLink,
   getShippingCarrierLabel,
   type ShippingCarrier,
   shippingCarrierValues,
@@ -75,7 +76,18 @@ export function FulfillmentActionButton({
   const [isShipmentFormOpen, setIsShipmentFormOpen] = useState(false);
   const [carrier, setCarrier] = useState<ShippingCarrier | typeof noCarrierValue>(noCarrierValue);
   const [trackingNumber, setTrackingNumber] = useState("");
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Set only when the form is dismissed without shipping, so focus is restored to the control the
+  // operator opened it from rather than falling to the document body.
+  const shouldRestoreTriggerFocus = useRef(false);
   const copy = transitionCopy[transition];
+
+  useEffect(() => {
+    if (!isShipmentFormOpen && shouldRestoreTriggerFocus.current) {
+      shouldRestoreTriggerFocus.current = false;
+      triggerRef.current?.focus();
+    }
+  }, [isShipmentFormOpen]);
 
   async function submit(input: FulfillmentActionInput) {
     setErrorMessage(null);
@@ -124,6 +136,12 @@ export function FulfillmentActionButton({
     );
   }
 
+  function closeShipmentForm() {
+    setErrorMessage(null);
+    shouldRestoreTriggerFocus.current = true;
+    setIsShipmentFormOpen(false);
+  }
+
   function onChangeCarrier(value: string) {
     const nextCarrier = value as ShippingCarrier | typeof noCarrierValue;
     setCarrier(nextCarrier);
@@ -134,6 +152,15 @@ export function FulfillmentActionButton({
       setTrackingNumber("");
     }
   }
+
+  // Stated per carrier: "Other carrier" has no tracking page, so promising a link there would be a
+  // lie the customer discovers when the email arrives with a bare number.
+  const shipmentHint =
+    carrier === noCarrierValue
+      ? "The customer is emailed either way. Without a carrier, the email just says the order shipped."
+      : carrierHasTrackingLink(carrier)
+        ? "The email includes this tracking number and a link to the carrier's tracking page."
+        : "This carrier has no tracking page, so the email shows the number as plain text.";
 
   if (transition === "ship" && isShipmentFormOpen) {
     return (
@@ -175,10 +202,7 @@ export function FulfillmentActionButton({
           />
         </div>
 
-        <p className="text-muted-foreground text-xs">
-          The customer is emailed either way. With a carrier selected, the email includes a tracking
-          link.
-        </p>
+        <p className="text-muted-foreground text-xs">{shipmentHint}</p>
 
         <div className="flex flex-wrap gap-2">
           <Button disabled={isSubmitting} size={size} type="submit" variant={variant}>
@@ -186,10 +210,7 @@ export function FulfillmentActionButton({
           </Button>
           <Button
             disabled={isSubmitting}
-            onClick={() => {
-              setErrorMessage(null);
-              setIsShipmentFormOpen(false);
-            }}
+            onClick={closeShipmentForm}
             size={size}
             type="button"
             variant="outline"
@@ -216,6 +237,7 @@ export function FulfillmentActionButton({
             ? () => setIsShipmentFormOpen(true)
             : () => void onConfirmTransition()
         }
+        ref={triggerRef}
         size={size}
         type="button"
         variant={variant}

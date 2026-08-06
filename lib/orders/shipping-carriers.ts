@@ -73,6 +73,14 @@ export function getShippingCarrierTrackingUrl(
   return shippingCarriers[carrier].buildTrackingUrl?.(trackingNumber) ?? null;
 }
 
+/**
+ * Whether this carrier can produce a tracking link at all, independent of any number. Lets the
+ * admin form tell an operator up front that a carrier's number will render as plain text.
+ */
+export function carrierHasTrackingLink(carrier: ShippingCarrier): boolean {
+  return shippingCarriers[carrier].buildTrackingUrl !== null;
+}
+
 /** Display-ready tracking for one order, shared by the admin surfaces and the shipped email. */
 export type OrderTrackingView = {
   carrierName: string;

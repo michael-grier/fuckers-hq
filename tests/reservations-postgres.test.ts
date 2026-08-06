@@ -639,6 +639,9 @@ const postgresTestSchema = [
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
     ready_for_pickup_at timestamptz,
+    shipped_at timestamptz,
+    tracking_carrier text,
+    tracking_number text,
     stripe_session_id text not null unique,
     stripe_payment_intent_id text unique,
     refund_status text not null default 'none',
@@ -662,6 +665,14 @@ const postgresTestSchema = [
     -- Mirrors production: neither terminal nor staged orders may carry unallocated stock.
     constraint orders_fulfilled_inventory_allocated check (
       status not in ('fulfilled', 'ready_for_pickup') or inventory_status = 'allocated'
+    ),
+    constraint orders_tracking_pair_complete check (
+      (tracking_carrier is null and tracking_number is null)
+      or (tracking_carrier is not null and tracking_number is not null)
+    ),
+    constraint orders_shipment_requires_shipping_method check (
+      (shipped_at is null and tracking_number is null)
+      or fulfillment_method = 'shipping'
     )
   )`,
   `create table order_items (
