@@ -1,12 +1,13 @@
 import { describe, expect, mock, test } from "bun:test";
 
 import type { Order } from "@/lib/db/schema";
-import { retryOrderConfirmationForAdmin } from "@/lib/email/retry-order-confirmation";
+import { retryOrderEmailForAdmin } from "@/lib/email/retry-order-email";
 import {
-  markOrderShipped,
+  applyOrderFulfillmentTransition,
   OrderFulfillmentError,
   type OrderFulfillmentRepository,
-} from "@/lib/orders/mark-order-shipped";
+  type OrderFulfillmentState,
+} from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import {
   type InventoryExceptionRepository,
@@ -15,34 +16,41 @@ import {
 } from "@/lib/orders/resolve-inventory-exception";
 import {
   markOrderShippedSchema,
-  retryOrderConfirmationSchema,
+  retryOrderEmailSchema,
   retryOrderInventoryAllocationSchema,
 } from "@/lib/validators/admin";
 
 const orderId = "823071ff-f180-43ed-82df-af334ccfe35a";
-type FulfillmentState = Pick<
-  Order,
-  "status" | "inventoryStatus" | "refundStatus" | "disputeStatus"
->;
+
+function makeState(overrides: Partial<OrderFulfillmentState> = {}): OrderFulfillmentState {
+  return {
+    status: "paid",
+    inventoryStatus: "allocated",
+    refundStatus: "none",
+    disputeStatus: "none",
+    fulfillmentMethod: "shipping",
+    ...overrides,
+  };
+}
 
 function makeRepository(
   overrides: Partial<OrderFulfillmentRepository> = {},
 ): OrderFulfillmentRepository {
   return {
-    markPaidOrderFulfilled: mock(async () => true),
-    findOrderFulfillmentState: mock(
-      async (): Promise<FulfillmentState> => ({
-        status: "paid",
-        inventoryStatus: "allocated",
-        refundStatus: "none",
-        disputeStatus: "none",
-      }),
-    ),
+    applyFulfillmentTransition: mock(async () => true),
+    findOrderFulfillmentState: mock(async () => makeState()),
     ...overrides,
   };
 }
 
-describe("mark order shipped contract", () => {
+function makeBlockedRepository(state: OrderFulfillmentState | null): OrderFulfillmentRepository {
+  return makeRepository({
+    applyFulfillmentTransition: mock(async () => false),
+    findOrderFulfillmentState: mock(async () => state),
+  });
+}
+
+describe("order fulfillment transitions", () => {
   test("accepts only an order UUID", () => {
     expect(markOrderShippedSchema.parse({ orderId })).toEqual({ orderId });
     expect(() => markOrderShippedSchema.parse({ orderId: "not-an-order" })).toThrow();
@@ -50,122 +58,147 @@ describe("mark order shipped contract", () => {
     expect(retryOrderInventoryAllocationSchema.parse({ orderId })).toEqual({ orderId });
   });
 
-  test("conditionally changes a paid order to fulfilled", async () => {
+  test("conditionally changes a paid shipping order to fulfilled", async () => {
     const repository = makeRepository();
+    const now = new Date("2026-08-04T12:00:00.000Z");
 
-    await expect(markOrderShipped(orderId, repository)).resolves.toEqual({ changed: true });
-    expect(repository.markPaidOrderFulfilled).toHaveBeenCalledWith(orderId);
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ship", repository, now),
+    ).resolves.toEqual({ changed: true });
+    expect(repository.applyFulfillmentTransition).toHaveBeenCalledWith(orderId, "ship", now);
     expect(repository.findOrderFulfillmentState).not.toHaveBeenCalled();
   });
 
-  test("treats an already fulfilled order as an idempotent success", async () => {
-    const repository = makeRepository({
-      markPaidOrderFulfilled: mock(async () => false),
-      findOrderFulfillmentState: mock(
-        async (): Promise<FulfillmentState> => ({
-          status: "fulfilled",
-          inventoryStatus: "allocated",
-          refundStatus: "none",
-          disputeStatus: "none",
-        }),
-      ),
-    });
+  test("stages a paid pickup order, then completes it on collection", async () => {
+    const readyRepository = makeRepository();
+    const collectedRepository = makeRepository();
 
-    await expect(markOrderShipped(orderId, repository)).resolves.toEqual({ changed: false });
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", readyRepository),
+    ).resolves.toEqual({ changed: true });
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "picked_up", collectedRepository),
+    ).resolves.toEqual({ changed: true });
   });
 
-  test("rejects missing orders and invalid status transitions", async () => {
-    const missingOrderRepository = makeRepository({
-      markPaidOrderFulfilled: mock(async () => false),
-      findOrderFulfillmentState: mock(async (): Promise<null> => null),
-    });
-    const refundedOrderRepository = makeRepository({
-      markPaidOrderFulfilled: mock(async () => false),
-      findOrderFulfillmentState: mock(
-        async (): Promise<FulfillmentState> => ({
-          status: "refunded",
-          inventoryStatus: "allocated",
-          refundStatus: "full",
-          disputeStatus: "none",
-        }),
-      ),
-    });
-
-    await expect(markOrderShipped(orderId, missingOrderRepository)).rejects.toEqual(
-      new OrderFulfillmentError("Order not found.", "not_found"),
+  test("treats a repeated transition as an idempotent success", async () => {
+    const shipped = makeBlockedRepository(makeState({ status: "fulfilled" }));
+    const staged = makeBlockedRepository(
+      makeState({ status: "ready_for_pickup", fulfillmentMethod: "pickup" }),
     );
-    await expect(markOrderShipped(orderId, refundedOrderRepository)).rejects.toEqual(
+
+    await expect(applyOrderFulfillmentTransition(orderId, "ship", shipped)).resolves.toEqual({
+      changed: false,
+    });
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", staged),
+    ).resolves.toEqual({ changed: false });
+  });
+
+  test("refuses to fulfill an order through the wrong method's flow", async () => {
+    const shippingOrder = makeBlockedRepository(makeState({ fulfillmentMethod: "shipping" }));
+    const pickupOrder = makeBlockedRepository(makeState({ fulfillmentMethod: "pickup" }));
+
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", shippingOrder),
+    ).rejects.toEqual(
       new OrderFulfillmentError(
-        "Only payment-eligible paid orders can be marked as shipped.",
+        "This is a shipping order and cannot be fulfilled through the pickup flow.",
+        "invalid_status",
+      ),
+    );
+    await expect(applyOrderFulfillmentTransition(orderId, "ship", pickupOrder)).rejects.toEqual(
+      new OrderFulfillmentError(
+        "This is a pickup order and cannot be marked as shipped.",
+        "invalid_status",
+      ),
+    );
+  });
+
+  test("rejects missing orders and payment-ineligible transitions", async () => {
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ship", makeBlockedRepository(null)),
+    ).rejects.toEqual(new OrderFulfillmentError("Order not found.", "not_found"));
+    await expect(
+      applyOrderFulfillmentTransition(
+        orderId,
+        "ship",
+        makeBlockedRepository(makeState({ status: "refunded", refundStatus: "full" })),
+      ),
+    ).rejects.toEqual(
+      new OrderFulfillmentError(
+        "Only payment-eligible paid shipping orders can be marked as shipped.",
+        "invalid_status",
+      ),
+    );
+  });
+
+  test("stops a staged pickup order that was later refunded in full", async () => {
+    const repository = makeBlockedRepository(
+      makeState({
+        status: "ready_for_pickup",
+        fulfillmentMethod: "pickup",
+        refundStatus: "full",
+      }),
+    );
+
+    await expect(applyOrderFulfillmentTransition(orderId, "picked_up", repository)).rejects.toEqual(
+      new OrderFulfillmentError(
+        "Only orders marked ready for pickup can be marked as picked up.",
         "invalid_status",
       ),
     );
   });
 
   test("blocks fulfillment while a paid order has an inventory exception", async () => {
-    const repository = makeRepository({
-      markPaidOrderFulfilled: mock(async () => false),
-      findOrderFulfillmentState: mock(
-        async (): Promise<FulfillmentState> => ({
-          status: "paid",
-          inventoryStatus: "exception",
-          refundStatus: "none",
-          disputeStatus: "none",
-        }),
-      ),
-    });
+    const shipping = makeBlockedRepository(makeState({ inventoryStatus: "exception" }));
+    const pickup = makeBlockedRepository(
+      makeState({ inventoryStatus: "exception", fulfillmentMethod: "pickup" }),
+    );
 
-    await expect(markOrderShipped(orderId, repository)).rejects.toEqual(
+    await expect(applyOrderFulfillmentTransition(orderId, "ship", shipping)).rejects.toEqual(
       new OrderFulfillmentError(
-        "Resolve the inventory exception before marking this order as shipped.",
+        "Resolve the inventory exception before fulfilling this order.",
+        "invalid_status",
+      ),
+    );
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", pickup),
+    ).rejects.toEqual(
+      new OrderFulfillmentError(
+        "Resolve the inventory exception before fulfilling this order.",
         "invalid_status",
       ),
     );
   });
 
   test("blocks fulfillment for fully refunded and ineligible dispute states", () => {
+    const eligible = (order: Pick<Order, "status" | "refundStatus" | "disputeStatus">) =>
+      isOrderFulfillmentEligible(order);
+
+    expect(eligible({ status: "paid", refundStatus: "partial", disputeStatus: "none" })).toBe(true);
+    // A staged pickup order is still awaiting hand-off, so it stays eligible.
     expect(
-      isOrderFulfillmentEligible({
-        status: "paid",
-        refundStatus: "partial",
-        disputeStatus: "none",
-      }),
+      eligible({ status: "ready_for_pickup", refundStatus: "none", disputeStatus: "none" }),
     ).toBe(true);
     expect(
-      isOrderFulfillmentEligible({
-        status: "refunded",
-        refundStatus: "full",
-        disputeStatus: "none",
-      }),
+      eligible({ status: "ready_for_pickup", refundStatus: "full", disputeStatus: "none" }),
     ).toBe(false);
     expect(
-      isOrderFulfillmentEligible({
-        status: "paid",
-        refundStatus: "none",
-        disputeStatus: "open",
-      }),
+      eligible({ status: "ready_for_pickup", refundStatus: "none", disputeStatus: "open" }),
     ).toBe(false);
-    expect(
-      isOrderFulfillmentEligible({
-        status: "paid",
-        refundStatus: "none",
-        disputeStatus: "lost",
-      }),
-    ).toBe(false);
-    expect(
-      isOrderFulfillmentEligible({
-        status: "paid",
-        refundStatus: "none",
-        disputeStatus: "prevented",
-      }),
-    ).toBe(false);
-    expect(
-      isOrderFulfillmentEligible({
-        status: "paid",
-        refundStatus: "none",
-        disputeStatus: "won",
-      }),
-    ).toBe(true);
+    expect(eligible({ status: "refunded", refundStatus: "full", disputeStatus: "none" })).toBe(
+      false,
+    );
+    expect(eligible({ status: "paid", refundStatus: "none", disputeStatus: "open" })).toBe(false);
+    expect(eligible({ status: "paid", refundStatus: "none", disputeStatus: "lost" })).toBe(false);
+    expect(eligible({ status: "paid", refundStatus: "none", disputeStatus: "prevented" })).toBe(
+      false,
+    );
+    expect(eligible({ status: "paid", refundStatus: "none", disputeStatus: "won" })).toBe(true);
+    expect(eligible({ status: "fulfilled", refundStatus: "none", disputeStatus: "none" })).toBe(
+      false,
+    );
   });
 });
 
@@ -210,13 +243,13 @@ describe("inventory exception resolution", () => {
   });
 });
 
-describe("retry order confirmation authorization", () => {
+describe("retry order email authorization", () => {
   test("rejects unauthorized retries before attempting delivery", async () => {
     const attempt = mock(async () => ({ status: "sent" as const }));
 
     await expect(
-      retryOrderConfirmationForAdmin(
-        { orderId },
+      retryOrderEmailForAdmin(
+        { orderId, kind: "confirmation" },
         {
           authorize: async () => {
             throw new Error("Not authorized");
@@ -229,23 +262,40 @@ describe("retry order confirmation authorization", () => {
     expect(attempt).not.toHaveBeenCalled();
   });
 
-  test("validates input and permits an authorized retry", async () => {
+  test("validates input and permits an authorized retry of either email", async () => {
     const authorize = mock(async () => ({ userId: "user_admin123" }));
     const attempt = mock(async () => ({ status: "sent" as const }));
 
-    expect(retryOrderConfirmationSchema.parse({ orderId })).toEqual({ orderId });
-    expect(() => retryOrderConfirmationSchema.parse({ orderId: "invalid" })).toThrow();
+    expect(retryOrderEmailSchema.parse({ orderId, kind: "pickup_ready" })).toEqual({
+      orderId,
+      kind: "pickup_ready",
+    });
+    expect(() => retryOrderEmailSchema.parse({ orderId, kind: "unknown" })).toThrow();
+    expect(() => retryOrderEmailSchema.parse({ orderId })).toThrow();
+
     await expect(
-      retryOrderConfirmationForAdmin(
-        { orderId },
-        {
-          authorize,
-          attempt,
-          reportError: () => {},
-        },
+      retryOrderEmailForAdmin(
+        { orderId, kind: "pickup_ready" },
+        { authorize, attempt, reportError: () => {} },
       ),
     ).resolves.toEqual({ success: true, data: undefined });
     expect(authorize).toHaveBeenCalledTimes(1);
-    expect(attempt).toHaveBeenCalledWith(orderId);
+    expect(attempt).toHaveBeenCalledWith({ orderId, kind: "pickup_ready" });
+  });
+
+  test("names the failing email when delivery is deferred", async () => {
+    await expect(
+      retryOrderEmailForAdmin(
+        { orderId, kind: "pickup_ready" },
+        {
+          authorize: async () => ({}),
+          attempt: async () => ({ status: "failed", error: new Error("nope"), terminal: false }),
+          reportError: () => {},
+        },
+      ),
+    ).resolves.toEqual({
+      success: false,
+      message: "Pickup notification delivery failed and was scheduled to retry.",
+    });
   });
 });

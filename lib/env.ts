@@ -31,6 +31,17 @@ const defaultTrueBooleanString = z.preprocess(
   z.enum(["true", "false"]).transform((value) => value === "true"),
 );
 
+const defaultFalseBooleanString = z.preprocess(
+  (value) => {
+    if (value == null || value === "") {
+      return "false";
+    }
+
+    return typeof value === "string" ? value.toLowerCase() : value;
+  },
+  z.enum(["true", "false"]).transform((value) => value === "true"),
+);
+
 const envSchema = z.object({
   DATABASE_URL: optionalString,
   STRIPE_SECRET_KEY: optionalString,
@@ -57,6 +68,13 @@ const envSchema = z.object({
   SHIPPING_ALLOWED_COUNTRIES: optionalString.default("CA,US"),
   SHIPPING_STANDARD_RATE_CENTS: optionalIntegerString,
   SHIPPING_FREE_THRESHOLD_CENTS: optionalIntegerString,
+  // Pickup stays off unless it is explicitly enabled and fully described, so a half-configured
+  // deploy cannot offer a pickup option that omits where or when to collect the order.
+  PICKUP_ENABLED: defaultFalseBooleanString,
+  PICKUP_LOCATION_NAME: optionalString,
+  PICKUP_ADDRESS: optionalString,
+  PICKUP_HOURS: optionalString,
+  PICKUP_INSTRUCTIONS: optionalString,
 });
 
 export type Env = z.infer<typeof envSchema>;

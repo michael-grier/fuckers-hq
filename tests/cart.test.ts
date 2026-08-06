@@ -1,6 +1,10 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
 
-import { getCheckoutCartFingerprint, toCheckoutRequest } from "@/lib/cart/selectors";
+import {
+  getCheckoutCartFingerprint,
+  resolveFulfillmentMethod,
+  toCheckoutRequest,
+} from "@/lib/cart/selectors";
 import type { CartDisplayLine } from "@/lib/cart/types";
 
 class MemoryStorage implements Storage {
@@ -126,18 +130,32 @@ describe("cart store", () => {
   test("builds checkout intent without display snapshot fields", () => {
     useCartStore.getState().addLine({ ...deck, quantity: 2 });
 
-    expect(toCheckoutRequest(useCartStore.getState().lines, "request-123")).toEqual({
+    expect(toCheckoutRequest(useCartStore.getState().lines, "request-123", "pickup")).toEqual({
       requestId: "request-123",
       items: [{ variantId: deck.variantId, quantity: 2 }],
+      fulfillmentMethod: "pickup",
     });
   });
 
   test("uses one checkout request identity for equivalent reordered carts", () => {
-    expect(getCheckoutCartFingerprint([deck, bearings])).toBe(
-      getCheckoutCartFingerprint([bearings, deck]),
+    expect(getCheckoutCartFingerprint([deck, bearings], "shipping")).toBe(
+      getCheckoutCartFingerprint([bearings, deck], "shipping"),
     );
-    expect(getCheckoutCartFingerprint([deck, bearings])).not.toBe(
-      getCheckoutCartFingerprint([{ ...deck, quantity: 2 }, bearings]),
+    expect(getCheckoutCartFingerprint([deck, bearings], "shipping")).not.toBe(
+      getCheckoutCartFingerprint([{ ...deck, quantity: 2 }, bearings], "shipping"),
     );
+  });
+
+  test("gives a new request identity when the fulfillment method changes", () => {
+    // A reserved checkout refuses replay under a different method, so the IDs must differ.
+    expect(getCheckoutCartFingerprint([deck], "shipping")).not.toBe(
+      getCheckoutCartFingerprint([deck], "pickup"),
+    );
+  });
+
+  test("honours a stored pickup preference only while pickup is offered", () => {
+    expect(resolveFulfillmentMethod("pickup", true)).toBe("pickup");
+    expect(resolveFulfillmentMethod("pickup", false)).toBe("shipping");
+    expect(resolveFulfillmentMethod("shipping", true)).toBe("shipping");
   });
 });

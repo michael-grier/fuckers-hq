@@ -3,17 +3,21 @@ import "server-only";
 import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { orderItems, orders, productVariants } from "@/lib/db/schema";
+import { orderEmailDeliveries, orderItems, orders, productVariants } from "@/lib/db/schema";
+import { makeOrderEmailIdempotencyKey } from "@/lib/email/order-email-delivery";
 import {
   assertInventoryDecremented,
   planInventoryAllocation,
 } from "@/lib/orders/create-paid-order";
-import type { OrderFulfillmentRepository } from "@/lib/orders/mark-order-shipped";
+import type { OrderFulfillmentRepository } from "@/lib/orders/order-fulfillment";
+import { orderFulfillmentTransitionRules } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import type { InventoryExceptionRepository } from "@/lib/orders/resolve-inventory-exception";
 
 export const adminOrderRepository: OrderFulfillmentRepository & InventoryExceptionRepository = {
-  async markPaidOrderFulfilled(orderId) {
+  async applyFulfillmentTransition(orderId, transition, occurredAt) {
+    const rule = orderFulfillmentTransitionRules[transition];
+
     return getDb().transaction(async (tx) => {
       const order = await tx.query.orders.findFirst({
         columns: { stripePaymentIntentId: true },
@@ -25,6 +29,7 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
       }
 
       if (order.stripePaymentIntentId) {
+        // Serialize against refund and dispute webhooks for the same payment.
         await tx.execute(
           sql`select pg_advisory_xact_lock(hashtext(${order.stripePaymentIntentId}))`,
         );
@@ -32,11 +37,16 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
 
       const updatedOrders = await tx
         .update(orders)
-        .set({ status: "fulfilled" })
+        .set({
+          status: rule.toStatus,
+          // Recorded once, when the order is staged, and kept after it is collected.
+          ...(rule.toStatus === "ready_for_pickup" ? { readyForPickupAt: occurredAt } : {}),
+        })
         .where(
           and(
             eq(orders.id, orderId),
-            eq(orders.status, "paid"),
+            eq(orders.status, rule.fromStatus),
+            eq(orders.fulfillmentMethod, rule.requiredMethod),
             eq(orders.inventoryStatus, "allocated"),
             ne(orders.refundStatus, "full"),
             inArray(orders.disputeStatus, ["none", "won"]),
@@ -44,7 +54,26 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
         )
         .returning({ id: orders.id });
 
-      return updatedOrders.length === 1;
+      if (updatedOrders.length !== 1) {
+        return false;
+      }
+
+      if (rule.toStatus === "ready_for_pickup") {
+        // Queued in the same transaction as the status change so an order can never be staged
+        // without the notification the customer needs. Delivery itself happens after commit.
+        await tx
+          .insert(orderEmailDeliveries)
+          .values({
+            orderId,
+            kind: "pickup_ready",
+            idempotencyKey: makeOrderEmailIdempotencyKey(orderId, "pickup_ready"),
+          })
+          .onConflictDoNothing({
+            target: [orderEmailDeliveries.orderId, orderEmailDeliveries.kind],
+          });
+      }
+
+      return true;
     });
   },
 
@@ -55,6 +84,7 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
         inventoryStatus: true,
         refundStatus: true,
         disputeStatus: true,
+        fulfillmentMethod: true,
       },
       where: (orders, { eq }) => eq(orders.id, orderId),
     });

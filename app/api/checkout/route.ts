@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { createHostedCheckout } from "@/lib/checkout/create-hosted-checkout";
 import { toCheckoutErrorResponse } from "@/lib/checkout/error-response";
+import { resolvePickupLocation } from "@/lib/checkout/pickup";
 import { checkoutRepository } from "@/lib/checkout/repository";
 import { parseAllowedShippingCountries } from "@/lib/checkout/shipping";
 import { env, requireEnv } from "@/lib/env";
@@ -30,6 +31,7 @@ export async function POST(request: Request): Promise<Response> {
           standardShippingRateCents: requireEnv("SHIPPING_STANDARD_RATE_CENTS"),
           freeShippingThresholdCents: requireEnv("SHIPPING_FREE_THRESHOLD_CENTS"),
           taxEnabled: env.STRIPE_TAX_ENABLED,
+          pickupLocation: resolvePickupLocation(env),
         },
         {
           repository: checkoutRepository,

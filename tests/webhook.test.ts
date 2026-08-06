@@ -205,16 +205,34 @@ describe("paid Checkout Session parsing", () => {
     ).toBeNull();
   });
 
-  test("rejects metadata outside the pending token contract", () => {
+  test("ignores unrecognized metadata instead of discarding a verified payment", () => {
+    // A Session created by a newer deploy can be paid while an older instance still receives the
+    // webhook. Rejecting the unknown key would fail the delivery permanently and lose the order,
+    // so unknown keys are ignored and never read.
+    const parsed = parsePaidCheckoutData(
+      makeCheckoutSession({
+        metadata: {
+          pendingCheckoutToken: "checkout_abcDEF123456789",
+          reservationToken: "reservation_abcDEF123456",
+          fulfillmentMethod: "pickup",
+          cart: "untrusted",
+        },
+      }),
+    );
+
+    expect(parsed?.pendingCheckoutToken).toBe("checkout_abcDEF123456789");
+    expect(parsed?.reservationToken).toBe("reservation_abcDEF123456");
+    // The fulfillment method is read from the pending checkout row, never from Stripe metadata.
+    expect(parsed).not.toHaveProperty("fulfillmentMethod");
+    expect(parsed).not.toHaveProperty("cart");
+  });
+
+  test("still rejects metadata that cannot identify the pending checkout", () => {
     expect(() =>
-      parsePaidCheckoutData(
-        makeCheckoutSession({
-          metadata: {
-            pendingCheckoutToken: "checkout_abcDEF123456789",
-            cart: "untrusted",
-          },
-        }),
-      ),
+      parsePaidCheckoutData(makeCheckoutSession({ metadata: { cart: "untrusted" } })),
+    ).toThrow();
+    expect(() =>
+      parsePaidCheckoutData(makeCheckoutSession({ metadata: { pendingCheckoutToken: "short" } })),
     ).toThrow();
   });
 });

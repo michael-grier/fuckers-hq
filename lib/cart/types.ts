@@ -7,12 +7,15 @@ export type CartDisplayLine = {
   imageUrl?: string | null;
 };
 
+export type CartFulfillmentMethod = "shipping" | "pickup";
+
 export type CheckoutRequest = {
   requestId: string;
   items: Array<{
     variantId: string;
     quantity: number;
   }>;
+  fulfillmentMethod: CartFulfillmentMethod;
 };
 
 export type AddCartLineInput = Omit<CartDisplayLine, "quantity"> & {

@@ -4,7 +4,7 @@ import {
   isDefinitiveStripeSessionCreationFailure,
   parsePersistedStripeSessionParams,
 } from "@/lib/checkout/create-hosted-checkout";
-import type { JsonRecord } from "@/lib/db/schema";
+import type { FulfillmentMethod, JsonRecord } from "@/lib/db/schema";
 
 export const INVENTORY_RECONCILIATION_BATCH_SIZE = 20;
 export const INVENTORY_RECONCILIATION_LEASE_MS = 10 * 60 * 1000;
@@ -22,6 +22,7 @@ export type ReservationReconciliationClaim = {
   expiresAt: Date;
   createdAt: Date;
   attemptCount: number;
+  fulfillmentMethod: FulfillmentMethod;
 };
 
 export type ReservationReconciliationRepository = {
@@ -212,6 +213,7 @@ async function recoverStripeSession(
     pendingCheckoutToken: claim.pendingCheckoutToken,
     reservationToken: claim.token,
     expiresAt: claim.expiresAt,
+    fulfillmentMethod: claim.fulfillmentMethod,
   });
 
   try {

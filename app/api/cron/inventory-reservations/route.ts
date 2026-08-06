@@ -1,10 +1,10 @@
 import { reconcileInventoryReservations } from "@/lib/checkout/reservation-reconciliation";
 import { getReservationReconciliationRepository } from "@/lib/checkout/reservation-reconciliation-repository";
 import { isCronAuthorized } from "@/lib/cron/authorization";
-import { attemptOrderConfirmationDelivery } from "@/lib/email/order-confirmation-delivery";
-import { orderConfirmationDeliveryRepository } from "@/lib/email/order-confirmation-delivery-repository";
+import { attemptOrderEmailDelivery } from "@/lib/email/order-email-delivery";
+import { orderEmailDeliveryRepository } from "@/lib/email/order-email-delivery-repository";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
-import { sendOrderConfirmation } from "@/lib/email/send-order-confirmation";
+import { sendOrderEmail } from "@/lib/email/send-order-email";
 import { env } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
 import { paidOrderRepository } from "@/lib/orders/paid-order-repository";
@@ -34,13 +34,10 @@ export async function GET(request: Request): Promise<Response> {
 
         await sendConfirmationAfterOrderCommit(
           webhookResult,
-          (orderId) =>
-            attemptOrderConfirmationDelivery(
-              orderId,
-              orderConfirmationDeliveryRepository,
-              sendOrderConfirmation,
-              { force: true },
-            ),
+          (ref) =>
+            attemptOrderEmailDelivery(ref, orderEmailDeliveryRepository, sendOrderEmail, {
+              force: true,
+            }),
           (error) => {
             captureServerException(error, {
               area: "email",

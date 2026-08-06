@@ -4,12 +4,17 @@ import { ArrowRight, LoaderCircle } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { getCheckoutCartFingerprint, toCheckoutRequest } from "@/lib/cart/selectors";
+import {
+  getCheckoutCartFingerprint,
+  resolveFulfillmentMethod,
+  toCheckoutRequest,
+} from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import { checkoutErrorResponseSchema, checkoutResponseSchema } from "@/lib/validators/cart";
 
-export function CheckoutButton() {
+export function CheckoutButton({ isPickupAvailable = false }: { isPickupAvailable?: boolean }) {
   const lines = useCartStore((state) => state.lines);
+  const fulfillmentPreference = useCartStore((state) => state.fulfillmentMethod);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const requestIdentity = useRef<{ cartFingerprint: string; requestId: string } | null>(null);
@@ -19,7 +24,8 @@ export function CheckoutButton() {
     setIsLoading(true);
 
     try {
-      const cartFingerprint = getCheckoutCartFingerprint(lines);
+      const fulfillmentMethod = resolveFulfillmentMethod(fulfillmentPreference, isPickupAvailable);
+      const cartFingerprint = getCheckoutCartFingerprint(lines, fulfillmentMethod);
 
       if (requestIdentity.current?.cartFingerprint !== cartFingerprint) {
         requestIdentity.current = {
@@ -33,7 +39,9 @@ export function CheckoutButton() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(toCheckoutRequest(lines, requestIdentity.current.requestId)),
+        body: JSON.stringify(
+          toCheckoutRequest(lines, requestIdentity.current.requestId, fulfillmentMethod),
+        ),
       });
       const responseBody: unknown = await response.json().catch(() => null);
 

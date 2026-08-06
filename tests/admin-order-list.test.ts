@@ -15,6 +15,7 @@ function order(overrides: Partial<TestOrder> = {}): TestOrder {
     email: "rider@example.com",
     status: "paid",
     inventoryStatus: "allocated",
+    fulfillmentMethod: "shipping",
     refundStatus: "none",
     disputeStatus: "none",
     confirmationDeliveryStatus: "sent",
@@ -54,6 +55,17 @@ describe("matchesAdminOrderFilter", () => {
     expect(matchesAdminOrderFilter(order({ refundStatus: "full" }), "to-ship")).toBe(false);
     expect(matchesAdminOrderFilter(order({ disputeStatus: "open" }), "to-ship")).toBe(false);
     expect(matchesAdminOrderFilter(order({ inventoryStatus: "exception" }), "to-ship")).toBe(false);
+  });
+
+  test("to-ship excludes pickup orders, which have their own queue", () => {
+    expect(matchesAdminOrderFilter(order({ fulfillmentMethod: "pickup" }), "to-ship")).toBe(false);
+    // A staged pickup order stays fulfillment-eligible, so it would otherwise leak in here.
+    expect(
+      matchesAdminOrderFilter(
+        order({ fulfillmentMethod: "pickup", status: "ready_for_pickup" }),
+        "to-ship",
+      ),
+    ).toBe(false);
   });
 
   test("to-ship excludes orders that still need a human", () => {

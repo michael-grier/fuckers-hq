@@ -77,7 +77,7 @@ export function createReservationReconciliationRepository(
         }
 
         const pendingCheckout = await tx.query.pendingCheckouts.findFirst({
-          columns: { token: true },
+          columns: { token: true, fulfillmentMethod: true },
           where: (checkouts, { eq }) => eq(checkouts.id, claim.pendingCheckoutId),
         });
 
@@ -89,6 +89,7 @@ export function createReservationReconciliationRepository(
           id: claim.id,
           token: claim.token,
           pendingCheckoutToken: pendingCheckout.token,
+          fulfillmentMethod: pendingCheckout.fulfillmentMethod,
           stripeCreateIdempotencyKey: claim.stripeCreateIdempotencyKey,
           stripeSessionId: claim.stripeSessionId,
           stripeSessionParams: claim.stripeSessionParams,
