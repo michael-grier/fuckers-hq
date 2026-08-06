@@ -33,6 +33,9 @@ surface.
   and reconciliation state. Physical stock, reserved stock, and available stock remain distinct.
 - Admin access uses Clerk authentication plus an `ADMIN_USER_IDS` allowlist.
 
+Full detail lives in the [architecture document](docs/architecture.md) and the original
+[build plan](docs/build-plan.md).
+
 ## Local Setup
 
 1. Install dependencies:
