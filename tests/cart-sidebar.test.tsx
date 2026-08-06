@@ -61,6 +61,20 @@ describe("cart sidebar", () => {
     expect(markup).not.toContain("Continue shopping");
   });
 
+  test("keeps the header clear of the absolute close button at every breakpoint", () => {
+    const markup = renderToStaticMarkup(
+      <Sheet>
+        <CartSidebarContent lines={[deck]} onClear={() => undefined} />
+      </Sheet>,
+    );
+
+    const header = markup.match(/<div class="([^"]*)" data-slot="sheet-header"/)?.[1] ?? "";
+
+    // sm:px-6 would otherwise reset pr-14 and slide "Clear cart" under the X.
+    expect(header).toContain("pr-14");
+    expect(header).toContain("sm:pr-14");
+  });
+
   test("offers pickup as a compact segmented control, address not inflating the footer", () => {
     const markup = renderToStaticMarkup(
       <Sheet>
