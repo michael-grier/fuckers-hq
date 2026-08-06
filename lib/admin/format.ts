@@ -1,4 +1,4 @@
-import type { OrderEmailDelivery } from "@/lib/db/schema";
+import type { OrderEmailDelivery, OrderEmailKind } from "@/lib/db/schema";
 
 const adminDateFormatter = new Intl.DateTimeFormat("en-CA", {
   dateStyle: "medium",
@@ -53,4 +53,31 @@ export function formatConfirmationDeliveryError(errorCode: string | null): strin
   }
 
   return confirmationDeliveryErrorLabels[errorCode] ?? "Delivery unavailable";
+}
+
+/**
+ * Exhaustive by kind so a newly added email cannot silently inherit another kind's wording on the
+ * attention queue, where the copy is what tells an operator what the customer is missing.
+ */
+const orderEmailKindCopy: Record<OrderEmailKind, { name: string; failureImpact: string }> = {
+  confirmation: {
+    name: "confirmation",
+    failureImpact: "The customer has no receipt.",
+  },
+  pickup_ready: {
+    name: "pickup",
+    failureImpact: "The customer has not been told their order is ready.",
+  },
+  shipped: {
+    name: "shipping",
+    failureImpact: "The customer has not been told their order shipped.",
+  },
+};
+
+export function formatOrderEmailKind(kind: OrderEmailKind): string {
+  return orderEmailKindCopy[kind].name;
+}
+
+export function formatOrderEmailFailureImpact(kind: OrderEmailKind): string {
+  return orderEmailKindCopy[kind].failureImpact;
 }

@@ -6,11 +6,13 @@ import {
   type ConfirmationEmailDelivery,
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
+import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
 import { deliverPickupReady } from "@/lib/email/deliver-pickup-ready";
 import type { OrderEmailRef } from "@/lib/email/order-email-delivery";
 import { getResend } from "@/lib/email/resend";
 import { env, requireEnv } from "@/lib/env";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
+import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
 
 /**
  * Renders and sends the email owed for one outbox row. Throwing here leaves the row claimable so
@@ -60,6 +62,32 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
           pickupAddressLines,
           pickupHours: pickupLocation.hours,
           pickupInstructions: pickupLocation.instructions,
+        },
+      },
+      config,
+      getResend().emails,
+    );
+  }
+
+  if (ref.kind === "shipped") {
+    // Tracking stays optional. A shipment recorded without a number still tells the customer the
+    // order left, which is the point of the notification.
+    const tracking = resolveOrderTracking(order);
+
+    return deliverOrderShipped(
+      {
+        orderId: order.id,
+        idempotencyKey,
+        recipientEmail: order.email,
+        order: {
+          orderNumber: order.orderNumber,
+          items: order.items.map((item) => ({
+            productName: item.productNameSnapshot,
+            variantName: item.variantNameSnapshot,
+            quantity: item.quantity,
+          })),
+          shippingAddressLines: getShippingAddressLines(order.shippingAddress),
+          tracking,
         },
       },
       config,

@@ -24,6 +24,7 @@ import { formatMoney } from "@/lib/money";
 import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
+import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
 
 export type PeekableOrder = NonNullable<Awaited<ReturnType<typeof getAdminOrderById>>>;
 
@@ -36,6 +37,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
   const canFulfill = isOrderFulfillmentEligible(order);
   const nextTransition = resolveNextFulfillmentTransition(order);
   const delivery = order.confirmationDelivery;
+  const tracking = resolveOrderTracking(order);
 
   return (
     // On the desktop pane this fills the fixed column height so the items
@@ -127,6 +129,24 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
               <span className="text-muted-foreground">Not recorded</span>
             )}
           </PeekRow>
+          {tracking ? (
+            <PeekRow label="Tracking">
+              {tracking.trackingUrl ? (
+                <a
+                  className="break-all font-mono text-xs underline-offset-4 hover:underline"
+                  href={tracking.trackingUrl}
+                  rel="noreferrer noopener"
+                  target="_blank"
+                >
+                  {tracking.carrierName} {tracking.trackingNumber}
+                </a>
+              ) : (
+                <span className="break-all font-mono text-xs">
+                  {tracking.carrierName} {tracking.trackingNumber}
+                </span>
+              )}
+            </PeekRow>
+          ) : null}
           <PeekRow label="Subtotal">{formatMoney(order.subtotalCents, order.currency)}</PeekRow>
           <PeekRow label="Shipping">{formatMoney(order.shippingCents, order.currency)}</PeekRow>
           <PeekRow label="Tax">{formatMoney(order.taxCents, order.currency)}</PeekRow>

@@ -64,13 +64,18 @@ type AttemptOrderEmailOptions = {
 };
 
 /**
- * Confirmation keys keep their original prefix so rows written before pickup existed stay matched
- * to the Resend idempotency key they were already sent under.
+ * Every prefix here is load-bearing history: changing one would make Resend treat an already-sent
+ * email as new. Confirmation in particular keeps the prefix used before this outbox carried more
+ * than one kind.
  */
+const orderEmailIdempotencyPrefixes: Record<OrderEmailKind, string> = {
+  confirmation: "order-confirmation",
+  pickup_ready: "order-pickup-ready",
+  shipped: "order-shipped",
+};
+
 export function makeOrderEmailIdempotencyKey(orderId: string, kind: OrderEmailKind): string {
-  return kind === "confirmation"
-    ? `order-confirmation/${orderId}`
-    : `order-pickup-ready/${orderId}`;
+  return `${orderEmailIdempotencyPrefixes[kind]}/${orderId}`;
 }
 
 export function getOrderEmailRetryAt(attemptCount: number, failedAt: Date): Date {

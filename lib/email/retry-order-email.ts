@@ -13,6 +13,7 @@ type RetryOrderEmailDependencies = {
 const emailLabels: Record<OrderEmailKind, string> = {
   confirmation: "Confirmation",
   pickup_ready: "Pickup notification",
+  shipped: "Shipping notification",
 };
 
 export async function retryOrderEmailForAdmin(

@@ -12,6 +12,8 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
+
 export const productStatusValues = ["draft", "active", "archived"] as const;
 // `fulfilled` is the terminal state for both methods: shipped for shipping, collected for pickup.
 export const orderStatusValues = [
@@ -24,7 +26,7 @@ export const orderStatusValues = [
 ] as const;
 export const orderInventoryStatusValues = ["allocated", "exception"] as const;
 export const fulfillmentMethodValues = ["shipping", "pickup"] as const;
-export const orderEmailKindValues = ["confirmation", "pickup_ready"] as const;
+export const orderEmailKindValues = ["confirmation", "pickup_ready", "shipped"] as const;
 export const refundStatusValues = ["none", "partial", "full"] as const;
 export const disputeStatusValues = ["none", "open", "won", "lost", "prevented"] as const;
 export const stripePaymentEventKindValues = ["refund", "dispute"] as const;
@@ -47,6 +49,7 @@ export const productStatus = pgEnum("product_status", productStatusValues);
 export const orderStatus = pgEnum("order_status", orderStatusValues);
 export const orderInventoryStatus = pgEnum("order_inventory_status", orderInventoryStatusValues);
 export const fulfillmentMethod = pgEnum("fulfillment_method", fulfillmentMethodValues);
+export const shippingCarrier = pgEnum("shipping_carrier", shippingCarrierValues);
 export const orderEmailKind = pgEnum("order_email_kind", orderEmailKindValues);
 export const refundStatus = pgEnum("refund_status", refundStatusValues);
 export const disputeStatus = pgEnum("dispute_status", disputeStatusValues);
@@ -271,6 +274,11 @@ export const orders = pgTable(
     inventoryStatus: orderInventoryStatus("inventory_status").notNull().default("allocated"),
     fulfillmentMethod: fulfillmentMethod("fulfillment_method").notNull().default("shipping"),
     readyForPickupAt: timestamp("ready_for_pickup_at", { withTimezone: true }),
+    shippedAt: timestamp("shipped_at", { withTimezone: true }),
+    // Tracking is optional: not every shipment has a number, and the shipping notification is sent
+    // either way. Both columns are written together or not at all.
+    trackingCarrier: shippingCarrier("tracking_carrier"),
+    trackingNumber: text("tracking_number"),
     stripeSessionId: text("stripe_session_id").notNull(),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     refundStatus: refundStatus("refund_status").notNull().default("none"),
@@ -320,6 +328,22 @@ export const orders = pgTable(
       sql`${table.status}::text NOT IN ('ready_for_pickup', 'fulfilled')
         OR ${table.fulfillmentMethod} <> 'pickup'
         OR ${table.readyForPickupAt} IS NOT NULL`,
+    ),
+    // A number without a carrier cannot produce a tracking link, and a carrier without a number
+    // tells the customer nothing, so a half-recorded shipment is rejected outright.
+    check(
+      "orders_tracking_pair_complete",
+      sql`(${table.trackingCarrier} IS NULL AND ${table.trackingNumber} IS NULL)
+        OR (${table.trackingCarrier} IS NOT NULL AND ${table.trackingNumber} IS NOT NULL)`,
+    ),
+    // Shipment facts only exist for shipping orders; a pickup order is handed over in person.
+    // There is deliberately no "fulfilled shipping order must have shipped_at" check: orders
+    // fulfilled before this column existed have no shipment time, and inventing one would put
+    // fabricated history into the record.
+    check(
+      "orders_shipment_requires_shipping_method",
+      sql`(${table.shippedAt} IS NULL AND ${table.trackingNumber} IS NULL)
+        OR ${table.fulfillmentMethod} = 'shipping'`,
     ),
   ],
 );

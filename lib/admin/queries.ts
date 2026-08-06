@@ -268,6 +268,7 @@ export async function getAdminOrderById(input: unknown) {
     ...rest,
     confirmationDelivery: emailDeliveries.find((row) => row.kind === "confirmation") ?? null,
     pickupReadyDelivery: emailDeliveries.find((row) => row.kind === "pickup_ready") ?? null,
+    shippedDelivery: emailDeliveries.find((row) => row.kind === "shipped") ?? null,
   };
 }
 

@@ -9,7 +9,11 @@ import {
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
-import { formatAdminDate } from "@/lib/admin/format";
+import {
+  formatAdminDate,
+  formatOrderEmailFailureImpact,
+  formatOrderEmailKind,
+} from "@/lib/admin/format";
 import {
   getAdminAttentionItems,
   getAdminDashboardSummary,
@@ -186,17 +190,11 @@ export default async function AdminPage() {
               {attention.failedEmailDeliveries.map((delivery) => (
                 <AttentionItem
                   action="Retry email"
-                  description={`Gave up after ${delivery.attemptCount} ${delivery.attemptCount === 1 ? "attempt" : "attempts"}${delivery.lastErrorCode ? ` (${delivery.lastErrorCode})` : ""}. ${
-                    delivery.kind === "pickup_ready"
-                      ? "The customer has not been told their order is ready."
-                      : "The customer has no receipt."
-                  }`}
+                  description={`Gave up after ${delivery.attemptCount} ${delivery.attemptCount === 1 ? "attempt" : "attempts"}${delivery.lastErrorCode ? ` (${delivery.lastErrorCode})` : ""}. ${formatOrderEmailFailureImpact(delivery.kind)}`}
                   href={`/admin/orders/${delivery.order.id}` as Route}
                   icon={<MailWarning aria-hidden="true" className="size-4 text-amber-600" />}
                   key={delivery.id}
-                  title={`${delivery.order.orderNumber} — ${
-                    delivery.kind === "pickup_ready" ? "pickup" : "confirmation"
-                  } email failed`}
+                  title={`${delivery.order.orderNumber} — ${formatOrderEmailKind(delivery.kind)} email failed`}
                 />
               ))}
             </ul>

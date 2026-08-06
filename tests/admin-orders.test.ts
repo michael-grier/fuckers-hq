@@ -7,6 +7,7 @@ import {
   OrderFulfillmentError,
   type OrderFulfillmentRepository,
   type OrderFulfillmentState,
+  orderFulfillmentTransitionRules,
 } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import {
@@ -15,6 +16,7 @@ import {
   resolveInventoryException,
 } from "@/lib/orders/resolve-inventory-exception";
 import {
+  adminOrderIdSchema,
   markOrderShippedSchema,
   retryOrderEmailSchema,
   retryOrderInventoryAllocationSchema,
@@ -51,11 +53,48 @@ function makeBlockedRepository(state: OrderFulfillmentState | null): OrderFulfil
 }
 
 describe("order fulfillment transitions", () => {
-  test("accepts only an order UUID", () => {
+  test("accepts an order UUID with optional tracking", () => {
     expect(markOrderShippedSchema.parse({ orderId })).toEqual({ orderId });
     expect(() => markOrderShippedSchema.parse({ orderId: "not-an-order" })).toThrow();
     expect(() => markOrderShippedSchema.parse({ orderId, status: "refunded" })).toThrow();
+    expect(adminOrderIdSchema.parse({ orderId })).toEqual({ orderId });
     expect(retryOrderInventoryAllocationSchema.parse({ orderId })).toEqual({ orderId });
+  });
+
+  test("normalizes a tracking pair and rejects a half-filled one", () => {
+    expect(
+      markOrderShippedSchema.parse({
+        orderId,
+        trackingCarrier: "canada_post",
+        trackingNumber: "  1234  5678 ",
+      }),
+    ).toEqual({ orderId, trackingCarrier: "canada_post", trackingNumber: "1234 5678" });
+
+    // Blank strings are how the admin form reports "no tracking"; they must not fail validation.
+    expect(
+      markOrderShippedSchema.parse({ orderId, trackingCarrier: "", trackingNumber: "   " }),
+    ).toEqual({ orderId });
+
+    expect(() =>
+      markOrderShippedSchema.parse({ orderId, trackingCarrier: "canada_post" }),
+    ).toThrow();
+    expect(() => markOrderShippedSchema.parse({ orderId, trackingNumber: "1Z999" })).toThrow();
+    expect(() =>
+      markOrderShippedSchema.parse({ orderId, trackingCarrier: "pigeon", trackingNumber: "1Z999" }),
+    ).toThrow();
+  });
+
+  test("refuses a tracking number that could carry markup or a link into the email", () => {
+    for (const trackingNumber of [
+      "https://evil.example.com/track",
+      "<b>1Z999</b>",
+      "1Z999\nBcc: someone@example.com",
+      "1Z999?redirect=x",
+    ]) {
+      expect(() =>
+        markOrderShippedSchema.parse({ orderId, trackingCarrier: "ups", trackingNumber }),
+      ).toThrow();
+    }
   });
 
   test("conditionally changes a paid shipping order to fulfilled", async () => {
@@ -63,10 +102,45 @@ describe("order fulfillment transitions", () => {
     const now = new Date("2026-08-04T12:00:00.000Z");
 
     await expect(
-      applyOrderFulfillmentTransition(orderId, "ship", repository, now),
+      applyOrderFulfillmentTransition(orderId, "ship", repository, { now }),
     ).resolves.toEqual({ changed: true });
-    expect(repository.applyFulfillmentTransition).toHaveBeenCalledWith(orderId, "ship", now);
+    expect(repository.applyFulfillmentTransition).toHaveBeenCalledWith(orderId, "ship", now, null);
     expect(repository.findOrderFulfillmentState).not.toHaveBeenCalled();
+  });
+
+  test("records the shipment against a ship transition only", async () => {
+    const shipment = { carrier: "canada_post", trackingNumber: "1234 5678" } as const;
+    const shippingRepository = makeRepository();
+    const pickupRepository = makeRepository();
+    const now = new Date("2026-08-04T12:00:00.000Z");
+
+    await applyOrderFulfillmentTransition(orderId, "ship", shippingRepository, { now, shipment });
+    expect(shippingRepository.applyFulfillmentTransition).toHaveBeenCalledWith(
+      orderId,
+      "ship",
+      now,
+      shipment,
+    );
+
+    // Tracking has no meaning for an order collected in person, and persisting it would violate
+    // the orders_shipment_requires_shipping_method constraint.
+    await applyOrderFulfillmentTransition(orderId, "ready_for_pickup", pickupRepository, {
+      now,
+      shipment,
+    });
+    expect(pickupRepository.applyFulfillmentTransition).toHaveBeenCalledWith(
+      orderId,
+      "ready_for_pickup",
+      now,
+      null,
+    );
+  });
+
+  test("queues the customer notification each transition owes", () => {
+    expect(orderFulfillmentTransitionRules.ship.queuedEmailKind).toBe("shipped");
+    expect(orderFulfillmentTransitionRules.ready_for_pickup.queuedEmailKind).toBe("pickup_ready");
+    // Collection happens in person, so being handed the order is the notification.
+    expect(orderFulfillmentTransitionRules.picked_up.queuedEmailKind).toBeNull();
   });
 
   test("stages a paid pickup order, then completes it on collection", async () => {
