@@ -43,7 +43,7 @@ export default function HomePage() {
         {/* Hero copy anchors to the viewport edge (like the nav), not the content max-width. */}
         <div className="relative z-10 w-full px-6 pt-40 pb-12 lg:px-8">
           <h1 className="mt-3 max-w-[20ch] font-grotesk font-semibold text-4xl leading-[1.05] tracking-tight md:text-6xl">
-            Buy our stuff, we're broke.
+            Fuckers Skateboards
           </h1>
           <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">
             We work hard to support the Calgary skate community, support us by buying some gear!
