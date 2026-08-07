@@ -5,7 +5,14 @@ import {
   getCanonicalCatalogCategoryUrl,
   getCatalogHeading,
   getLegacyProductCategoryAlias,
+  getProductCategoryForSubcategory,
   getProductCategoryLabel,
+  getProductSubcategoryLabel,
+  getProductSubcategoryOptions,
+  isProductSubcategory,
+  isValidProductTaxonomyPair,
+  productSubcategories,
+  productSubcategoryValues,
 } from "@/lib/catalog/categories";
 import {
   catalogFilterUrlOptions,
@@ -229,6 +236,60 @@ describe("catalog category contract", () => {
         new URL("https://example.com/products?q=street+deck&category=decks&sort=name-asc&page=2"),
       )?.toString(),
     ).toBe("https://example.com/products?q=street+deck&category=hardgoods&sort=name-asc&page=2");
+  });
+});
+
+describe("catalog subcategory contract", () => {
+  test("maps the fixed taxonomy to its parent categories", () => {
+    expect(getProductSubcategoryOptions("hardgoods").map(({ value }) => value)).toEqual([
+      "decks",
+      "trucks",
+      "wheels",
+      "bearings",
+      "griptape",
+      "hardware",
+    ]);
+    expect(getProductSubcategoryOptions("softgoods").map(({ value }) => value)).toEqual([
+      "t-shirts",
+      "hoodies",
+      "jackets",
+      "pants",
+      "hats",
+      "socks",
+    ]);
+    expect(getProductSubcategoryOptions("accessories").map(({ value }) => value)).toEqual([
+      "stickers",
+      "patches",
+      "keychains",
+      "buttons",
+    ]);
+    // Every canonical value appears in exactly one parent group.
+    expect(productSubcategories.map(({ value }) => value).sort()).toEqual(
+      [...productSubcategoryValues].sort(),
+    );
+    expect(new Set(productSubcategoryValues).size).toBe(productSubcategoryValues.length);
+  });
+
+  test("uses canonical labels and parent lookups", () => {
+    expect(getProductSubcategoryLabel("t-shirts")).toBe("T-Shirts");
+    expect(getProductSubcategoryLabel("griptape")).toBe("Griptape");
+    expect(getProductSubcategoryLabel("skateboards")).toBe("Uncategorized");
+    expect(getProductSubcategoryLabel(null)).toBe("Uncategorized");
+    expect(getProductCategoryForSubcategory("decks")).toBe("hardgoods");
+    expect(getProductCategoryForSubcategory("hats")).toBe("softgoods");
+    expect(getProductCategoryForSubcategory("buttons")).toBe("accessories");
+  });
+
+  test("accepts only canonical parent-child pairs", () => {
+    expect(isProductSubcategory("bearings")).toBe(true);
+    expect(isProductSubcategory("bearing")).toBe(false);
+    expect(isValidProductTaxonomyPair("hardgoods", "decks")).toBe(true);
+    expect(isValidProductTaxonomyPair("softgoods", "jackets")).toBe(true);
+    expect(isValidProductTaxonomyPair("accessories", "stickers")).toBe(true);
+    expect(isValidProductTaxonomyPair("softgoods", "decks")).toBe(false);
+    expect(isValidProductTaxonomyPair("hardgoods", "t-shirts")).toBe(false);
+    expect(isValidProductTaxonomyPair("apparel", "t-shirts")).toBe(false);
+    expect(isValidProductTaxonomyPair("hardgoods", "unknown")).toBe(false);
   });
 });
 
