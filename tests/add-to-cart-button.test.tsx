@@ -11,6 +11,7 @@ const product: CatalogProduct = {
   name: "Database Deck",
   description: "A deck for testing",
   category: "hardgoods",
+  subcategory: "decks",
   createdAt: new Date("2026-07-26T00:00:00.000Z"),
   updatedAt: new Date("2026-07-26T00:00:00.000Z"),
   variants: [
