@@ -83,6 +83,8 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       id: productId,
       slug: "database-deck",
       name: "Database Deck",
+      category: "hardgoods",
+      subcategory: "decks",
       status: "active",
     });
   });
@@ -554,7 +556,8 @@ const postgresTestSchema = [
     slug text not null unique,
     name text not null,
     description text,
-    category text,
+    category text not null,
+    subcategory text not null,
     status text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()

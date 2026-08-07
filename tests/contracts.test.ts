@@ -182,12 +182,14 @@ describe("product validators", () => {
         name: "Street Deck",
         description: null,
         category: "hardgoods",
+        subcategory: "decks",
         status: "active",
       }),
     ).toMatchObject({
       slug: "street-deck",
       name: "Street Deck",
       category: "hardgoods",
+      subcategory: "decks",
       status: "active",
     });
   });
@@ -200,10 +202,33 @@ describe("product validators", () => {
           name: "Category Test",
           description: null,
           category,
+          subcategory: "decks",
           status: "draft",
         }).success,
       ).toBe(false);
     }
+  });
+
+  test("rejects missing and mismatched subcategory pairs on insert", () => {
+    expect(
+      productInsertSchema.safeParse({
+        slug: "pair-test",
+        name: "Pair Test",
+        description: null,
+        category: "hardgoods",
+        status: "draft",
+      }).success,
+    ).toBe(false);
+    expect(
+      productInsertSchema.safeParse({
+        slug: "pair-test",
+        name: "Pair Test",
+        description: null,
+        category: "hardgoods",
+        subcategory: "hoodies",
+        status: "draft",
+      }).success,
+    ).toBe(false);
   });
 });
 

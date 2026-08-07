@@ -28,6 +28,7 @@ export default function NewAdminProductPage() {
             slug: "",
             description: "",
             category: "",
+            subcategory: "",
             status: "draft",
           }}
         />
