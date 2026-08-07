@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -92,3 +93,30 @@ export const useCartStore = create<CartState>()(
     },
   ),
 );
+
+function subscribeToCartHydration(onStoreChange: () => void): () => void {
+  return useCartStore.persist.onFinishHydration(onStoreChange);
+}
+
+function getCartHydrationSnapshot(): boolean {
+  return useCartStore.persist.hasHydrated();
+}
+
+function getCartHydrationServerSnapshot(): boolean {
+  return false;
+}
+
+/**
+ * The cart only exists in localStorage, so the server and the hydrating client render both see an
+ * empty cart before the persisted state is read back. Gate any "the cart is empty" UI on this so a
+ * full document load — such as returning from Stripe's hosted checkout — cannot paint a false empty
+ * state. Reading through `useSyncExternalStore` keeps the server snapshot pinned to `false` while
+ * still reporting `true` on the first render of a client navigation, which has nothing to rehydrate.
+ */
+export function useCartHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeToCartHydration,
+    getCartHydrationSnapshot,
+    getCartHydrationServerSnapshot,
+  );
+}
