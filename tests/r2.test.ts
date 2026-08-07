@@ -122,11 +122,11 @@ describe("R2 product image upload contract", () => {
 });
 
 describe("admin product image form contract", () => {
-  test("accepts whole-number positions and rejects fractional positions", () => {
-    expect(adminProductImageFormSchema.parse({ alt: "Deck top", position: "0" })).toEqual({
+  test("accepts alt text and rejects the retired hand-typed position field", () => {
+    expect(adminProductImageFormSchema.parse({ alt: "Deck top" })).toEqual({
       alt: "Deck top",
-      position: "0",
     });
-    expect(() => adminProductImageFormSchema.parse({ alt: "Deck top", position: "1.5" })).toThrow();
+    // Ordering is now owned by the move action; a stray position must not pass.
+    expect(() => adminProductImageFormSchema.parse({ alt: "Deck top", position: "0" })).toThrow();
   });
 });

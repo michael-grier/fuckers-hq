@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { getDb } from "@/lib/db/client";
 import { readJsonRequest } from "@/lib/http/read-json-request";
 import { captureServerException } from "@/lib/observability/server";
 import { createProductImageUploadUrl, getProductImagePublicUrl, isR2Configured } from "@/lib/r2";
@@ -34,15 +33,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const product = await getDb().query.products.findFirst({
-      columns: { id: true },
-      where: (products, { eq }) => eq(products.id, parsed.data.productId),
-    });
-
-    if (!product) {
-      return NextResponse.json({ error: "Product not found." }, { status: 404 });
-    }
-
+    // The product id may not exist yet: the new-product composer pre-generates
+    // an id and uploads images before the product row is created. Presigning
+    // for an unknown id only risks an orphaned R2 object; the object key is
+    // claimed and re-verified by createProductFromComposer or
+    // createProductImage before it can reach the database.
     const objectKey = createProductImageObjectKey(parsed.data);
     const uploadUrl = await createProductImageUploadUrl({
       objectKey,

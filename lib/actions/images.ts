@@ -1,11 +1,12 @@
 "use server";
 
-import { and, eq, max } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
 import { deleteProductImageRecord } from "@/lib/admin/product-image-repository";
+import { moveVariantInList } from "@/lib/admin/variant-order";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidateProduct } from "@/lib/catalog/cache";
 import { getDb } from "@/lib/db/client";
@@ -28,6 +29,7 @@ import {
 import {
   adminProductImageCreateSchema,
   adminProductImageDeleteSchema,
+  adminProductImageMoveSchema,
   adminProductImageUpdateSchema,
 } from "@/lib/validators/product";
 
@@ -150,7 +152,6 @@ export async function updateProductImage(input: unknown): Promise<ActionResult> 
     .update(productImages)
     .set({
       alt: parsed.data.alt || null,
-      position: Number(parsed.data.position),
     })
     .where(
       and(
@@ -165,6 +166,87 @@ export async function updateProductImage(input: unknown): Promise<ActionResult> 
     success: true,
     data: undefined,
   };
+}
+
+export async function moveProductImage(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = adminProductImageMoveSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  const db = getDb();
+  const product = await db.query.products.findFirst({
+    columns: { slug: true },
+    where: (products, { eq }) => eq(products.id, parsed.data.productId),
+  });
+
+  if (!product) {
+    return {
+      success: false,
+      message: "Product not found.",
+    };
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const images = await tx
+        .select({
+          id: productImages.id,
+          position: productImages.position,
+        })
+        .from(productImages)
+        .where(eq(productImages.productId, parsed.data.productId))
+        .orderBy(asc(productImages.position), asc(productImages.id))
+        .for("update");
+
+      if (!images.some((image) => image.id === parsed.data.imageId)) {
+        return "not_found" as const;
+      }
+
+      const reordered = moveVariantInList(images, parsed.data.imageId, parsed.data.direction);
+
+      if (!reordered) {
+        // Already at the edge; nothing to change.
+        return "noop" as const;
+      }
+
+      // Rewrite sequential positions for the whole product. This also
+      // normalizes any duplicate positions left over from the era when
+      // positions were typed by hand.
+      for (const [index, image] of reordered.entries()) {
+        if (image.position !== index) {
+          await tx
+            .update(productImages)
+            .set({ position: index })
+            .where(eq(productImages.id, image.id));
+        }
+      }
+
+      return "moved" as const;
+    });
+
+    if (result === "not_found") {
+      return { success: false, message: "Product image not found." };
+    }
+
+    if (result === "moved") {
+      revalidateAdminProductImage(parsed.data.productId, product.slug);
+    }
+
+    return {
+      success: true,
+      data: undefined,
+    };
+  } catch (error) {
+    captureServerException(error, {
+      area: "admin",
+      operation: "admin.move-product-image",
+    });
+    throw error;
+  }
 }
 
 export async function deleteProductImage(input: unknown): Promise<ActionResult> {

@@ -144,6 +144,119 @@ export const adminVariantCreateSchema = adminVariantFormSchema.extend({
   productId: adminEntityIdSchema,
 });
 
+/** One editable variant row on the product workspace; `variantId` is absent for a new row. */
+export const adminVariantRowSchema = adminVariantFormSchema.extend({
+  variantId: adminEntityIdSchema.optional(),
+});
+
+/** The SKU unique index is case-sensitive, so duplicates are flagged by exact match only. */
+function flagDuplicateSkus(
+  input: { variants: ReadonlyArray<{ sku: string }> },
+  context: z.RefinementCtx,
+): void {
+  const seenSkus = new Set<string>();
+
+  input.variants.forEach((variant, index) => {
+    if (seenSkus.has(variant.sku)) {
+      context.addIssue({
+        code: "custom",
+        message: "This SKU appears twice in the list.",
+        path: ["variants", index, "sku"],
+      });
+      return;
+    }
+
+    seenSkus.add(variant.sku);
+  });
+}
+
+const productWorkspaceFields = {
+  slug: productInsertSchema.shape.slug,
+  name: productInsertSchema.shape.name,
+  description: z.string().trim().max(4000),
+  category: z
+    .string()
+    .trim()
+    .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+  status: z.enum(productStatusValues),
+  variants: z
+    .array(adminVariantRowSchema)
+    .max(100, "A product cannot hold more than 100 variants."),
+};
+
+/** Client-side shape of the unified product workspace form (details plus variant rows). */
+export const adminProductWorkspaceFormSchema = z
+  .object(productWorkspaceFields)
+  .strict()
+  .superRefine(flagDuplicateSkus);
+
+/** Server payload for saving the whole workspace in one action. */
+export const adminProductWorkspaceSchema = z
+  .object({ ...productWorkspaceFields, productId: adminEntityIdSchema })
+  .strict()
+  .superRefine(flagDuplicateSkus);
+
+const composerImageSchema = z
+  .object({
+    objectKey: productImageObjectKeySchema,
+    alt: z.string().trim().max(180),
+  })
+  .strict();
+
+const productComposerFields = {
+  slug: productInsertSchema.shape.slug,
+  name: productInsertSchema.shape.name,
+  description: z.string().trim().max(4000),
+  category: z
+    .string()
+    .trim()
+    .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+  variants: z
+    .array(adminVariantFormSchema)
+    .max(100, "A product cannot hold more than 100 variants."),
+};
+
+/** Client-side shape of the new-product composer form. */
+export const adminProductComposerFormSchema = z
+  .object(productComposerFields)
+  .strict()
+  .superRefine(flagDuplicateSkus);
+
+/**
+ * Server payload for the new-product composer. The page pre-generates the
+ * product id so images can be uploaded to R2 before the product row exists;
+ * every claimed object key must therefore sit under that id's prefix.
+ */
+export const adminProductComposerSchema = z
+  .object({
+    ...productComposerFields,
+    productId: adminEntityIdSchema,
+    intent: z.enum(["draft", "publish"]),
+    images: z.array(composerImageSchema).max(24, "A product cannot hold more than 24 images."),
+  })
+  .strict()
+  .superRefine((input, context) => {
+    flagDuplicateSkus(input, context);
+
+    if (input.intent === "publish" && input.variants.length === 0) {
+      context.addIssue({
+        code: "custom",
+        message: "Add at least one variant before publishing.",
+        path: ["variants"],
+      });
+    }
+
+    input.images.forEach((image, index) => {
+      if (!isProductImageObjectKey(image.objectKey, input.productId)) {
+        context.addIssue({
+          code: "custom",
+          message: "Image object key does not belong to this product.",
+          path: ["images", index, "objectKey"],
+        });
+      }
+    });
+  });
+
 export const adminVariantUpdateSchema = adminVariantCreateSchema.extend({
   variantId: adminEntityIdSchema,
 });
@@ -184,11 +297,14 @@ export const adminProductImageCreateSchema = z
 export const adminProductImageFormSchema = z
   .object({
     alt: z.string().trim().max(180),
-    position: z
-      .string()
-      .trim()
-      .regex(/^\d+$/, "Position must be a non-negative whole number.")
-      .refine((value) => Number(value) <= postgresIntegerMax, "Position is too large."),
+  })
+  .strict();
+
+export const adminProductImageMoveSchema = z
+  .object({
+    productId: adminEntityIdSchema,
+    imageId: adminEntityIdSchema,
+    direction: z.enum(["up", "down"]),
   })
   .strict();
 
@@ -232,5 +348,10 @@ export type ProductImageUpdate = z.infer<typeof productImageUpdateSchema>;
 export type AdminProductFormInput = z.input<typeof adminProductFormSchema>;
 export type AdminProductFormValues = z.output<typeof adminProductFormSchema>;
 export type AdminVariantFormInput = z.infer<typeof adminVariantFormSchema>;
+export type AdminVariantRowInput = z.infer<typeof adminVariantRowSchema>;
+export type AdminProductWorkspaceFormInput = z.input<typeof adminProductWorkspaceFormSchema>;
+export type AdminProductWorkspaceValues = z.output<typeof adminProductWorkspaceSchema>;
+export type AdminProductComposerFormInput = z.input<typeof adminProductComposerFormSchema>;
+export type AdminProductComposerValues = z.output<typeof adminProductComposerSchema>;
 export type AdminImageUploadFormInput = z.infer<typeof adminImageUploadFormSchema>;
 export type AdminProductImageFormInput = z.infer<typeof adminProductImageFormSchema>;
