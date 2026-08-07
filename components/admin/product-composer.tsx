@@ -6,7 +6,7 @@ import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type FieldPath, useFieldArray, useForm } from "react-hook-form";
 
 import {
@@ -40,11 +40,6 @@ type StagedImage = {
 };
 
 type ProductComposerProps = {
-  /**
-   * Pre-generated on the server so images can upload to R2 under the final
-   * product id before the product row exists.
-   */
-  productId: string;
   r2Configured: boolean;
 };
 
@@ -55,8 +50,14 @@ const emptyVariantRow = { name: "", sku: "", price: "", inventory: "0" };
  * rows are all editable before the first save, and one action creates the
  * whole product as a draft or publishes it immediately.
  */
-export function ProductComposer({ productId, r2Configured }: ProductComposerProps) {
+export function ProductComposer({ r2Configured }: ProductComposerProps) {
   const router = useRouter();
+  // Minted once per mounted composer so images can upload to R2 under the final
+  // product id before the product row exists. Generated here rather than on the
+  // server because a restored router-cache entry (browser Back after a create)
+  // would otherwise hand a second session an id that was already consumed,
+  // which the server can only reject as a duplicate product.
+  const [productId] = useState(() => crypto.randomUUID());
   const [actionError, setActionError] = useState<string | null>(null);
   const [stagedImages, setStagedImages] = useState<StagedImage[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -106,6 +107,9 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
   /** Drops rows the admin never touched so a blank row cannot block a draft. */
   function pruneEmptyVariantRows() {
     const rows = form.getValues("variants");
+    const keptRows = rows.filter(
+      (row) => row.name || row.sku || row.price || (row.inventory !== "" && row.inventory !== "0"),
+    );
 
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
@@ -114,13 +118,18 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
         variantRows.remove(index);
       }
     }
+
+    // Returned rather than re-read through getValues: the field-array removal
+    // above is applied for the next render, so the publish guard has to reason
+    // about the rows this call kept.
+    return keptRows;
   }
 
   function submitWithIntent(intent: "draft" | "publish") {
     setActionError(null);
-    pruneEmptyVariantRows();
+    const keptVariants = pruneEmptyVariantRows();
 
-    if (intent === "publish" && form.getValues("variants").length === 0) {
+    if (intent === "publish" && keptVariants.length === 0) {
       form.setError("variants", {
         message: "Add at least one variant before publishing.",
         type: "manual",
@@ -134,6 +143,7 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
       try {
         const result = await createProductFromComposer({
           ...values,
+          variants: keptVariants,
           productId,
           intent,
           images: stagedImages.map((image) => ({ objectKey: image.objectKey, alt: image.alt })),
@@ -145,6 +155,8 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
         }
 
         router.push(`/admin/products/${result.data.productId}` as Route);
+      } catch {
+        setActionError("The product could not be created. Try again shortly.");
       } finally {
         setPendingIntent(null);
       }
@@ -198,6 +210,35 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
       }
     }
   }
+
+  // Paste is advertised in the upload hint, so it has to work from anywhere on
+  // the page rather than only while the upload control holds focus. Pastes
+  // aimed at a text field are left alone so copying a value into an input is
+  // never hijacked.
+  useEffect(() => {
+    function onDocumentPaste(event: ClipboardEvent) {
+      const target = event.target;
+      const isTextEntry =
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement);
+
+      if (isTextEntry) {
+        return;
+      }
+
+      const file = event.clipboardData?.files?.[0];
+
+      if (file) {
+        event.preventDefault();
+        void stageFile(file);
+      }
+    }
+
+    document.addEventListener("paste", onDocumentPaste);
+    return () => document.removeEventListener("paste", onDocumentPaste);
+  });
 
   function removeStagedImage(objectKey: string) {
     // The uploaded object stays in R2 unclaimed; nothing references it and it
@@ -481,8 +522,11 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
                     return (
                       <tr className="align-top" key={field.id}>
                         <td className="min-w-28 px-4 py-2.5">
-                          <ComposerCell error={rowErrors?.name?.message}>
+                          <ComposerCell error={rowErrors?.name?.message} id={`${field.id}-name`}>
                             <Input
+                              aria-describedby={
+                                rowErrors?.name ? `${field.id}-name-error` : undefined
+                              }
                               aria-invalid={Boolean(rowErrors?.name)}
                               aria-label={`Variant ${index + 1} name`}
                               className="h-9"
@@ -492,8 +536,11 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
                           </ComposerCell>
                         </td>
                         <td className="min-w-32 px-4 py-2.5">
-                          <ComposerCell error={rowErrors?.sku?.message}>
+                          <ComposerCell error={rowErrors?.sku?.message} id={`${field.id}-sku`}>
                             <Input
+                              aria-describedby={
+                                rowErrors?.sku ? `${field.id}-sku-error` : undefined
+                              }
                               aria-invalid={Boolean(rowErrors?.sku)}
                               aria-label={`Variant ${index + 1} SKU`}
                               className="h-9 font-mono"
@@ -503,12 +550,15 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
                           </ComposerCell>
                         </td>
                         <td className="min-w-28 px-4 py-2.5">
-                          <ComposerCell error={rowErrors?.price?.message}>
+                          <ComposerCell error={rowErrors?.price?.message} id={`${field.id}-price`}>
                             <div className="flex">
                               <span className="inline-flex h-9 items-center rounded-l-md border border-input bg-muted px-2.5 text-muted-foreground text-sm">
                                 $
                               </span>
                               <Input
+                                aria-describedby={
+                                  rowErrors?.price ? `${field.id}-price-error` : undefined
+                                }
                                 aria-invalid={Boolean(rowErrors?.price)}
                                 aria-label={`Variant ${index + 1} price in dollars`}
                                 className="h-9 rounded-l-none border-l-0 tabular-nums"
@@ -520,8 +570,14 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
                           </ComposerCell>
                         </td>
                         <td className="min-w-20 px-4 py-2.5">
-                          <ComposerCell error={rowErrors?.inventory?.message}>
+                          <ComposerCell
+                            error={rowErrors?.inventory?.message}
+                            id={`${field.id}-inventory`}
+                          >
                             <Input
+                              aria-describedby={
+                                rowErrors?.inventory ? `${field.id}-inventory-error` : undefined
+                              }
                               aria-invalid={Boolean(rowErrors?.inventory)}
                               aria-label={`Variant ${index + 1} on-hand inventory`}
                               className="h-9 tabular-nums"
@@ -656,11 +712,23 @@ export function ProductComposer({ productId, r2Configured }: ProductComposerProp
   );
 }
 
-function ComposerCell({ children, error }: { children: React.ReactNode; error?: string }) {
+function ComposerCell({
+  children,
+  error,
+  id,
+}: {
+  children: React.ReactNode;
+  error?: string;
+  id: string;
+}) {
   return (
     <div>
       {children}
-      {error ? <p className="mt-1 text-destructive text-xs">{error}</p> : null}
+      {error ? (
+        <p className="mt-1 text-destructive text-xs" id={`${id}-error`}>
+          {error}
+        </p>
+      ) : null}
     </div>
   );
 }

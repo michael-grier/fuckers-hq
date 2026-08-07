@@ -259,6 +259,26 @@ describe("nested validation failure mapping", () => {
       expect(Object.keys(failure.fieldErrors ?? {})).toContain("variants.0.name");
     }
   });
+
+  test("surfaces root issues in the message instead of keying them to no field", () => {
+    // An unrecognized top-level key produces an issue with an empty path.
+    // Keying that as "" would point form.setError at a field that does not
+    // exist, leaving the admin with nothing highlighted and no explanation.
+    const result = adminProductWorkspaceSchema.safeParse({
+      ...workspacePayload,
+      unexpectedKey: "boom",
+    });
+
+    expect(result.success).toBe(false);
+
+    if (!result.success) {
+      const failure = nestedValidationFailure(result.error);
+
+      expect(Object.keys(failure.fieldErrors ?? {})).not.toContain("");
+      expect(failure.message).not.toBe("Please correct the highlighted fields.");
+      expect(failure.message.length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("suggestProductSlug", () => {

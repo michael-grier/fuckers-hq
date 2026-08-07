@@ -22,12 +22,18 @@ export async function uploadProductImageFile(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   });
-  const presignBody: unknown = await presignResponse.json();
+  // The route always answers with JSON, but an intermediary may not: a proxy
+  // error page or an empty body would make json() throw and surface as an
+  // unrelated R2 configuration message.
+  const presignBody: unknown = await presignResponse.json().catch(() => null);
 
   if (!presignResponse.ok) {
     return {
       success: false,
-      error: getApiError(presignBody, "Unable to prepare the image upload."),
+      error: getApiError(
+        presignBody,
+        `Unable to prepare the image upload (HTTP ${presignResponse.status}).`,
+      ),
     };
   }
 

@@ -84,19 +84,26 @@ export function ProductMediaPanel({
         );
       }
 
-      const result = await moveProductImage({ productId, imageId, direction });
+      try {
+        const result = await moveProductImage({ productId, imageId, direction });
 
-      if (!result.success) {
-        // React drops the optimistic order when the transition ends, so the
-        // list snaps back to the server order on failure. Clear the optimistic
-        // announcement too, or the live region keeps claiming a move that was
-        // rejected; the alert below carries the reason.
+        if (!result.success) {
+          // React drops the optimistic order when the transition ends, so the
+          // list snaps back to the server order on failure. Clear the optimistic
+          // announcement too, or the live region keeps claiming a move that was
+          // rejected; the alert below carries the reason.
+          setMoveAnnouncement("");
+          setMoveError(result.message);
+          return;
+        }
+
+        router.refresh();
+      } catch {
+        // The action rethrows after reporting to Sentry, so without this the
+        // rejection would surface nowhere and the arrows would look inert.
         setMoveAnnouncement("");
-        setMoveError(result.message);
-        return;
+        setMoveError("The image could not be moved. Try again shortly.");
       }
-
-      router.refresh();
     });
   }
 

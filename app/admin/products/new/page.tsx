@@ -6,10 +6,6 @@ import { Button } from "@/components/ui/button";
 import { isR2Configured } from "@/lib/r2";
 
 export default function NewAdminProductPage() {
-  // Generated per visit so images can upload to R2 under the final product id
-  // before the product row exists; createProductFromComposer claims it.
-  const draftProductId = crypto.randomUUID();
-
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -26,7 +22,7 @@ export default function NewAdminProductPage() {
         </div>
       </div>
 
-      <ProductComposer productId={draftProductId} r2Configured={isR2Configured()} />
+      <ProductComposer r2Configured={isR2Configured()} />
     </div>
   );
 }

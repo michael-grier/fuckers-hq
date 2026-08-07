@@ -60,9 +60,13 @@ export function ProductWorkspace({
   const router = useRouter();
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [reservedById, setReservedById] = useState(reservedQuantities);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isMovingVariant, setIsMovingVariant] = useState(false);
   const [deletingVariantId, setDeletingVariantId] = useState<string | null>(null);
+  // Read straight from props rather than held in state: checkout owns these
+  // numbers, so a router.refresh() after any activity has to be able to correct
+  // the availability column rather than leave a stale snapshot on screen.
+  const reservedById = reservedQuantities;
   const form = useForm<AdminProductWorkspaceFormInput>({
     defaultValues,
     resolver: zodResolver(adminProductWorkspaceFormSchema),
@@ -71,7 +75,8 @@ export function ProductWorkspace({
 
   const errors = form.formState.errors;
   const isDirty = form.formState.isDirty;
-  const busy = form.formState.isSubmitting || isArchiving || deletingVariantId !== null;
+  const busy =
+    form.formState.isSubmitting || isArchiving || isMovingVariant || deletingVariantId !== null;
   const watchedVariants = form.watch("variants");
   const watchedStatus = form.watch("status");
 
@@ -94,7 +99,14 @@ export function ProductWorkspace({
     setActionError(null);
     setSuccessMessage(null);
 
-    const result = await saveProductWorkspace({ ...values, productId });
+    let result: Awaited<ReturnType<typeof saveProductWorkspace>>;
+
+    try {
+      result = await saveProductWorkspace({ ...values, productId });
+    } catch {
+      setActionError("The product could not be saved. Try again shortly.");
+      return;
+    }
 
     if (!result.success) {
       showActionFailure(result);
@@ -111,10 +123,8 @@ export function ProductWorkspace({
       status: values.status,
       variants: result.data.variants.map(toFormRow),
     });
-    setReservedById(
-      Object.fromEntries(result.data.variants.map((row) => [row.variantId, row.reservedQty])),
-    );
     setSuccessMessage("Product saved.");
+    // Reserved quantities come back with the refreshed props.
     router.refresh();
   }
 
@@ -138,6 +148,8 @@ export function ProductWorkspace({
       form.reset({ ...form.getValues(), status: "archived" });
       setSuccessMessage("Product archived.");
       router.refresh();
+    } catch {
+      setActionError("The product could not be archived. Try again shortly.");
     } finally {
       setIsArchiving(false);
     }
@@ -174,6 +186,8 @@ export function ProductWorkspace({
 
       variantRows.remove(index);
       router.refresh();
+    } catch {
+      setActionError("The variant could not be deleted. Try again shortly.");
     } finally {
       setDeletingVariantId(null);
     }
@@ -184,34 +198,45 @@ export function ProductWorkspace({
     const targetIndex = direction === "up" ? index - 1 : index + 1;
     const neighbor = watchedVariants[targetIndex];
 
-    if (!row?.variantId || !neighbor?.variantId) {
+    // isMovingVariant feeds `busy`, which disables the arrows: a second move
+    // issued while the first is in flight would send a direction derived from
+    // the optimistic order while the server still holds the previous one.
+    if (!row?.variantId || !neighbor?.variantId || isMovingVariant) {
       return;
     }
 
     setActionError(null);
     const wasDirty = form.formState.isDirty;
     variantRows.move(index, targetIndex);
+    setIsMovingVariant(true);
 
-    const result = await moveVariant({
-      productId,
-      variantId: row.variantId,
-      direction,
-    });
+    try {
+      const result = await moveVariant({
+        productId,
+        variantId: row.variantId,
+        direction,
+      });
 
-    if (!result.success) {
+      if (!result.success) {
+        variantRows.move(targetIndex, index);
+        setActionError(result.message);
+        return;
+      }
+
+      // A move persists immediately, but reordering the field array makes the
+      // form compare unequal to its defaults. Re-baseline a clean form so the
+      // save bar does not claim unsaved changes after a pure reorder.
+      if (!wasDirty) {
+        form.reset(form.getValues());
+      }
+
+      router.refresh();
+    } catch {
       variantRows.move(targetIndex, index);
-      setActionError(result.message);
-      return;
+      setActionError("The variant could not be moved. Try again shortly.");
+    } finally {
+      setIsMovingVariant(false);
     }
-
-    // A move persists immediately, but reordering the field array makes the
-    // form compare unequal to its defaults. Re-baseline a clean form so the
-    // save bar does not claim unsaved changes after a pure reorder.
-    if (!wasDirty) {
-      form.reset(form.getValues());
-    }
-
-    router.refresh();
   }
 
   const inventoryTotals = summarizeInventory(watchedVariants, reservedById);
@@ -377,6 +402,9 @@ export function ProductWorkspace({
                         <td className="min-w-28 px-3 py-2.5">
                           <VariantCell error={rowErrors?.name?.message} id={`${field.id}-name`}>
                             <Input
+                              aria-describedby={
+                                rowErrors?.name ? `${field.id}-name-error` : undefined
+                              }
                               aria-invalid={Boolean(rowErrors?.name)}
                               aria-label={`Variant ${index + 1} name`}
                               className="h-9"
@@ -388,6 +416,9 @@ export function ProductWorkspace({
                         <td className="min-w-32 px-3 py-2.5">
                           <VariantCell error={rowErrors?.sku?.message} id={`${field.id}-sku`}>
                             <Input
+                              aria-describedby={
+                                rowErrors?.sku ? `${field.id}-sku-error` : undefined
+                              }
                               aria-invalid={Boolean(rowErrors?.sku)}
                               aria-label={`Variant ${index + 1} SKU`}
                               className="h-9 font-mono"
@@ -403,6 +434,9 @@ export function ProductWorkspace({
                                 $
                               </span>
                               <Input
+                                aria-describedby={
+                                  rowErrors?.price ? `${field.id}-price-error` : undefined
+                                }
                                 aria-invalid={Boolean(rowErrors?.price)}
                                 aria-label={`Variant ${index + 1} price in dollars`}
                                 className="h-9 rounded-l-none border-l-0 tabular-nums"
@@ -419,6 +453,9 @@ export function ProductWorkspace({
                             id={`${field.id}-inventory`}
                           >
                             <Input
+                              aria-describedby={
+                                rowErrors?.inventory ? `${field.id}-inventory-error` : undefined
+                              }
                               aria-invalid={Boolean(rowErrors?.inventory)}
                               aria-label={`Variant ${index + 1} on-hand inventory`}
                               className="h-9 tabular-nums"
@@ -573,6 +610,13 @@ export function ProductWorkspace({
         </div>
       </div>
 
+      {/* Mounted for the life of the page: several screen readers only announce
+          changes inside a live region that already existed, and the save bar
+          below appears at the same moment its message does. */}
+      <p aria-live="polite" className="sr-only" role="status">
+        {successMessage ?? ""}
+      </p>
+
       {/* ===== Sticky save bar, visible only while something is unsaved ===== */}
       {isDirty || actionError || successMessage ? (
         <div className="sticky bottom-4 z-30 mt-4">
@@ -588,7 +632,7 @@ export function ProductWorkspace({
                   <p className="font-medium">Unsaved changes</p>
                 </>
               ) : (
-                <p role="status">{successMessage}</p>
+                <p>{successMessage}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
