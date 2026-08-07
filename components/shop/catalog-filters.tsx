@@ -1,18 +1,35 @@
 "use client";
 
 import { Search } from "lucide-react";
-import { parseAsInteger, parseAsString, parseAsStringEnum, useQueryStates } from "nuqs";
+import {
+  parseAsInteger,
+  parseAsNativeArrayOf,
+  parseAsString,
+  parseAsStringEnum,
+  useQueryStates,
+} from "nuqs";
 import { useTransition } from "react";
 
+import { CatalogFilterPopover } from "@/components/shop/catalog-filter-popover";
 import { Input } from "@/components/ui/input";
+import {
+  type ProductCategory,
+  type ProductSubcategory,
+  productCategoryValues,
+  productSubcategoryValues,
+} from "@/lib/catalog/categories";
+import type { CatalogFilterUpdate } from "@/lib/catalog/filter-staging";
 import {
   type CatalogSort,
   catalogFilterUrlOptions,
   catalogSortValues,
+  resolveCatalogTaxonomy,
   withFirstCatalogPage,
 } from "@/lib/catalog/search-params";
 
 const catalogSortParserValues = [...catalogSortValues];
+const catalogCategoryParserValues = [...productCategoryValues];
+const catalogSubcategoryParserValues = [...productSubcategoryValues];
 
 type CatalogFiltersProps = {
   totalProducts: number;
@@ -23,6 +40,13 @@ export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
   const [filters, setFilters] = useQueryStates(
     {
       q: parseAsString.withDefault(""),
+      category: parseAsStringEnum<ProductCategory>(catalogCategoryParserValues),
+      categories: parseAsNativeArrayOf(
+        parseAsStringEnum<ProductCategory>(catalogCategoryParserValues),
+      ),
+      subcategories: parseAsNativeArrayOf(
+        parseAsStringEnum<ProductSubcategory>(catalogSubcategoryParserValues),
+      ),
       sort: parseAsStringEnum<CatalogSort>(catalogSortParserValues).withDefault("newest"),
       page: parseAsInteger.withDefault(1),
     },
@@ -31,6 +55,15 @@ export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
       startTransition,
     },
   );
+
+  // The same reduction the server applies, so the active count and staged checkboxes never
+  // reflect ignored parameters (stray multi-category values on scoped views, orphans, dupes).
+  const appliedTaxonomy = resolveCatalogTaxonomy(filters);
+
+  async function applyTaxonomyFilters(update: CatalogFilterUpdate) {
+    // One atomic non-shallow update with pushed history so Back restores the previous filters.
+    await setFilters(withFirstCatalogPage(update), { history: "push" });
+  }
 
   return (
     <section className="space-y-4 border-b pb-6">
@@ -57,6 +90,13 @@ export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
           <p className="min-w-24 text-muted-foreground text-sm" aria-live="polite">
             {isPending ? "Updating" : `${totalProducts} items`}
           </p>
+          <CatalogFilterPopover
+            appliedCategories={appliedTaxonomy.categories}
+            appliedSubcategories={appliedTaxonomy.subcategories}
+            isPending={isPending}
+            onApply={applyTaxonomyFilters}
+            scopedCategory={appliedTaxonomy.scopedCategory}
+          />
           <label className="flex items-center gap-2 text-sm">
             <span className="font-semibold">Sort</span>
             <select
