@@ -127,6 +127,26 @@ describe("cart store", () => {
     expect(useCartStore.getState().isCartOpen).toBe(false);
   });
 
+  // A corrupt payload makes zustand's `getItem` throw, which leaves hydration permanently unfinished
+  // and would strand the cart page on the loading skeleton it now shows until hydration settles.
+  test("settles hydration and discards a corrupt persisted cart", async () => {
+    storage.setItem("fuckers-hq-cart", '{"state":{"lines":[');
+
+    let finishedHydration = false;
+    const unsubscribe = useCartStore.persist.onFinishHydration(() => {
+      finishedHydration = true;
+    });
+
+    await useCartStore.persist.rehydrate();
+    unsubscribe();
+
+    // The page subscribes to this listener, so it has to fire even on unreadable data.
+    expect(finishedHydration).toBe(true);
+    expect(useCartStore.persist.hasHydrated()).toBe(true);
+    expect(useCartStore.getState().lines).toEqual([]);
+    expect(storage.getItem("fuckers-hq-cart")).toBeNull();
+  });
+
   test("builds checkout intent without display snapshot fields", () => {
     useCartStore.getState().addLine({ ...deck, quantity: 2 });
 
