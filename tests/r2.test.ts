@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { uploadProductImageFile } from "@/lib/admin/product-image-upload";
 import {
   buildR2PublicUrl,
   createProductImageObjectKey,
@@ -122,11 +123,82 @@ describe("R2 product image upload contract", () => {
 });
 
 describe("admin product image form contract", () => {
-  test("accepts whole-number positions and rejects fractional positions", () => {
-    expect(adminProductImageFormSchema.parse({ alt: "Deck top", position: "0" })).toEqual({
+  test("accepts alt text and rejects the retired hand-typed position field", () => {
+    expect(adminProductImageFormSchema.parse({ alt: "Deck top" })).toEqual({
       alt: "Deck top",
-      position: "0",
     });
-    expect(() => adminProductImageFormSchema.parse({ alt: "Deck top", position: "1.5" })).toThrow();
+    // Ordering is now owned by the move action; a stray position must not pass.
+    expect(() => adminProductImageFormSchema.parse({ alt: "Deck top", position: "0" })).toThrow();
+  });
+});
+
+describe("uploadProductImageFile", () => {
+  const request = {
+    productId: "9c786325-fb57-46e3-b3ed-a60b653b3ad8",
+    fileName: "deck-front.jpg",
+    contentType: "image/jpeg",
+    size: 1024,
+  } as const;
+  const file = new File([new Uint8Array(4)], "deck-front.jpg", { type: "image/jpeg" });
+
+  async function withStubbedFetch<T>(
+    responder: (input: string) => Response,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL) =>
+      Promise.resolve(responder(String(input)))) as typeof fetch;
+
+    try {
+      return await run();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  }
+
+  test("returns a failure when the presign response is not JSON", async () => {
+    // A proxy error page rather than the route's JSON body: json() would throw
+    // and the caller would blame the R2 configuration instead of the gateway.
+    const result = await withStubbedFetch(
+      () => new Response("<html>502 Bad Gateway</html>", { status: 502 }),
+      () => uploadProductImageFile(request, file),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.success ? "" : result.error).toContain("502");
+  });
+
+  test("returns the object key once the upload succeeds", async () => {
+    const objectKey = `products/${request.productId}/20000000-0000-4000-8000-000000000002-deck-front.jpg`;
+    const result = await withStubbedFetch(
+      (input) =>
+        input.includes("/api/admin/upload-url")
+          ? Response.json({
+              uploadUrl: "https://r2.example.com/signed",
+              objectKey,
+              publicUrl: `https://images.example.com/${objectKey}`,
+            })
+          : new Response(null, { status: 200 }),
+      () => uploadProductImageFile(request, file),
+    );
+
+    expect(result).toEqual({ success: true, objectKey });
+  });
+
+  test("reports an upload that R2 rejects", async () => {
+    const objectKey = `products/${request.productId}/20000000-0000-4000-8000-000000000002-deck-front.jpg`;
+    const result = await withStubbedFetch(
+      (input) =>
+        input.includes("/api/admin/upload-url")
+          ? Response.json({
+              uploadUrl: "https://r2.example.com/signed",
+              objectKey,
+              publicUrl: `https://images.example.com/${objectKey}`,
+            })
+          : new Response(null, { status: 403 }),
+      () => uploadProductImageFile(request, file),
+    );
+
+    expect(result.success).toBe(false);
   });
 });
