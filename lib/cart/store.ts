@@ -1,7 +1,8 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { createJSONStorage, type PersistStorage, persist } from "zustand/middleware";
 
 import { MAX_CART_LINE_QUANTITY } from "./constants";
 import type { AddCartLineInput, CartDisplayLine, CartFulfillmentMethod } from "./types";
@@ -20,8 +21,38 @@ type CartState = {
   clear: () => void;
 };
 
+type PersistedCartState = Pick<CartState, "lines" | "fulfillmentMethod">;
+
 function clampQuantity(quantity: number): number {
   return Math.min(Math.max(Math.trunc(quantity), 1), MAX_CART_LINE_QUANTITY);
+}
+
+/**
+ * `createJSONStorage` lets `JSON.parse` throw, and zustand answers a throwing `getItem` by leaving
+ * `hasHydrated()` false and never running its finish-hydration listeners. Anything gated on
+ * hydration would then wait forever, so a corrupt payload would strand `/cart` on its skeleton.
+ * A cart we cannot parse is not worth recovering: drop it so hydration settles on an empty cart,
+ * which is what a shopper saw for corrupt data before hydration was gated at all.
+ */
+function createCartStorage(): PersistStorage<PersistedCartState> | undefined {
+  const storage = createJSONStorage<PersistedCartState>(() => localStorage);
+
+  if (!storage) {
+    return undefined;
+  }
+
+  return {
+    ...storage,
+    // localStorage is synchronous, so a parse failure surfaces as a throw rather than a rejection.
+    getItem: (name) => {
+      try {
+        return storage.getItem(name);
+      } catch {
+        storage.removeItem(name);
+        return null;
+      }
+    },
+  };
 }
 
 export const useCartStore = create<CartState>()(
@@ -84,11 +115,38 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: "fuckers-hq-cart",
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
+      storage: createCartStorage(),
+      partialize: (state): PersistedCartState => ({
         lines: state.lines,
         fulfillmentMethod: state.fulfillmentMethod,
       }),
     },
   ),
 );
+
+function subscribeToCartHydration(onStoreChange: () => void): () => void {
+  return useCartStore.persist.onFinishHydration(onStoreChange);
+}
+
+function getCartHydrationSnapshot(): boolean {
+  return useCartStore.persist.hasHydrated();
+}
+
+function getCartHydrationServerSnapshot(): boolean {
+  return false;
+}
+
+/**
+ * The cart only exists in localStorage, so the server and the hydrating client render both see an
+ * empty cart before the persisted state is read back. Gate any "the cart is empty" UI on this so a
+ * full document load — such as returning from Stripe's hosted checkout — cannot paint a false empty
+ * state. Reading through `useSyncExternalStore` keeps the server snapshot pinned to `false` while
+ * still reporting `true` on the first render of a client navigation, which has nothing to rehydrate.
+ */
+export function useCartHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeToCartHydration,
+    getCartHydrationSnapshot,
+    getCartHydrationServerSnapshot,
+  );
+}

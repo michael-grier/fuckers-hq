@@ -8,13 +8,50 @@ import { CheckoutButton } from "@/components/cart/checkout-button";
 import { FulfillmentPicker } from "@/components/cart/fulfillment-picker";
 import { EmptyState } from "@/components/shop/empty-state";
 import { Button } from "@/components/ui/button";
-import { useCartStore } from "@/lib/cart/store";
+import { useCartHydrated, useCartStore } from "@/lib/cart/store";
+import type { CartDisplayLine } from "@/lib/cart/types";
 import type { PickupLocation } from "@/lib/checkout/pickup";
 
-export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocation | null }) {
-  const lines = useCartStore((state) => state.lines);
-  const clear = useCartStore((state) => state.clear);
+const skeletonLines = ["line-one", "line-two"];
 
+type CartPageContentProps = {
+  lines: CartDisplayLine[];
+  onClear: () => void;
+  // Required rather than defaulted: omitting it would silently drop pickup from checkout.
+  pickupLocation: PickupLocation | null;
+};
+
+function CartPageSkeleton() {
+  return (
+    <div aria-busy="true" className="grid gap-8 lg:grid-cols-[1fr_22rem]" role="status">
+      <span className="sr-only">Loading your cart.</span>
+      <section aria-hidden="true">
+        <div className="flex items-center justify-between gap-4 border-b pb-4">
+          <div className="h-10 w-32 animate-pulse rounded bg-muted" />
+          <div className="h-9 w-28 animate-pulse rounded-md bg-muted" />
+        </div>
+        {skeletonLines.map((line) => (
+          <div className="grid gap-4 border-b py-5 sm:grid-cols-[6rem_1fr_auto]" key={line}>
+            <div className="aspect-square animate-pulse rounded-md bg-muted" />
+            <div className="space-y-2">
+              <div className="h-6 w-2/3 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-1/3 animate-pulse rounded bg-muted" />
+              <div className="h-9 w-32 animate-pulse rounded-md bg-muted" />
+            </div>
+            <div className="h-6 w-20 animate-pulse rounded bg-muted sm:justify-self-end" />
+          </div>
+        ))}
+      </section>
+      <div aria-hidden="true" className="space-y-4">
+        <div className="h-28 animate-pulse rounded-lg bg-muted" />
+        <div className="h-32 animate-pulse rounded-lg bg-muted" />
+        <div className="h-11 animate-pulse rounded-md bg-muted" />
+      </div>
+    </div>
+  );
+}
+
+export function CartPageContent({ lines, onClear, pickupLocation }: CartPageContentProps) {
   if (lines.length === 0) {
     return (
       <EmptyState
@@ -31,7 +68,7 @@ export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocat
       <section>
         <div className="flex items-center justify-between gap-4 border-b pb-4">
           <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Cart</h1>
-          <Button onClick={clear} type="button" variant="outline">
+          <Button onClick={onClear} type="button" variant="outline">
             Clear cart
           </Button>
         </div>
@@ -51,4 +88,19 @@ export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocat
       </div>
     </div>
   );
+}
+
+export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocation | null }) {
+  const lines = useCartStore((state) => state.lines);
+  const clear = useCartStore((state) => state.clear);
+  const isHydrated = useCartHydrated();
+
+  // Stripe's cancel_url sends the shopper back here as a full document load, so the persisted cart
+  // is still unread on the server render. Showing the skeleton until then keeps a stocked cart from
+  // being announced as empty.
+  if (!isHydrated) {
+    return <CartPageSkeleton />;
+  }
+
+  return <CartPageContent lines={lines} onClear={clear} pickupLocation={pickupLocation} />;
 }
