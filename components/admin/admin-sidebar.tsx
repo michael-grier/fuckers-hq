@@ -14,9 +14,12 @@ export function AdminSidebar() {
 
   return (
     <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-surface-chrome text-white lg:flex">
-      <Link className="px-6 pt-6 pb-4 outline-none focus-visible:text-accent" href="/admin">
+      <Link
+        className="flex flex-col items-center px-6 pt-6 pb-4 outline-none focus-visible:text-accent"
+        href="/admin"
+      >
         <BrandLogo />
-        <span className="mt-1 block font-sans font-semibold text-white/50 text-xs uppercase tracking-widest">
+        <span className="mt-1 font-sans font-semibold text-white/50 text-xs uppercase tracking-widest">
           Admin
         </span>
       </Link>
