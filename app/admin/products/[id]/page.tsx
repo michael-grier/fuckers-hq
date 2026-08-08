@@ -60,7 +60,8 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
               name: product.name,
               slug: product.slug,
               description: product.description ?? "",
-              category: product.category ?? "",
+              category: product.category,
+              subcategory: product.subcategory,
               status: product.status,
             }}
             productId={product.id}

@@ -5,11 +5,20 @@ import {
   getCanonicalCatalogCategoryUrl,
   getCatalogHeading,
   getLegacyProductCategoryAlias,
+  getProductCategoryForSubcategory,
   getProductCategoryLabel,
+  getProductSubcategoryLabel,
+  getProductSubcategoryOptions,
+  isProductSubcategory,
+  isValidProductTaxonomyPair,
+  productSubcategories,
+  productSubcategoryValues,
 } from "@/lib/catalog/categories";
 import {
   catalogFilterUrlOptions,
   catalogSearchParamsCache,
+  matchesCatalogTaxonomy,
+  resolveCatalogTaxonomy,
   withFirstCatalogPage,
 } from "@/lib/catalog/search-params";
 import { parseEnv } from "@/lib/env";
@@ -175,12 +184,14 @@ describe("product validators", () => {
         name: "Street Deck",
         description: null,
         category: "hardgoods",
+        subcategory: "decks",
         status: "active",
       }),
     ).toMatchObject({
       slug: "street-deck",
       name: "Street Deck",
       category: "hardgoods",
+      subcategory: "decks",
       status: "active",
     });
   });
@@ -193,10 +204,33 @@ describe("product validators", () => {
           name: "Category Test",
           description: null,
           category,
+          subcategory: "decks",
           status: "draft",
         }).success,
       ).toBe(false);
     }
+  });
+
+  test("rejects missing and mismatched subcategory pairs on insert", () => {
+    expect(
+      productInsertSchema.safeParse({
+        slug: "pair-test",
+        name: "Pair Test",
+        description: null,
+        category: "hardgoods",
+        status: "draft",
+      }).success,
+    ).toBe(false);
+    expect(
+      productInsertSchema.safeParse({
+        slug: "pair-test",
+        name: "Pair Test",
+        description: null,
+        category: "hardgoods",
+        subcategory: "hoodies",
+        status: "draft",
+      }).success,
+    ).toBe(false);
   });
 });
 
@@ -232,6 +266,61 @@ describe("catalog category contract", () => {
   });
 });
 
+describe("catalog subcategory contract", () => {
+  test("maps the fixed taxonomy to its parent categories", () => {
+    expect(getProductSubcategoryOptions("hardgoods").map(({ value }) => value)).toEqual([
+      "decks",
+      "trucks",
+      "wheels",
+      "bearings",
+      "griptape",
+      "hardware",
+    ]);
+    expect(getProductSubcategoryOptions("softgoods").map(({ value }) => value)).toEqual([
+      "t-shirts",
+      "hoodies",
+      "jackets",
+      "pants",
+      "hats",
+      "socks",
+    ]);
+    expect(getProductSubcategoryOptions("accessories").map(({ value }) => value)).toEqual([
+      "stickers",
+      "patches",
+      "keychains",
+      "buttons",
+      "papers",
+    ]);
+    // Every canonical value appears in exactly one parent group.
+    expect(productSubcategories.map(({ value }) => value).sort()).toEqual(
+      [...productSubcategoryValues].sort(),
+    );
+    expect(new Set(productSubcategoryValues).size).toBe(productSubcategoryValues.length);
+  });
+
+  test("uses canonical labels and parent lookups", () => {
+    expect(getProductSubcategoryLabel("t-shirts")).toBe("T-Shirts");
+    expect(getProductSubcategoryLabel("griptape")).toBe("Griptape");
+    expect(getProductSubcategoryLabel("skateboards")).toBe("Uncategorized");
+    expect(getProductSubcategoryLabel(null)).toBe("Uncategorized");
+    expect(getProductCategoryForSubcategory("decks")).toBe("hardgoods");
+    expect(getProductCategoryForSubcategory("hats")).toBe("softgoods");
+    expect(getProductCategoryForSubcategory("buttons")).toBe("accessories");
+  });
+
+  test("accepts only canonical parent-child pairs", () => {
+    expect(isProductSubcategory("bearings")).toBe(true);
+    expect(isProductSubcategory("bearing")).toBe(false);
+    expect(isValidProductTaxonomyPair("hardgoods", "decks")).toBe(true);
+    expect(isValidProductTaxonomyPair("softgoods", "jackets")).toBe(true);
+    expect(isValidProductTaxonomyPair("accessories", "stickers")).toBe(true);
+    expect(isValidProductTaxonomyPair("softgoods", "decks")).toBe(false);
+    expect(isValidProductTaxonomyPair("hardgoods", "t-shirts")).toBe(false);
+    expect(isValidProductTaxonomyPair("apparel", "t-shirts")).toBe(false);
+    expect(isValidProductTaxonomyPair("hardgoods", "unknown")).toBe(false);
+  });
+});
+
 describe("catalog filter URL contract", () => {
   test("notifies the server and resets pagination with each control update", () => {
     expect(catalogFilterUrlOptions).toEqual({ shallow: false });
@@ -240,6 +329,112 @@ describe("catalog filter URL contract", () => {
       sort: "price-asc",
       page: 1,
     });
+    expect(withFirstCatalogPage({ categories: ["hardgoods"], subcategories: null })).toEqual({
+      categories: ["hardgoods"],
+      subcategories: null,
+      page: 1,
+    });
+  });
+
+  test("parses repeated native-array parameters and discards invalid values", async () => {
+    const parsed = await catalogSearchParamsCache.parse({
+      categories: ["hardgoods", "softgoods", "bogus"],
+      subcategories: ["decks", "t-shirts", "skateboards"],
+    });
+
+    expect(parsed.categories).toEqual(["hardgoods", "softgoods"]);
+    expect(parsed.subcategories).toEqual(["decks", "t-shirts"]);
+    expect(parsed.category).toBeNull();
+
+    const single = await catalogSearchParamsCache.parse({ categories: "hardgoods" });
+
+    expect(single.categories).toEqual(["hardgoods"]);
+    expect(single.subcategories).toEqual([]);
+  });
+});
+
+describe("catalog taxonomy filter semantics", () => {
+  const deck = { category: "hardgoods", subcategory: "decks" };
+  const trucks = { category: "hardgoods", subcategory: "trucks" };
+  const tee = { category: "softgoods", subcategory: "t-shirts" };
+  const sticker = { category: "accessories", subcategory: "stickers" };
+
+  test("a scoped view locks its category and accepts only its own subcategories", () => {
+    const scoped = resolveCatalogTaxonomy({
+      category: "hardgoods",
+      categories: ["softgoods", "accessories"],
+      subcategories: ["decks", "t-shirts", "decks"],
+    });
+
+    expect(scoped).toEqual({
+      scopedCategory: "hardgoods",
+      categories: [],
+      subcategories: ["decks"],
+    });
+    expect(matchesCatalogTaxonomy(deck, scoped)).toBe(true);
+    expect(matchesCatalogTaxonomy(trucks, scoped)).toBe(false);
+    expect(matchesCatalogTaxonomy(tee, scoped)).toBe(false);
+  });
+
+  test("a scoped view without subcategories includes the whole category", () => {
+    const scoped = resolveCatalogTaxonomy({
+      category: "softgoods",
+      categories: [],
+      subcategories: ["decks"],
+    });
+
+    expect(scoped.subcategories).toEqual([]);
+    expect(matchesCatalogTaxonomy(tee, scoped)).toBe(true);
+    expect(matchesCatalogTaxonomy(deck, scoped)).toBe(false);
+  });
+
+  test("Shop All without selections matches every product", () => {
+    const all = resolveCatalogTaxonomy({ category: null, categories: [], subcategories: [] });
+
+    for (const product of [deck, trucks, tee, sticker]) {
+      expect(matchesCatalogTaxonomy(product, all)).toBe(true);
+    }
+  });
+
+  test("Shop All discards orphaned subcategories whose parent is not selected", () => {
+    const filter = resolveCatalogTaxonomy({
+      category: null,
+      categories: ["hardgoods"],
+      subcategories: ["decks", "t-shirts"],
+    });
+
+    expect(filter.subcategories).toEqual(["decks"]);
+    expect(matchesCatalogTaxonomy(deck, filter)).toBe(true);
+    expect(matchesCatalogTaxonomy(trucks, filter)).toBe(false);
+    expect(matchesCatalogTaxonomy(tee, filter)).toBe(false);
+  });
+
+  test("Shop All unions parent-scoped selections across categories", () => {
+    // Hardgoods narrowed to decks is unioned with all of softgoods.
+    const filter = resolveCatalogTaxonomy({
+      category: null,
+      categories: ["hardgoods", "softgoods"],
+      subcategories: ["decks"],
+    });
+
+    expect(matchesCatalogTaxonomy(deck, filter)).toBe(true);
+    expect(matchesCatalogTaxonomy(trucks, filter)).toBe(false);
+    expect(matchesCatalogTaxonomy(tee, filter)).toBe(true);
+    expect(matchesCatalogTaxonomy(sticker, filter)).toBe(false);
+  });
+
+  test("subcategories within one parent are ORed", () => {
+    const filter = resolveCatalogTaxonomy({
+      category: null,
+      categories: ["hardgoods"],
+      subcategories: ["decks", "trucks"],
+    });
+
+    expect(matchesCatalogTaxonomy(deck, filter)).toBe(true);
+    expect(matchesCatalogTaxonomy(trucks, filter)).toBe(true);
+    expect(matchesCatalogTaxonomy({ category: "hardgoods", subcategory: "wheels" }, filter)).toBe(
+      false,
+    );
   });
 });
 

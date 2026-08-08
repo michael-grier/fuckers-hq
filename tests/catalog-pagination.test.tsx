@@ -9,6 +9,7 @@ const matchingProducts = Array.from({ length: 13 }, (_, index) => ({
   name: `Deck ${String(index + 1).padStart(2, "0")}`,
   description: "A catalog deck",
   category: "hardgoods",
+  subcategory: "decks",
   status: "active" as const,
   createdAt: new Date(`2026-07-${String(index + 1).padStart(2, "0")}T00:00:00.000Z`),
   updatedAt: new Date("2026-07-22T00:00:00.000Z"),
@@ -56,9 +57,11 @@ const { catalogSearchParamsCache } = await import("@/lib/catalog/search-params")
 
 const retainedFilters = {
   q: "deck",
-  category: "hardgoods",
+  category: "hardgoods" as const,
+  categories: [],
+  subcategories: ["decks" as const],
   sort: "name-asc" as const,
-} as const;
+};
 
 function renderPagination(currentPage: number, totalPages: number): string {
   return renderToStaticMarkup(
@@ -80,7 +83,7 @@ describe("catalog pagination", () => {
     expect(catalog.totalPages).toBe(2);
     expect(markup).toContain("Page 1 of 2");
     expect(markup).toContain(
-      'href="/products?q=deck&amp;category=hardgoods&amp;sort=name-asc&amp;page=2"',
+      'href="/products?q=deck&amp;category=hardgoods&amp;subcategories=decks&amp;sort=name-asc&amp;page=2"',
     );
     expect(markup).toContain('aria-label="Go to catalog page 2"');
     expect(markup).toContain('aria-disabled="true" disabled=""');
@@ -95,7 +98,7 @@ describe("catalog pagination", () => {
     expect(catalog.products).toHaveLength(1);
     expect(markup).toContain("Page 2 of 2");
     expect(markup).toContain(
-      'href="/products?q=deck&amp;category=hardgoods&amp;sort=name-asc&amp;page=1"',
+      'href="/products?q=deck&amp;category=hardgoods&amp;subcategories=decks&amp;sort=name-asc&amp;page=1"',
     );
     expect(markup).toContain('aria-label="Go to catalog page 1"');
     expect(markup).toContain('aria-disabled="true" disabled=""');
@@ -110,5 +113,39 @@ describe("catalog pagination", () => {
     expect(catalog.page).toBe(1);
     expect(catalog.totalProducts).toBe(1);
     expect(renderPagination(catalog.page, catalog.totalPages)).toBe("");
+  });
+
+  test("serializes repeated multi-select parameters into page links", () => {
+    const markup = renderToStaticMarkup(
+      <CatalogPagination
+        currentPage={1}
+        searchParams={{
+          q: "",
+          category: null,
+          categories: ["hardgoods", "softgoods"],
+          subcategories: ["decks", "t-shirts"],
+          sort: "newest",
+        }}
+        totalPages={3}
+      />,
+    );
+
+    expect(markup).toContain(
+      "categories=hardgoods&amp;categories=softgoods&amp;subcategories=decks&amp;subcategories=t-shirts",
+    );
+  });
+
+  test("excludes products outside the taxonomy filter before paginating", async () => {
+    const catalog = await getCatalogPage({
+      q: "",
+      category: null,
+      categories: ["softgoods"],
+      subcategories: [],
+      sort: "newest",
+      page: 1,
+    });
+
+    expect(catalog.totalProducts).toBe(0);
+    expect(catalog.totalPages).toBe(1);
   });
 });

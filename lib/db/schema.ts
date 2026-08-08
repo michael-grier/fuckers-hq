@@ -12,6 +12,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
+import { productCategoryValues, productSubcategories } from "@/lib/catalog/categories";
 import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
 
 export const productStatusValues = ["draft", "active", "archived"] as const;
@@ -87,6 +88,21 @@ const timestamps = {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 };
 
+// Built from the canonical taxonomy so the database check constraint can never drift from the
+// application contract in lib/catalog/categories.ts.
+const productTaxonomyPairsSql = sql.raw(
+  productCategoryValues
+    .map((category) => {
+      const subcategories = productSubcategories
+        .filter((subcategory) => subcategory.category === category)
+        .map(({ value }) => `'${value}'`)
+        .join(", ");
+
+      return `("category" = '${category}' AND "subcategory" IN (${subcategories}))`;
+    })
+    .join(" OR "),
+);
+
 export const products = pgTable(
   "products",
   {
@@ -94,14 +110,16 @@ export const products = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     description: text("description"),
-    category: text("category"),
+    category: text("category").notNull(),
+    subcategory: text("subcategory").notNull(),
     status: productStatus("status").notNull().default("draft"),
     ...timestamps,
   },
   (table) => [
     uniqueIndex("products_slug_unique").on(table.slug),
     index("products_status_idx").on(table.status),
-    index("products_category_idx").on(table.category),
+    index("products_category_subcategory_idx").on(table.category, table.subcategory),
+    check("products_category_subcategory_pair", sql`${productTaxonomyPairsSql}`),
   ],
 );
 

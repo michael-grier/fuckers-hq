@@ -9,6 +9,7 @@ const seedProducts = [
     name: "Street Deck 8.25",
     description: "A balanced popsicle deck for street sessions and everyday park skating.",
     category: "hardgoods",
+    subcategory: "decks",
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/f4f4f5/18181b/png?text=Street+Deck",
@@ -24,6 +25,7 @@ const seedProducts = [
     name: "Canvas Coach Jacket",
     description: "A midweight coach jacket with snap closure and a relaxed skate fit.",
     category: "softgoods",
+    subcategory: "jackets",
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/e7e5e4/18181b/png?text=Coach+Jacket",
@@ -40,6 +42,7 @@ const seedProducts = [
     name: "Precision Bearings",
     description: "Fast, durable bearings for clean roll speed and easy maintenance.",
     category: "hardgoods",
+    subcategory: "bearings",
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/fafafa/18181b/png?text=Bearings",
@@ -62,6 +65,7 @@ try {
         name: product.name,
         description: product.description,
         category: product.category,
+        subcategory: product.subcategory,
         status: product.status,
         updatedAt: new Date(),
       })
@@ -71,6 +75,7 @@ try {
           name: product.name,
           description: product.description,
           category: product.category,
+          subcategory: product.subcategory,
           status: product.status,
           updatedAt: new Date(),
         },

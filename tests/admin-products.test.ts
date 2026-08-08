@@ -17,6 +17,7 @@ describe("admin product form contract", () => {
       slug: "street-deck",
       description: "  ",
       category: " hardgoods ",
+      subcategory: " decks ",
       status: "draft",
     });
 
@@ -25,6 +26,7 @@ describe("admin product form contract", () => {
       slug: "street-deck",
       description: null,
       category: "hardgoods",
+      subcategory: "decks",
       status: "draft",
     });
   });
@@ -36,6 +38,7 @@ describe("admin product form contract", () => {
         slug: "Street Deck",
         description: "",
         category: "hardgoods",
+        subcategory: "decks",
         status: "active",
       }),
     ).toThrow();
@@ -46,6 +49,7 @@ describe("admin product form contract", () => {
         slug: "street-deck",
         description: "",
         category: "hardgoods",
+        subcategory: "decks",
         status: "active",
         clientPrice: 1,
       }),
@@ -53,6 +57,12 @@ describe("admin product form contract", () => {
   });
 
   test("accepts only the three storefront product categories", () => {
+    const subcategoryByCategory = {
+      hardgoods: "decks",
+      softgoods: "t-shirts",
+      accessories: "stickers",
+    } as const;
+
     for (const category of ["hardgoods", "softgoods", "accessories"] as const) {
       expect(
         adminProductFormSchema.parse({
@@ -60,6 +70,7 @@ describe("admin product form contract", () => {
           slug: `category-${category}`,
           description: "",
           category,
+          subcategory: subcategoryByCategory[category],
           status: "draft",
         }).category,
       ).toBe(category);
@@ -72,9 +83,42 @@ describe("admin product form contract", () => {
           slug: "category-test",
           description: "",
           category,
+          subcategory: "decks",
           status: "draft",
         }).success,
       ).toBe(false);
+    }
+  });
+
+  test("rejects missing and mismatched category-subcategory pairs", () => {
+    const base = {
+      name: "Pair Test",
+      slug: "pair-test",
+      description: "",
+      status: "draft",
+    };
+
+    expect(
+      adminProductFormSchema.safeParse({ ...base, category: "hardgoods", subcategory: "" }).success,
+    ).toBe(false);
+    expect(
+      adminProductFormSchema.safeParse({ ...base, category: "hardgoods", subcategory: "t-shirts" })
+        .success,
+    ).toBe(false);
+    expect(
+      adminProductFormSchema.safeParse({ ...base, category: "softgoods", subcategory: "buttons" })
+        .success,
+    ).toBe(false);
+
+    const mismatch = adminProductFormSchema.safeParse({
+      ...base,
+      category: "accessories",
+      subcategory: "wheels",
+    });
+
+    expect(mismatch.success).toBe(false);
+    if (!mismatch.success) {
+      expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
     }
   });
 });

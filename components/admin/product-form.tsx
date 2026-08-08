@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { archiveProduct, createProduct, updateProduct } from "@/lib/actions/products";
 import type { ActionFailure } from "@/lib/actions/result";
-import { productCategories } from "@/lib/catalog/categories";
+import {
+  getProductSubcategoryOptions,
+  isProductCategory,
+  productCategories,
+} from "@/lib/catalog/categories";
 import {
   type AdminProductFormInput,
   type AdminProductFormValues,
@@ -23,7 +27,14 @@ type ProductFormProps = {
   productId?: string;
 };
 
-const productFieldNames = ["name", "slug", "description", "category", "status"] as const;
+const productFieldNames = [
+  "name",
+  "slug",
+  "description",
+  "category",
+  "subcategory",
+  "status",
+] as const;
 
 export function ProductForm({ defaultValues, productId }: ProductFormProps) {
   const router = useRouter();
@@ -103,6 +114,10 @@ export function ProductForm({ defaultValues, productId }: ProductFormProps) {
 
   const errors = form.formState.errors;
   const selectedStatus = form.watch("status");
+  const selectedCategory = form.watch("category");
+  const subcategoryOptions = isProductCategory(selectedCategory)
+    ? getProductSubcategoryOptions(selectedCategory)
+    : [];
 
   return (
     <form className="space-y-6" noValidate onSubmit={form.handleSubmit(onSubmit)}>
@@ -138,7 +153,10 @@ export function ProductForm({ defaultValues, productId }: ProductFormProps) {
             aria-invalid={Boolean(errors.category)}
             className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
             id="category"
-            {...form.register("category")}
+            {...form.register("category", {
+              // The subcategory belongs to the previous category, so it cannot survive the change.
+              onChange: () => form.setValue("subcategory", ""),
+            })}
           >
             <option value="">Select a category</option>
             {productCategories.map((category) => (
@@ -151,6 +169,31 @@ export function ProductForm({ defaultValues, productId }: ProductFormProps) {
             <p className="mt-1 text-muted-foreground text-xs" id="category-help">
               Hardgoods are skate parts, Softgoods are clothing and wearables, and Accessories are
               minor items such as stickers, patches, keychains, and buttons.
+            </p>
+          ) : null}
+        </FormField>
+
+        <FormField error={errors.subcategory?.message} id="subcategory" label="Subcategory">
+          <select
+            aria-describedby={errors.subcategory ? "subcategory-error" : "subcategory-help"}
+            aria-invalid={Boolean(errors.subcategory)}
+            className="flex h-10 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={subcategoryOptions.length === 0}
+            id="subcategory"
+            {...form.register("subcategory")}
+          >
+            <option value="">
+              {subcategoryOptions.length === 0 ? "Select a category first" : "Select a subcategory"}
+            </option>
+            {subcategoryOptions.map((subcategory) => (
+              <option key={subcategory.value} value={subcategory.value}>
+                {subcategory.label}
+              </option>
+            ))}
+          </select>
+          {!errors.subcategory ? (
+            <p className="mt-1 text-muted-foreground text-xs" id="subcategory-help">
+              Changing the category clears the subcategory so the pair always matches.
             </p>
           ) : null}
         </FormField>

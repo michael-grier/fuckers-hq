@@ -1,7 +1,13 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { z } from "zod";
 
-import { isProductCategory, productCategoryValues } from "@/lib/catalog/categories";
+import {
+  isProductCategory,
+  isProductSubcategory,
+  isValidProductTaxonomyPair,
+  productCategoryValues,
+  productSubcategoryValues,
+} from "@/lib/catalog/categories";
 import { productImages, productStatusValues, products, productVariants } from "@/lib/db/schema";
 import { dollarsToCents } from "@/lib/money";
 import { isProductImageObjectKey, productImageObjectKeySchema } from "@/lib/r2/upload-contract";
@@ -18,17 +24,26 @@ export const slugSchema = z
 
 export const productSelectSchema = createSelectSchema(products);
 
+const invalidTaxonomyPairMessage = "Choose a subcategory that belongs to the selected category.";
+
 export const productInsertSchema = createInsertSchema(products, {
   slug: slugSchema,
   name: (schema) => schema.trim().min(1).max(160),
   description: (schema) => schema.trim().max(4000),
   category: (schema) =>
     schema.trim().max(80).refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+  subcategory: (schema) =>
+    schema.trim().max(80).refine(isProductSubcategory, "Choose a valid subcategory."),
+})
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .refine((product) => isValidProductTaxonomyPair(product.category, product.subcategory), {
+    message: invalidTaxonomyPairMessage,
+    path: ["subcategory"],
+  });
 
 export const productUpdateSchema = createUpdateSchema(products, {
   slug: slugSchema,
@@ -36,11 +51,23 @@ export const productUpdateSchema = createUpdateSchema(products, {
   description: (schema) => schema.trim().max(4000),
   category: (schema) =>
     schema.trim().max(80).refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+  subcategory: (schema) =>
+    schema.trim().max(80).refine(isProductSubcategory, "Choose a valid subcategory."),
+})
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  // Category and subcategory must be updated together as a canonical pair; a partial update of
+  // either one cannot be checked against the persisted row here.
+  .refine(
+    (product) =>
+      product.category === undefined ||
+      product.subcategory === undefined ||
+      isValidProductTaxonomyPair(product.category, product.subcategory),
+    { message: invalidTaxonomyPairMessage, path: ["subcategory"] },
+  );
 
 export const productVariantSelectSchema = createSelectSchema(productVariants);
 
@@ -110,16 +137,21 @@ const inventoryInputSchema = z
 
 export const adminProductFormSchema = z
   .object({
-    slug: productInsertSchema.shape.slug,
-    name: productInsertSchema.shape.name,
+    slug: slugSchema,
+    name: z.string().trim().min(1).max(160),
     description: z.string().trim().max(4000),
     category: z
       .string()
       .trim()
       .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+    subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
     status: z.enum(productStatusValues),
   })
-  .strict();
+  .strict()
+  .refine((values) => isValidProductTaxonomyPair(values.category, values.subcategory), {
+    message: invalidTaxonomyPairMessage,
+    path: ["subcategory"],
+  });
 
 export const adminProductUpdateSchema = adminProductFormSchema.extend({
   productId: adminEntityIdSchema,
@@ -210,6 +242,7 @@ export function toProductMutationValues(input: AdminProductFormValues): ProductI
     name: input.name,
     description: input.description || null,
     category: z.enum(productCategoryValues).parse(input.category),
+    subcategory: z.enum(productSubcategoryValues).parse(input.subcategory),
     status: input.status,
   };
 }
