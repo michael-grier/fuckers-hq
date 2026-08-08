@@ -11,6 +11,7 @@ UPDATE "products" SET "subcategory" = 'jackets' WHERE "subcategory" IS NULL AND 
 UPDATE "products" SET "subcategory" = 'hoodies' WHERE "subcategory" IS NULL AND "slug" = 'carhartt-wip-hoodie-grey';--> statement-breakpoint
 UPDATE "products" SET "subcategory" = 'griptape' WHERE "subcategory" IS NULL AND "slug" = 'pepper-griptape-9';--> statement-breakpoint
 UPDATE "products" SET "subcategory" = 'stickers' WHERE "subcategory" IS NULL AND "slug" = 'spitfire-bighead-sticker-pack';--> statement-breakpoint
+UPDATE "products" SET "subcategory" = 'papers' WHERE "subcategory" IS NULL AND "slug" = 'rolling-papers';--> statement-breakpoint
 -- Fail loudly instead of guessing: any product left without an explicit canonical
 -- category/subcategory pair aborts the migration and is listed for manual classification.
 DO $$
@@ -28,7 +29,7 @@ BEGIN
      OR NOT (
        (category = 'hardgoods' AND subcategory IN ('decks', 'trucks', 'wheels', 'bearings', 'griptape', 'hardware'))
        OR (category = 'softgoods' AND subcategory IN ('t-shirts', 'hoodies', 'jackets', 'pants', 'hats', 'socks'))
-       OR (category = 'accessories' AND subcategory IN ('stickers', 'patches', 'keychains', 'buttons'))
+       OR (category = 'accessories' AND subcategory IN ('stickers', 'patches', 'keychains', 'buttons', 'papers'))
      );
 
   IF unmapped IS NOT NULL THEN
@@ -39,4 +40,4 @@ DROP INDEX "products_category_idx";--> statement-breakpoint
 ALTER TABLE "products" ALTER COLUMN "category" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "products" ALTER COLUMN "subcategory" SET NOT NULL;--> statement-breakpoint
 CREATE INDEX "products_category_subcategory_idx" ON "products" USING btree ("category","subcategory");--> statement-breakpoint
-ALTER TABLE "products" ADD CONSTRAINT "products_category_subcategory_pair" CHECK (("category" = 'hardgoods' AND "subcategory" IN ('decks', 'trucks', 'wheels', 'bearings', 'griptape', 'hardware')) OR ("category" = 'softgoods' AND "subcategory" IN ('t-shirts', 'hoodies', 'jackets', 'pants', 'hats', 'socks')) OR ("category" = 'accessories' AND "subcategory" IN ('stickers', 'patches', 'keychains', 'buttons')));
+ALTER TABLE "products" ADD CONSTRAINT "products_category_subcategory_pair" CHECK (("category" = 'hardgoods' AND "subcategory" IN ('decks', 'trucks', 'wheels', 'bearings', 'griptape', 'hardware')) OR ("category" = 'softgoods' AND "subcategory" IN ('t-shirts', 'hoodies', 'jackets', 'pants', 'hats', 'socks')) OR ("category" = 'accessories' AND "subcategory" IN ('stickers', 'patches', 'keychains', 'buttons', 'papers')));

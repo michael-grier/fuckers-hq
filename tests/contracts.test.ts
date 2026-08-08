@@ -289,6 +289,7 @@ describe("catalog subcategory contract", () => {
       "patches",
       "keychains",
       "buttons",
+      "papers",
     ]);
     // Every canonical value appears in exactly one parent group.
     expect(productSubcategories.map(({ value }) => value).sort()).toEqual(

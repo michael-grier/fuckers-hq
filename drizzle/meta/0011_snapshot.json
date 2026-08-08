@@ -1,5 +1,5 @@
 {
-  "id": "cf75f70c-0916-4488-89d3-ad052a722d8a",
+  "id": "d65e289b-1099-4b6e-89fe-be3d849d6ea4",
   "prevId": "a6c95445-cd0b-48c1-abd5-7ef89a3e0cc7",
   "version": "7",
   "dialect": "postgresql",
@@ -1443,7 +1443,7 @@
       "checkConstraints": {
         "products_category_subcategory_pair": {
           "name": "products_category_subcategory_pair",
-          "value": "(\"category\" = 'hardgoods' AND \"subcategory\" IN ('decks', 'trucks', 'wheels', 'bearings', 'griptape', 'hardware')) OR (\"category\" = 'softgoods' AND \"subcategory\" IN ('t-shirts', 'hoodies', 'jackets', 'pants', 'hats', 'socks')) OR (\"category\" = 'accessories' AND \"subcategory\" IN ('stickers', 'patches', 'keychains', 'buttons'))"
+          "value": "(\"category\" = 'hardgoods' AND \"subcategory\" IN ('decks', 'trucks', 'wheels', 'bearings', 'griptape', 'hardware')) OR (\"category\" = 'softgoods' AND \"subcategory\" IN ('t-shirts', 'hoodies', 'jackets', 'pants', 'hats', 'socks')) OR (\"category\" = 'accessories' AND \"subcategory\" IN ('stickers', 'patches', 'keychains', 'buttons', 'papers'))"
         }
       },
       "isRLSEnabled": false

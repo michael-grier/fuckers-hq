@@ -9,7 +9,11 @@ The canonical taxonomy lives in `lib/catalog/categories.ts`:
 
 - Hardgoods: Decks, Trucks, Wheels, Bearings, Griptape, Hardware
 - Softgoods: T-Shirts, Hoodies, Jackets, Pants, Hats, Socks
-- Accessories: Stickers, Patches, Keychains, Buttons
+- Accessories: Stickers, Patches, Keychains, Buttons, Papers
+
+Papers extends the taxonomy originally listed in issue #41: the existing Rolling Papers product
+fits none of the other accessories subcategories, and the maintainer chose Papers over forcing a
+wrong classification.
 
 ## Preflight
 
@@ -37,7 +41,8 @@ WHERE slug NOT IN (
   'canvas-coach-jacket',
   'carhartt-wip-hoodie-grey',
   'pepper-griptape-9',
-  'spitfire-bighead-sticker-pack'
+  'spitfire-bighead-sticker-pack',
+  'rolling-papers'
 )
 ORDER BY name;
 ```
@@ -48,17 +53,11 @@ review, then extend the migration's explicit `UPDATE` list (or apply a reviewed 
 running it. The migration never infers a subcategory from name patterns; a `DO` block aborts the
 whole transaction and lists every unclassified product rather than guessing.
 
-Known open classification at authoring time: the development product `rolling-papers`
-("Rolling Papers", category `accessories`) fits none of the fixed accessories subcategories
-(Stickers, Patches, Keychains, Buttons). It must be explicitly classified — or archived and still
-classified, since the constraint applies to archived rows too — before the migration can be
-applied to that database.
-
 ## Migration behavior
 
 1. Adds `subcategory` as a nullable text column.
 2. Backfills by exact slug: seeded and reviewed development products map to Decks, Bearings,
-   T-Shirts, Jackets, Hoodies, Griptape, and Stickers as listed in the migration.
+   T-Shirts, Jackets, Hoodies, Griptape, Stickers, and Papers as listed in the migration.
 3. Aborts with an explicit error listing every product that is still unclassified or holds a
    non-canonical category/subcategory pair.
 4. Sets `category` and `subcategory` to `NOT NULL`.
@@ -95,7 +94,7 @@ ALTER TABLE products DROP COLUMN subcategory;
 The backfilled data itself needs no reversal: dropping the column removes it, and `category`
 values are untouched by this migration.
 
-This migration was verified on 2026-08-07 against a disposable Neon branch of the development
-database: the guard aborted on the unclassified `rolling-papers` row, and after an explicit
-classification the full migration applied cleanly, the backfill matched review, and the
+This migration was verified on 2026-08-07 against disposable Neon branches of the development
+database: with `rolling-papers` deliberately left out of the mapping, the guard aborted and named
+it; with the full mapping, the migration applied cleanly, the backfill matched review, and the
 constraint rejected a mismatched pair insert.
