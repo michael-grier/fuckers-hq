@@ -20,11 +20,14 @@ wrong classification.
 Run these read-only checks on the target database before applying the migration:
 
 ```sql
--- Every product must already have a canonical category.
+-- Every product must already have a canonical category. The comparison is deliberately exact,
+-- with no lower()/btrim() normalization, because the migration guard and the check constraint
+-- compare exactly: a value such as ' Hardgoods ' must surface here rather than pass preflight
+-- and then abort the migration.
 SELECT id, slug, name, category
 FROM products
 WHERE category IS NULL
-   OR lower(btrim(category)) NOT IN ('hardgoods', 'softgoods', 'accessories')
+   OR category NOT IN ('hardgoods', 'softgoods', 'accessories')
 ORDER BY name;
 
 -- Every product must appear in the migration's explicit slug-to-subcategory mapping.
