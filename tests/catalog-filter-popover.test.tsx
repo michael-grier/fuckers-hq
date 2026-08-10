@@ -101,7 +101,9 @@ describe("catalog filter popover trigger", () => {
       "?categories=hardgoods&categories=softgoods&subcategories=decks",
     );
 
-    expect(markup).toContain("3");
+    // Delimited so the assertion reads the badge text: a bare "3" also matches utility classes
+    // like gap-3 and focus-visible:ring-[3px], which would make this pass with no badge at all.
+    expect(markup).toContain(">3<");
     expect(markup).toContain("active filters");
   });
 
