@@ -49,7 +49,10 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   );
 }
 
-function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
+// Upstream shadcn types this as `h2` while rendering a `div`. Typed to match what it actually
+// renders, so a consumer cannot expect heading semantics it does not provide; a popover that
+// needs an accessible name should set `aria-label` on PopoverContent, as the catalog filters do.
+function PopoverTitle({ className, ...props }: React.ComponentProps<"div">) {
   return <div data-slot="popover-title" className={cn("font-medium", className)} {...props} />;
 }
 
