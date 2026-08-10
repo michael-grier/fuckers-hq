@@ -76,6 +76,9 @@ export function CatalogFilterPopover({
       </PopoverTrigger>
       <PopoverContent
         align="end"
+        // Radix renders the content as role="dialog"; without this it is announced unnamed,
+        // because the fieldset legends name only the groups inside it.
+        aria-label="Filters"
         className="flex max-h-[min(26rem,var(--radix-popover-content-available-height))] w-[min(20rem,calc(100vw-2rem))] flex-col gap-4 overflow-y-auto"
       >
         {scopedCategory ? (
