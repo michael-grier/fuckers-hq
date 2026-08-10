@@ -77,9 +77,17 @@ whole transaction and lists every unclassified product rather than guessing.
 3. Apply the migration to the target database.
 4. Deploy the application version that writes `subcategory`.
 
-Between steps 3 and 4, product creation through the previous application version fails because it
-does not supply the now-required `subcategory`. Product writes are low-volume and admin-only, so
-keep that window short rather than staging the constraint across two releases.
+Between steps 3 and 4 the previous application version fails on two paths, because it neither
+supplies nor updates `subcategory`:
+
+- **Creates** fail on the now-required `subcategory` column (`23502`, not-null violation).
+- **Updates that change `category`** fail on the new check constraint (`23514`), because the
+  persisted `subcategory` still belongs to the old parent — for example moving a product from
+  Hardgoods (`decks`) to Softgoods. `updateProduct` only special-cases unique violations, so a
+  check violation propagates and surfaces as an unhandled 500 rather than a field-level message.
+
+Both are admin-only and low-volume, so keep that window short rather than staging the constraint
+across two releases. Prefer quiescing admin product writes for the duration.
 
 ## Rollback
 
