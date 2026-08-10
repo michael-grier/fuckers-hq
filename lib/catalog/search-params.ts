@@ -24,7 +24,11 @@ const catalogSubcategoryParserValues = [...productSubcategoryValues];
 // `category` is the nav-defined view scope; `categories`/`subcategories` are the shopper's
 // multi-select filters, carried as repeated native-array parameters. Unknown values are
 // silently discarded by the enum item parsers.
-const catalogSearchParamParsers = {
+//
+// Exported so the client filter UI parses the URL with exactly these parsers. A second
+// hand-maintained copy would let the staged checkboxes and the active count drift from the
+// server-side filtering the next time the taxonomy parameters change.
+export const catalogSearchParamParsers = {
   q: parseAsString.withDefault(""),
   category: parseAsStringEnum<ProductCategory>(catalogCategoryParserValues),
   categories: parseAsNativeArrayOf(parseAsStringEnum<ProductCategory>(catalogCategoryParserValues)),

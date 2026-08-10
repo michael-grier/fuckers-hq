@@ -1,35 +1,19 @@
 "use client";
 
 import { Search } from "lucide-react";
-import {
-  parseAsInteger,
-  parseAsNativeArrayOf,
-  parseAsString,
-  parseAsStringEnum,
-  useQueryStates,
-} from "nuqs";
+import { useQueryStates } from "nuqs";
 import { useTransition } from "react";
 
 import { CatalogFilterPopover } from "@/components/shop/catalog-filter-popover";
 import { Input } from "@/components/ui/input";
-import {
-  type ProductCategory,
-  type ProductSubcategory,
-  productCategoryValues,
-  productSubcategoryValues,
-} from "@/lib/catalog/categories";
 import type { CatalogFilterUpdate } from "@/lib/catalog/filter-staging";
 import {
   type CatalogSort,
   catalogFilterUrlOptions,
-  catalogSortValues,
+  catalogSearchParamParsers,
   resolveCatalogTaxonomy,
   withFirstCatalogPage,
 } from "@/lib/catalog/search-params";
-
-const catalogSortParserValues = [...catalogSortValues];
-const catalogCategoryParserValues = [...productCategoryValues];
-const catalogSubcategoryParserValues = [...productSubcategoryValues];
 
 type CatalogFiltersProps = {
   totalProducts: number;
@@ -37,24 +21,10 @@ type CatalogFiltersProps = {
 
 export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
   const [isPending, startTransition] = useTransition();
-  const [filters, setFilters] = useQueryStates(
-    {
-      q: parseAsString.withDefault(""),
-      category: parseAsStringEnum<ProductCategory>(catalogCategoryParserValues),
-      categories: parseAsNativeArrayOf(
-        parseAsStringEnum<ProductCategory>(catalogCategoryParserValues),
-      ),
-      subcategories: parseAsNativeArrayOf(
-        parseAsStringEnum<ProductSubcategory>(catalogSubcategoryParserValues),
-      ),
-      sort: parseAsStringEnum<CatalogSort>(catalogSortParserValues).withDefault("newest"),
-      page: parseAsInteger.withDefault(1),
-    },
-    {
-      ...catalogFilterUrlOptions,
-      startTransition,
-    },
-  );
+  const [filters, setFilters] = useQueryStates(catalogSearchParamParsers, {
+    ...catalogFilterUrlOptions,
+    startTransition,
+  });
 
   // The same reduction the server applies, so the active count and staged checkboxes never
   // reflect ignored parameters (stray multi-category values on scoped views, orphans, dupes).
