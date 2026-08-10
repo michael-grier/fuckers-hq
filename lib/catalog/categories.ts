@@ -17,8 +17,102 @@ const legacyProductCategoryAliases: Readonly<Record<string, ProductCategory>> = 
   apparel: "softgoods",
 };
 
+export const productSubcategoryValues = [
+  "decks",
+  "trucks",
+  "wheels",
+  "bearings",
+  "griptape",
+  "hardware",
+  "t-shirts",
+  "hoodies",
+  "jackets",
+  "pants",
+  "hats",
+  "socks",
+  "stickers",
+  "patches",
+  "keychains",
+  "buttons",
+  "papers",
+] as const;
+
+export type ProductSubcategory = (typeof productSubcategoryValues)[number];
+
+// The fixed taxonomy: every subcategory belongs to exactly one parent category. The database
+// check constraint on products mirrors these pairs, so schema and contract must change together.
+export const productSubcategories = [
+  { label: "Decks", value: "decks", category: "hardgoods" },
+  { label: "Trucks", value: "trucks", category: "hardgoods" },
+  { label: "Wheels", value: "wheels", category: "hardgoods" },
+  { label: "Bearings", value: "bearings", category: "hardgoods" },
+  { label: "Griptape", value: "griptape", category: "hardgoods" },
+  { label: "Hardware", value: "hardware", category: "hardgoods" },
+  { label: "T-Shirts", value: "t-shirts", category: "softgoods" },
+  { label: "Hoodies", value: "hoodies", category: "softgoods" },
+  { label: "Jackets", value: "jackets", category: "softgoods" },
+  { label: "Pants", value: "pants", category: "softgoods" },
+  { label: "Hats", value: "hats", category: "softgoods" },
+  { label: "Socks", value: "socks", category: "softgoods" },
+  { label: "Stickers", value: "stickers", category: "accessories" },
+  { label: "Patches", value: "patches", category: "accessories" },
+  { label: "Keychains", value: "keychains", category: "accessories" },
+  { label: "Buttons", value: "buttons", category: "accessories" },
+  { label: "Papers", value: "papers", category: "accessories" },
+] as const satisfies ReadonlyArray<{
+  label: string;
+  value: ProductSubcategory;
+  category: ProductCategory;
+}>;
+
+const productSubcategoryLabels = new Map<ProductSubcategory, string>(
+  productSubcategories.map(({ label, value }) => [value, label]),
+);
+
+const productSubcategoryParents = new Map<ProductSubcategory, ProductCategory>(
+  productSubcategories.map(({ category, value }) => [value, category]),
+);
+
 export function isProductCategory(value: string): value is ProductCategory {
   return productCategoryValues.some((category) => category === value);
+}
+
+export function isProductSubcategory(value: string): value is ProductSubcategory {
+  return productSubcategoryValues.some((subcategory) => subcategory === value);
+}
+
+export function getProductSubcategoryLabel(subcategory: string | null): string {
+  if (!subcategory || !isProductSubcategory(subcategory)) {
+    return "Uncategorized";
+  }
+
+  return productSubcategoryLabels.get(subcategory) ?? "Uncategorized";
+}
+
+export function getProductCategoryForSubcategory(subcategory: ProductSubcategory): ProductCategory {
+  const category = productSubcategoryParents.get(subcategory);
+
+  if (!category) {
+    throw new Error(`Unmapped product subcategory: ${subcategory}`);
+  }
+
+  return category;
+}
+
+export function getProductSubcategoryOptions(
+  category: ProductCategory,
+): ReadonlyArray<{ label: string; value: ProductSubcategory }> {
+  return productSubcategories
+    .filter((subcategory) => subcategory.category === category)
+    .map(({ label, value }) => ({ label, value }));
+}
+
+export function isValidProductTaxonomyPair(category: string, subcategory: string): boolean {
+  return (
+    isProductCategory(category) &&
+    isProductSubcategory(subcategory) &&
+    getProductCategoryForSubcategory(subcategory) === category
+  );
 }
 
 export function getProductCategoryLabel(category: string | null): string {

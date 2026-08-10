@@ -40,7 +40,8 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
         slug text not null,
         name text not null,
         description text,
-        category text,
+        category text not null,
+        subcategory text not null,
         status text not null,
         created_at timestamp with time zone not null default now(),
         updated_at timestamp with time zone not null default now()
@@ -74,6 +75,8 @@ describe.skipIf(!testDatabaseUrl)("product image deletion with real Postgres", (
       id: productId,
       slug: "database-deck",
       name: "Database Deck",
+      category: "hardgoods",
+      subcategory: "decks",
       status: "active",
     });
   });

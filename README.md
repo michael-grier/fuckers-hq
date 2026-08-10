@@ -131,6 +131,13 @@ bun run db:seed
 `db:migrate` and `db:seed` require `DATABASE_URL`. The seed script is intended for local or
 development databases.
 
+Migration `0011_product-subcategories.sql` adds the required `products.subcategory` column with an
+explicit slug-based backfill, non-null category columns, a canonical parent-child check
+constraint, and a composite `(category, subcategory)` index. It fails rather than guesses when a
+product lacks an explicit classification. Review the
+[preflight, deployment, and rollback notes](docs/migrations/0011-product-subcategories.md) before
+applying it.
+
 Migration `0004_chilly_talisman.sql` adds the confirmation-email delivery outbox. Apply and verify it
 on a disposable database branch before deployment, then run it before deploying code that creates
 paid orders. Existing orders are backfilled as `failed` with the non-sensitive

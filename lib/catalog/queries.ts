@@ -5,7 +5,12 @@ import { asc } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { env } from "@/lib/env";
 
-import type { CatalogSearchParams, CatalogSort } from "./search-params";
+import {
+  type CatalogSearchParams,
+  type CatalogSort,
+  matchesCatalogTaxonomy,
+  resolveCatalogTaxonomy,
+} from "./search-params";
 
 export type CatalogVariant = {
   id: string;
@@ -30,6 +35,7 @@ export type CatalogProduct = {
   name: string;
   description: string | null;
   category: string | null;
+  subcategory: string | null;
   createdAt: Date;
   updatedAt: Date;
   variants: CatalogVariant[];
@@ -64,6 +70,7 @@ function toCatalogProduct(
     name: row.name,
     description: row.description,
     category: row.category,
+    subcategory: row.subcategory,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     variants: row.variants.map((variant) => ({
@@ -129,18 +136,19 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
   }
 
   const query = params.q.trim().toLowerCase();
-  const category = params.category;
+  const taxonomy = resolveCatalogTaxonomy(params);
   const activeProducts = (await fetchActiveProducts()).map(toCatalogProduct);
 
   const filtered = activeProducts.filter((product) => {
-    const categoryMatches = !category || product.category === category;
+    // Search is ANDed with the taxonomy filters; sorting and pagination run after filtering.
+    const taxonomyMatches = matchesCatalogTaxonomy(product, taxonomy);
     const queryMatches =
       !query ||
       product.name.toLowerCase().includes(query) ||
       product.description?.toLowerCase().includes(query) ||
       product.variants.some((variant) => variant.name.toLowerCase().includes(query));
 
-    return categoryMatches && queryMatches;
+    return taxonomyMatches && queryMatches;
   });
 
   const sorted = sortProducts(filtered, params.sort);

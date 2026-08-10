@@ -1,7 +1,13 @@
 import { createInsertSchema, createSelectSchema, createUpdateSchema } from "drizzle-zod";
 import { z } from "zod";
 
-import { isProductCategory, productCategoryValues } from "@/lib/catalog/categories";
+import {
+  isProductCategory,
+  isProductSubcategory,
+  isValidProductTaxonomyPair,
+  productCategoryValues,
+  productSubcategoryValues,
+} from "@/lib/catalog/categories";
 import { productImages, productStatusValues, products, productVariants } from "@/lib/db/schema";
 import { dollarsToCents } from "@/lib/money";
 import { isProductImageObjectKey, productImageObjectKeySchema } from "@/lib/r2/upload-contract";
@@ -18,17 +24,26 @@ export const slugSchema = z
 
 export const productSelectSchema = createSelectSchema(products);
 
+const invalidTaxonomyPairMessage = "Choose a subcategory that belongs to the selected category.";
+
 export const productInsertSchema = createInsertSchema(products, {
   slug: slugSchema,
   name: (schema) => schema.trim().min(1).max(160),
   description: (schema) => schema.trim().max(4000),
   category: (schema) =>
     schema.trim().max(80).refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+  subcategory: (schema) =>
+    schema.trim().max(80).refine(isProductSubcategory, "Choose a valid subcategory."),
+})
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  .refine((product) => isValidProductTaxonomyPair(product.category, product.subcategory), {
+    message: invalidTaxonomyPairMessage,
+    path: ["subcategory"],
+  });
 
 export const productUpdateSchema = createUpdateSchema(products, {
   slug: slugSchema,
@@ -36,11 +51,23 @@ export const productUpdateSchema = createUpdateSchema(products, {
   description: (schema) => schema.trim().max(4000),
   category: (schema) =>
     schema.trim().max(80).refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
-}).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
+  subcategory: (schema) =>
+    schema.trim().max(80).refine(isProductSubcategory, "Choose a valid subcategory."),
+})
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true,
+  })
+  // Category and subcategory must be updated together as a canonical pair; a partial update of
+  // either one cannot be checked against the persisted row here.
+  .refine(
+    (product) =>
+      product.category === undefined ||
+      product.subcategory === undefined ||
+      isValidProductTaxonomyPair(product.category, product.subcategory),
+    { message: invalidTaxonomyPairMessage, path: ["subcategory"] },
+  );
 
 export const productVariantSelectSchema = createSelectSchema(productVariants);
 
@@ -110,16 +137,21 @@ const inventoryInputSchema = z
 
 export const adminProductFormSchema = z
   .object({
-    slug: productInsertSchema.shape.slug,
-    name: productInsertSchema.shape.name,
+    slug: slugSchema,
+    name: z.string().trim().min(1).max(160),
     description: z.string().trim().max(4000),
     category: z
       .string()
       .trim()
       .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+    subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
     status: z.enum(productStatusValues),
   })
-  .strict();
+  .strict()
+  .refine((values) => isValidProductTaxonomyPair(values.category, values.subcategory), {
+    message: invalidTaxonomyPairMessage,
+    path: ["subcategory"],
+  });
 
 export const adminProductUpdateSchema = adminProductFormSchema.extend({
   productId: adminEntityIdSchema,
@@ -170,6 +202,24 @@ function flagDuplicateSkus(
   });
 }
 
+/**
+ * Every admin write path must land a canonical parent-child pair, because the
+ * `products_category_subcategory_pair` check constraint rejects anything else at the database
+ * with an unhandled error rather than a field-level message.
+ */
+function flagInvalidTaxonomyPair(
+  input: { category: string; subcategory: string },
+  context: z.RefinementCtx,
+): void {
+  if (!isValidProductTaxonomyPair(input.category, input.subcategory)) {
+    context.addIssue({
+      code: "custom",
+      message: invalidTaxonomyPairMessage,
+      path: ["subcategory"],
+    });
+  }
+}
+
 const productWorkspaceFields = {
   slug: productInsertSchema.shape.slug,
   name: productInsertSchema.shape.name,
@@ -178,6 +228,7 @@ const productWorkspaceFields = {
     .string()
     .trim()
     .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+  subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
   status: z.enum(productStatusValues),
   variants: z
     .array(adminVariantRowSchema)
@@ -188,13 +239,15 @@ const productWorkspaceFields = {
 export const adminProductWorkspaceFormSchema = z
   .object(productWorkspaceFields)
   .strict()
-  .superRefine(flagDuplicateSkus);
+  .superRefine(flagDuplicateSkus)
+  .superRefine(flagInvalidTaxonomyPair);
 
 /** Server payload for saving the whole workspace in one action. */
 export const adminProductWorkspaceSchema = z
   .object({ ...productWorkspaceFields, productId: adminEntityIdSchema })
   .strict()
-  .superRefine(flagDuplicateSkus);
+  .superRefine(flagDuplicateSkus)
+  .superRefine(flagInvalidTaxonomyPair);
 
 const composerImageSchema = z
   .object({
@@ -211,6 +264,7 @@ const productComposerFields = {
     .string()
     .trim()
     .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+  subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
   variants: z
     .array(adminVariantFormSchema)
     .max(100, "A product cannot hold more than 100 variants."),
@@ -220,7 +274,8 @@ const productComposerFields = {
 export const adminProductComposerFormSchema = z
   .object(productComposerFields)
   .strict()
-  .superRefine(flagDuplicateSkus);
+  .superRefine(flagDuplicateSkus)
+  .superRefine(flagInvalidTaxonomyPair);
 
 /**
  * Server payload for the new-product composer. The page pre-generates the
@@ -237,6 +292,7 @@ export const adminProductComposerSchema = z
   .strict()
   .superRefine((input, context) => {
     flagDuplicateSkus(input, context);
+    flagInvalidTaxonomyPair(input, context);
 
     if (input.intent === "publish" && input.variants.length === 0) {
       context.addIssue({
@@ -326,6 +382,7 @@ export function toProductMutationValues(input: AdminProductFormValues): ProductI
     name: input.name,
     description: input.description || null,
     category: z.enum(productCategoryValues).parse(input.category),
+    subcategory: z.enum(productSubcategoryValues).parse(input.subcategory),
     status: input.status,
   };
 }

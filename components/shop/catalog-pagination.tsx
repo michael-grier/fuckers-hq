@@ -6,7 +6,10 @@ import type { CatalogSearchParams } from "@/lib/catalog/search-params";
 
 type CatalogPaginationProps = {
   currentPage: number;
-  searchParams: Pick<CatalogSearchParams, "q" | "category" | "sort">;
+  searchParams: Pick<
+    CatalogSearchParams,
+    "q" | "category" | "categories" | "subcategories" | "sort"
+  >;
   totalPages: number;
 };
 
@@ -16,6 +19,9 @@ function getPageHref(page: number, searchParams: CatalogPaginationProps["searchP
     query: {
       q: searchParams.q,
       category: searchParams.category,
+      // Arrays serialize as repeated parameters, preserving multi-select filters across pages.
+      categories: searchParams.categories,
+      subcategories: searchParams.subcategories,
       sort: searchParams.sort,
       page: String(page),
     },

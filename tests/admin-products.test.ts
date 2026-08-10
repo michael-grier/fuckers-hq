@@ -22,6 +22,7 @@ describe("admin product form contract", () => {
       slug: "street-deck",
       description: "  ",
       category: " hardgoods ",
+      subcategory: " decks ",
       status: "draft",
     });
 
@@ -30,6 +31,7 @@ describe("admin product form contract", () => {
       slug: "street-deck",
       description: null,
       category: "hardgoods",
+      subcategory: "decks",
       status: "draft",
     });
   });
@@ -41,6 +43,7 @@ describe("admin product form contract", () => {
         slug: "Street Deck",
         description: "",
         category: "hardgoods",
+        subcategory: "decks",
         status: "active",
       }),
     ).toThrow();
@@ -51,6 +54,7 @@ describe("admin product form contract", () => {
         slug: "street-deck",
         description: "",
         category: "hardgoods",
+        subcategory: "decks",
         status: "active",
         clientPrice: 1,
       }),
@@ -58,6 +62,12 @@ describe("admin product form contract", () => {
   });
 
   test("accepts only the three storefront product categories", () => {
+    const subcategoryByCategory = {
+      hardgoods: "decks",
+      softgoods: "t-shirts",
+      accessories: "stickers",
+    } as const;
+
     for (const category of ["hardgoods", "softgoods", "accessories"] as const) {
       expect(
         adminProductFormSchema.parse({
@@ -65,6 +75,7 @@ describe("admin product form contract", () => {
           slug: `category-${category}`,
           description: "",
           category,
+          subcategory: subcategoryByCategory[category],
           status: "draft",
         }).category,
       ).toBe(category);
@@ -77,9 +88,42 @@ describe("admin product form contract", () => {
           slug: "category-test",
           description: "",
           category,
+          subcategory: "decks",
           status: "draft",
         }).success,
       ).toBe(false);
+    }
+  });
+
+  test("rejects missing and mismatched category-subcategory pairs", () => {
+    const base = {
+      name: "Pair Test",
+      slug: "pair-test",
+      description: "",
+      status: "draft",
+    };
+
+    expect(
+      adminProductFormSchema.safeParse({ ...base, category: "hardgoods", subcategory: "" }).success,
+    ).toBe(false);
+    expect(
+      adminProductFormSchema.safeParse({ ...base, category: "hardgoods", subcategory: "t-shirts" })
+        .success,
+    ).toBe(false);
+    expect(
+      adminProductFormSchema.safeParse({ ...base, category: "softgoods", subcategory: "buttons" })
+        .success,
+    ).toBe(false);
+
+    const mismatch = adminProductFormSchema.safeParse({
+      ...base,
+      category: "accessories",
+      subcategory: "wheels",
+    });
+
+    expect(mismatch.success).toBe(false);
+    if (!mismatch.success) {
+      expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
     }
   });
 });
@@ -142,6 +186,7 @@ const workspacePayload = {
   slug: "street-deck",
   description: "",
   category: "hardgoods",
+  subcategory: "decks",
   status: "active",
   variants: [
     {
@@ -178,6 +223,25 @@ describe("admin product workspace contract", () => {
     ).toContain("variants.1.sku");
   });
 
+  // The database check constraint would otherwise reject these as an unhandled 23514 rather
+  // than a field-level message on the workspace form.
+  test("rejects a missing or mismatched category-subcategory pair", () => {
+    const { subcategory, ...withoutSubcategory } = workspacePayload;
+
+    expect(adminProductWorkspaceSchema.safeParse(withoutSubcategory).success).toBe(false);
+
+    const mismatch = adminProductWorkspaceSchema.safeParse({
+      ...workspacePayload,
+      subcategory: "t-shirts",
+    });
+
+    expect(mismatch.success).toBe(false);
+
+    if (!mismatch.success) {
+      expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
+    }
+  });
+
   test("rejects unknown keys anywhere in the payload", () => {
     expect(
       adminProductWorkspaceSchema.safeParse({ ...workspacePayload, position: 1 }).success,
@@ -198,6 +262,7 @@ describe("admin product composer contract", () => {
     slug: "street-deck",
     description: "",
     category: "hardgoods",
+    subcategory: "decks",
     intent: "draft",
     variants: [{ name: '8.0"', sku: "DECK-STREET-80", price: "89.00", inventory: "5" }],
     images: [],
@@ -221,6 +286,25 @@ describe("admin product composer contract", () => {
     expect(
       publish.success ? [] : publish.error.issues.map((issue) => issue.path.join(".")),
     ).toContain("variants");
+  });
+
+  // A composer create is the only path that inserts a brand-new product row, so an invalid
+  // pair here would hit the NOT NULL column or the check constraint instead of the form.
+  test("rejects a missing or mismatched category-subcategory pair", () => {
+    const { subcategory, ...withoutSubcategory } = composerPayload;
+
+    expect(adminProductComposerSchema.safeParse(withoutSubcategory).success).toBe(false);
+
+    const mismatch = adminProductComposerSchema.safeParse({
+      ...composerPayload,
+      subcategory: "buttons",
+    });
+
+    expect(mismatch.success).toBe(false);
+
+    if (!mismatch.success) {
+      expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
+    }
   });
 
   test("accepts image keys under the pre-generated product id and rejects foreign ones", () => {
