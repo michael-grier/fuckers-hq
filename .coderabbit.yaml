@@ -14,8 +14,12 @@ reviews:
   auto_review:
     enabled: true
     drafts: false
-    auto_incremental_review: true
-    auto_pause_after_reviewed_commits: 5
+    # Each review run, including an automatic incremental one, consumes from a
+    # per-developer hourly allowance shared across every repository. Reviewing
+    # each work-in-progress push exhausts it well before a branch is ready, so
+    # incremental reviews are requested manually via `@coderabbitai review`.
+    auto_incremental_review: false
+    auto_pause_after_reviewed_commits: 2
 
   path_filters:
     - "!bun.lock"

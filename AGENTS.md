@@ -77,6 +77,23 @@ bun run build
 Add regression coverage for behavior changes and failure modes. Do not apply migrations or use
 external production services as part of automated verification.
 
+## Pushing And Review Cadence
+
+Automated review capacity is a shared, rate-limited resource. CodeRabbit charges one review run
+per push, and the hourly allowance is per developer across every repository, so a branch pushed
+commit by commit can exhaust it before the work is even ready to read.
+
+- Batch commits locally and push once when a branch is ready for review. Do not push after each
+  commit, and do not push intermediate work in progress.
+- Run the full local gate before pushing, so a push does not become a series of fixup pushes.
+- Automatic incremental review is disabled in `.coderabbit.yaml`. After pushing follow-up commits,
+  request the re-review explicitly with `@coderabbitai review` once the branch is ready, rather
+  than after each individual fix.
+- When several branches are ready at once, open their pull requests spaced out rather than
+  back to back.
+- Treat a `Review limit reached` comment as expected pacing rather than a failure. The window
+  rolls, so wait for capacity instead of re-requesting the review.
+
 ## Pull Request Feedback
 
 When implementing review feedback:
