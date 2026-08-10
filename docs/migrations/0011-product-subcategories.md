@@ -91,16 +91,37 @@ across two releases. Prefer quiescing admin product writes for the duration.
 
 ## Rollback
 
-Deploy the previous application version first, then use a reviewed follow-up migration:
+Roll back in two reviewed stages, relaxing the constraints before the deploy and dropping the
+column after it. Neither application version is broken at any point, so admin product writes do
+not have to be quiesced.
+
+**Stage 1 — relax, while this application version is still running.**
 
 ```sql
 ALTER TABLE products DROP CONSTRAINT products_category_subcategory_pair;
 ALTER TABLE products ALTER COLUMN subcategory DROP NOT NULL;
 ALTER TABLE products ALTER COLUMN category DROP NOT NULL;
+```
+
+**Stage 2 — deploy the previous application version.** It omits `subcategory` on insert and
+leaves it untouched on update, which the relaxed column now accepts. The composite index still
+serves its category-only lookups, because `category` is the leading column.
+
+**Stage 3 — drop the leftovers, once no version that writes `subcategory` is running.**
+
+```sql
 DROP INDEX products_category_subcategory_idx;
 CREATE INDEX products_category_idx ON products USING btree (category);
 ALTER TABLE products DROP COLUMN subcategory;
 ```
+
+Do not reorder these. Dropping the column before the deploy breaks every product write from the
+still-running new version, which writes `subcategory` on both insert and update. Deploying the
+previous version before Stage 1 breaks creates on the `NOT NULL` column and category-changing
+updates on the check constraint.
+
+Smoke-test a product create and a category-changing product update after Stage 2 and again after
+Stage 3.
 
 The backfilled data itself needs no reversal: dropping the column removes it, and `category`
 values are untouched by this migration.
