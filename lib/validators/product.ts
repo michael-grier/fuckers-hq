@@ -202,6 +202,24 @@ function flagDuplicateSkus(
   });
 }
 
+/**
+ * Every admin write path must land a canonical parent-child pair, because the
+ * `products_category_subcategory_pair` check constraint rejects anything else at the database
+ * with an unhandled error rather than a field-level message.
+ */
+function flagInvalidTaxonomyPair(
+  input: { category: string; subcategory: string },
+  context: z.RefinementCtx,
+): void {
+  if (!isValidProductTaxonomyPair(input.category, input.subcategory)) {
+    context.addIssue({
+      code: "custom",
+      message: invalidTaxonomyPairMessage,
+      path: ["subcategory"],
+    });
+  }
+}
+
 const productWorkspaceFields = {
   slug: productInsertSchema.shape.slug,
   name: productInsertSchema.shape.name,
@@ -210,6 +228,7 @@ const productWorkspaceFields = {
     .string()
     .trim()
     .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+  subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
   status: z.enum(productStatusValues),
   variants: z
     .array(adminVariantRowSchema)
@@ -220,13 +239,15 @@ const productWorkspaceFields = {
 export const adminProductWorkspaceFormSchema = z
   .object(productWorkspaceFields)
   .strict()
-  .superRefine(flagDuplicateSkus);
+  .superRefine(flagDuplicateSkus)
+  .superRefine(flagInvalidTaxonomyPair);
 
 /** Server payload for saving the whole workspace in one action. */
 export const adminProductWorkspaceSchema = z
   .object({ ...productWorkspaceFields, productId: adminEntityIdSchema })
   .strict()
-  .superRefine(flagDuplicateSkus);
+  .superRefine(flagDuplicateSkus)
+  .superRefine(flagInvalidTaxonomyPair);
 
 const composerImageSchema = z
   .object({
@@ -243,6 +264,7 @@ const productComposerFields = {
     .string()
     .trim()
     .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
+  subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
   variants: z
     .array(adminVariantFormSchema)
     .max(100, "A product cannot hold more than 100 variants."),
@@ -252,7 +274,8 @@ const productComposerFields = {
 export const adminProductComposerFormSchema = z
   .object(productComposerFields)
   .strict()
-  .superRefine(flagDuplicateSkus);
+  .superRefine(flagDuplicateSkus)
+  .superRefine(flagInvalidTaxonomyPair);
 
 /**
  * Server payload for the new-product composer. The page pre-generates the
@@ -269,6 +292,7 @@ export const adminProductComposerSchema = z
   .strict()
   .superRefine((input, context) => {
     flagDuplicateSkus(input, context);
+    flagInvalidTaxonomyPair(input, context);
 
     if (input.intent === "publish" && input.variants.length === 0) {
       context.addIssue({

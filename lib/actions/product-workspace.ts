@@ -307,6 +307,7 @@ export async function createProductFromComposer(
     name: parsed.data.name,
     description: parsed.data.description,
     category: parsed.data.category,
+    subcategory: parsed.data.subcategory,
     status: parsed.data.intent === "publish" ? "active" : "draft",
   });
 

@@ -186,6 +186,7 @@ const workspacePayload = {
   slug: "street-deck",
   description: "",
   category: "hardgoods",
+  subcategory: "decks",
   status: "active",
   variants: [
     {
@@ -222,6 +223,25 @@ describe("admin product workspace contract", () => {
     ).toContain("variants.1.sku");
   });
 
+  // The database check constraint would otherwise reject these as an unhandled 23514 rather
+  // than a field-level message on the workspace form.
+  test("rejects a missing or mismatched category-subcategory pair", () => {
+    const { subcategory, ...withoutSubcategory } = workspacePayload;
+
+    expect(adminProductWorkspaceSchema.safeParse(withoutSubcategory).success).toBe(false);
+
+    const mismatch = adminProductWorkspaceSchema.safeParse({
+      ...workspacePayload,
+      subcategory: "t-shirts",
+    });
+
+    expect(mismatch.success).toBe(false);
+
+    if (!mismatch.success) {
+      expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
+    }
+  });
+
   test("rejects unknown keys anywhere in the payload", () => {
     expect(
       adminProductWorkspaceSchema.safeParse({ ...workspacePayload, position: 1 }).success,
@@ -242,6 +262,7 @@ describe("admin product composer contract", () => {
     slug: "street-deck",
     description: "",
     category: "hardgoods",
+    subcategory: "decks",
     intent: "draft",
     variants: [{ name: '8.0"', sku: "DECK-STREET-80", price: "89.00", inventory: "5" }],
     images: [],
@@ -265,6 +286,25 @@ describe("admin product composer contract", () => {
     expect(
       publish.success ? [] : publish.error.issues.map((issue) => issue.path.join(".")),
     ).toContain("variants");
+  });
+
+  // A composer create is the only path that inserts a brand-new product row, so an invalid
+  // pair here would hit the NOT NULL column or the check constraint instead of the form.
+  test("rejects a missing or mismatched category-subcategory pair", () => {
+    const { subcategory, ...withoutSubcategory } = composerPayload;
+
+    expect(adminProductComposerSchema.safeParse(withoutSubcategory).success).toBe(false);
+
+    const mismatch = adminProductComposerSchema.safeParse({
+      ...composerPayload,
+      subcategory: "buttons",
+    });
+
+    expect(mismatch.success).toBe(false);
+
+    if (!mismatch.success) {
+      expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
+    }
   });
 
   test("accepts image keys under the pre-generated product id and rejects foreign ones", () => {

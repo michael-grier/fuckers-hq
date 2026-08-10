@@ -20,7 +20,11 @@ import { createProductFromComposer } from "@/lib/actions/product-workspace";
 import type { ActionFailure } from "@/lib/actions/result";
 import { uploadProductImageFile } from "@/lib/admin/product-image-upload";
 import { suggestProductSlug } from "@/lib/admin/product-slug";
-import { productCategories } from "@/lib/catalog/categories";
+import {
+  getProductSubcategoryOptions,
+  isProductCategory,
+  productCategories,
+} from "@/lib/catalog/categories";
 import {
   allowedProductImageTypes,
   MAX_PRODUCT_IMAGE_BYTES,
@@ -73,6 +77,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
       slug: "",
       description: "",
       category: "",
+      subcategory: "",
       variants: [emptyVariantRow],
     },
     resolver: zodResolver(adminProductComposerFormSchema),
@@ -83,7 +88,11 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
   const watchedName = form.watch("name");
   const watchedSlug = form.watch("slug");
   const watchedCategory = form.watch("category");
+  const watchedSubcategory = form.watch("subcategory");
   const watchedVariants = form.watch("variants");
+  const subcategoryOptions = isProductCategory(watchedCategory)
+    ? getProductSubcategoryOptions(watchedCategory)
+    : [];
   const busy = form.formState.isSubmitting || isUploading;
 
   const nameRegistration = form.register("name");
@@ -258,6 +267,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
     name: watchedName,
     slug: watchedSlug,
     category: watchedCategory,
+    subcategory: watchedSubcategory,
     variants: watchedVariants ?? [],
     imageCount: stagedImages.length,
   });
@@ -326,7 +336,11 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                     aria-invalid={Boolean(errors.category)}
                     className={adminSelectClassName}
                     id="category"
-                    {...form.register("category")}
+                    {...form.register("category", {
+                      // The subcategory belongs to the previous category, so it cannot survive
+                      // the change without producing an invalid pair.
+                      onChange: () => form.setValue("subcategory", ""),
+                    })}
                   >
                     <option value="">Select a category</option>
                     {productCategories.map((category) => (
@@ -338,6 +352,33 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                   {!errors.category ? (
                     <p className="mt-1 text-muted-foreground text-xs" id="category-help">
                       Skate parts, apparel, or small items like stickers and keychains.
+                    </p>
+                  ) : null}
+                </FormField>
+
+                <FormField error={errors.subcategory?.message} id="subcategory" label="Subcategory">
+                  <select
+                    aria-describedby={errors.subcategory ? "subcategory-error" : "subcategory-help"}
+                    aria-invalid={Boolean(errors.subcategory)}
+                    className={adminSelectClassName}
+                    disabled={subcategoryOptions.length === 0}
+                    id="subcategory"
+                    {...form.register("subcategory")}
+                  >
+                    <option value="">
+                      {subcategoryOptions.length === 0
+                        ? "Select a category first"
+                        : "Select a subcategory"}
+                    </option>
+                    {subcategoryOptions.map((subcategory) => (
+                      <option key={subcategory.value} value={subcategory.value}>
+                        {subcategory.label}
+                      </option>
+                    ))}
+                  </select>
+                  {!errors.subcategory ? (
+                    <p className="mt-1 text-muted-foreground text-xs" id="subcategory-help">
+                      Changing the category clears the subcategory so the pair always matches.
                     </p>
                   ) : null}
                 </FormField>
@@ -737,12 +778,14 @@ function buildChecklist({
   name,
   slug,
   category,
+  subcategory,
   variants,
   imageCount,
 }: {
   name: string;
   slug: string;
   category: string;
+  subcategory: string;
   variants: ReadonlyArray<{ name: string; sku: string; price: string; inventory: string }>;
   imageCount: number;
 }) {
@@ -752,7 +795,8 @@ function buildChecklist({
 
   return [
     { label: "Name and slug", done: Boolean(name.trim() && slug.trim()) },
-    { label: "Category chosen", done: category !== "" },
+    // Both halves, because a category without its subcategory still cannot be saved.
+    { label: "Category and subcategory chosen", done: category !== "" && subcategory !== "" },
     {
       label:
         completeVariants === 1
