@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
 import { renderToStaticMarkup } from "react-dom/server";
 
@@ -16,6 +17,29 @@ function renderCatalogFilters(searchParams: string): string {
     </NuqsTestingAdapter>,
   );
 }
+
+afterEach(cleanup);
+
+describe("catalog filter popover accessibility", () => {
+  test("exposes the open popover as a dialog named Filters", async () => {
+    render(
+      <NuqsTestingAdapter searchParams="">
+        <CatalogFilters totalProducts={4} />
+      </NuqsTestingAdapter>,
+    );
+
+    // The content is portalled and mounts only once open, so the name has to be asserted
+    // against the live DOM rather than server-rendered markup.
+    fireEvent.click(screen.getByRole("button", { name: /filters/i }));
+
+    // Queried by accessible name, so this fails if the label is dropped: Radix renders the
+    // content as role="dialog", and the fieldset legends name only the groups inside it.
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+
+    expect(dialog.getAttribute("aria-label")).toBe("Filters");
+    expect(screen.getByRole("group", { name: "Categories" })).toBeDefined();
+  });
+});
 
 describe("catalog filter staging", () => {
   test("selecting a category stages it once", () => {
