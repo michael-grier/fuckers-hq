@@ -45,6 +45,7 @@ WHERE slug NOT IN (
   'carhartt-wip-hoodie-grey',
   'pepper-griptape-9',
   'spitfire-bighead-sticker-pack',
+  'bubble-logo-sticker',
   'rolling-papers'
 )
 ORDER BY name;

@@ -10,7 +10,7 @@ UPDATE "products" SET "subcategory" = 't-shirts' WHERE "subcategory" IS NULL AND
 UPDATE "products" SET "subcategory" = 'jackets' WHERE "subcategory" IS NULL AND "slug" = 'canvas-coach-jacket';--> statement-breakpoint
 UPDATE "products" SET "subcategory" = 'hoodies' WHERE "subcategory" IS NULL AND "slug" = 'carhartt-wip-hoodie-grey';--> statement-breakpoint
 UPDATE "products" SET "subcategory" = 'griptape' WHERE "subcategory" IS NULL AND "slug" = 'pepper-griptape-9';--> statement-breakpoint
-UPDATE "products" SET "subcategory" = 'stickers' WHERE "subcategory" IS NULL AND "slug" = 'spitfire-bighead-sticker-pack';--> statement-breakpoint
+UPDATE "products" SET "subcategory" = 'stickers' WHERE "subcategory" IS NULL AND "slug" IN ('spitfire-bighead-sticker-pack', 'bubble-logo-sticker');--> statement-breakpoint
 UPDATE "products" SET "subcategory" = 'papers' WHERE "subcategory" IS NULL AND "slug" = 'rolling-papers';--> statement-breakpoint
 -- Fail loudly instead of guessing: any product left without an explicit canonical
 -- category/subcategory pair aborts the migration and is listed for manual classification.
