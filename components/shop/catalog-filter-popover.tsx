@@ -1,7 +1,7 @@
 "use client";
 
 import { ListFilter } from "lucide-react";
-import { useState } from "react";
+import { type KeyboardEvent as ReactKeyboardEvent, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,39 @@ export function CatalogFilterPopover({
     await onApply(update);
   }
 
+  /**
+   * Moves focus down and up the panel's controls, and swallows the key either way so the page
+   * behind the open popover never scrolls instead.
+   *
+   * Queried on each keypress rather than cached, because checking a category adds that parent's
+   * subcategory fieldset to the panel.
+   */
+  function handleContentKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
+      return;
+    }
+
+    const items = [
+      ...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not([disabled])"),
+    ];
+
+    if (items.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const forward = event.key === "ArrowDown";
+
+    if (current === -1) {
+      items[forward ? 0 : items.length - 1].focus();
+      return;
+    }
+
+    items[(current + (forward ? 1 : -1) + items.length) % items.length].focus();
+  }
+
   return (
     <Popover onOpenChange={handleOpenChange} open={open}>
       <PopoverTrigger asChild>
@@ -80,6 +113,7 @@ export function CatalogFilterPopover({
         // because the fieldset legends name only the groups inside it.
         aria-label="Filters"
         className="flex max-h-[min(26rem,var(--radix-popover-content-available-height))] w-[min(20rem,calc(100vw-2rem))] flex-col gap-4 overflow-y-auto"
+        onKeyDown={handleContentKeyDown}
       >
         {scopedCategory ? (
           <SubcategoryFieldset

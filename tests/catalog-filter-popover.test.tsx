@@ -39,6 +39,48 @@ describe("catalog filter popover accessibility", () => {
     expect(dialog.getAttribute("aria-label")).toBe("Filters");
     expect(screen.getByRole("group", { name: "Categories" })).toBeDefined();
   });
+
+  test("moves focus down and up the panel with the arrow keys", async () => {
+    render(
+      <NuqsTestingAdapter searchParams="">
+        <CatalogFilters totalProducts={4} />
+      </NuqsTestingAdapter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /filters/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+    const controls = [...dialog.querySelectorAll<HTMLButtonElement>("button:not([disabled])")];
+
+    controls[0].focus();
+
+    fireEvent.keyDown(dialog, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(controls[1]);
+
+    fireEvent.keyDown(dialog, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(controls[0]);
+
+    // Wraps rather than dead-ending at either edge.
+    fireEvent.keyDown(dialog, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(controls[controls.length - 1]);
+  });
+
+  test("swallows the arrow keys so the page behind the popover does not scroll", async () => {
+    render(
+      <NuqsTestingAdapter searchParams="">
+        <CatalogFilters totalProducts={4} />
+      </NuqsTestingAdapter>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /filters/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Filters" });
+
+    // fireEvent returns false once a handler has called preventDefault; an unhandled arrow key
+    // reaches the browser default, which is scrolling the document.
+    expect(fireEvent.keyDown(dialog, { key: "ArrowDown" })).toBe(false);
+    expect(fireEvent.keyDown(dialog, { key: "ArrowUp" })).toBe(false);
+  });
 });
 
 describe("catalog filter staging", () => {
