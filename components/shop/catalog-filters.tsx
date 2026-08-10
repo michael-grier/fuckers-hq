@@ -56,32 +56,41 @@ export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
             value={filters.q}
           />
         </div>
-        <div className="flex items-center gap-3">
-          <p className="min-w-24 text-muted-foreground text-sm" aria-live="polite">
+        {/* Below lg this row is the full container width, so the count sits against the left
+            edge and the controls against the right, lining up with the search field above.
+            Wrapping keeps the controls on screen once they no longer fit beside the count. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 lg:justify-end">
+          <p className="text-muted-foreground text-sm" aria-live="polite">
             {isPending ? "Updating" : `${totalProducts} items`}
           </p>
-          <CatalogFilterPopover
-            appliedCategories={appliedTaxonomy.categories}
-            appliedSubcategories={appliedTaxonomy.subcategories}
-            isPending={isPending}
-            onApply={applyTaxonomyFilters}
-            scopedCategory={appliedTaxonomy.scopedCategory}
-          />
-          <label className="flex items-center gap-2 text-sm">
-            <span className="font-semibold">Sort</span>
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 font-medium outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              onChange={async (event) => {
-                await setFilters(withFirstCatalogPage({ sort: event.target.value as CatalogSort }));
-              }}
-              value={filters.sort}
-            >
-              <option value="newest">Newest</option>
-              <option value="price-asc">Price ascending</option>
-              <option value="price-desc">Price descending</option>
-              <option value="name-asc">Name ascending</option>
-            </select>
-          </label>
+          <div className="flex min-w-0 items-center gap-2">
+            <CatalogFilterPopover
+              appliedCategories={appliedTaxonomy.categories}
+              appliedSubcategories={appliedTaxonomy.subcategories}
+              isPending={isPending}
+              onApply={applyTaxonomyFilters}
+              scopedCategory={appliedTaxonomy.scopedCategory}
+            />
+            <label className="flex min-w-0 items-center gap-2 text-sm">
+              <span className="font-semibold">Sort</span>
+              {/* min-w-0 lets the select shrink instead of pushing past the viewport on the
+                  narrowest screens, where the longest option label is wider than the space. */}
+              <select
+                className="h-10 min-w-0 rounded-md border border-input bg-background px-3 font-medium outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                onChange={async (event) => {
+                  await setFilters(
+                    withFirstCatalogPage({ sort: event.target.value as CatalogSort }),
+                  );
+                }}
+                value={filters.sort}
+              >
+                <option value="newest">Newest</option>
+                <option value="price-asc">Price ascending</option>
+                <option value="price-desc">Price descending</option>
+                <option value="name-asc">Name ascending</option>
+              </select>
+            </label>
+          </div>
         </div>
       </div>
     </section>
