@@ -25,9 +25,20 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
     };
   }
 
+  const primaryImage = product.images[0];
+
   return {
     title: product.name,
     description: product.description,
+    openGraph: {
+      title: product.name,
+      description: product.description ?? undefined,
+      // Product photos are square R2 uploads; platforms crop or letterbox them into
+      // 1.91:1. Pages without a photo fall back to the site-wide app/opengraph-image.png.
+      images: primaryImage
+        ? [{ url: primaryImage.url, alt: primaryImage.alt ?? product.name }]
+        : undefined,
+    },
   };
 }
 
