@@ -129,7 +129,9 @@ bun run db:seed
 ```
 
 `db:migrate` and `db:seed` require `DATABASE_URL`. The seed script is intended for local or
-development databases.
+development databases. Production is migrated automatically by the `Deploy Production` workflow
+on every push to `main` — see [docs/migrations/README.md](docs/migrations/README.md); never run
+`db:migrate` against production by hand.
 
 Migration `0011_product-subcategories.sql` adds the required `products.subcategory` column with an
 explicit slug-based backfill, non-null category columns, a canonical parent-child check
