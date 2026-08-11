@@ -7,6 +7,7 @@ import {
   isPooledUrl,
   parseEnvFile,
   renderOverrideEnv,
+  waitForOperations,
 } from "@/scripts/worktree-db";
 
 describe("parseEnvFile", () => {
@@ -72,5 +73,32 @@ describe("generated override files", () => {
   test("refuses to treat a hand-written file as generated", () => {
     // Teardown deletes files based on this check, so a manual override must never match.
     expect(generatedNeonBranchId("DATABASE_URL=x\nNEON_BRANCH_ID=br-manual")).toBeNull();
+  });
+});
+
+describe("waitForOperations", () => {
+  test("polls until every operation reports finished", async () => {
+    const statuses = ["running", "finished"];
+    let polls = 0;
+    const api = {
+      getOperation: async (id: string) => ({ id, status: statuses[polls++] ?? "finished" }),
+    };
+    await waitForOperations(api, [{ id: "op-1", status: "running" }], 1);
+    expect(polls).toBe(2);
+  });
+
+  test("throws when an operation reports a terminal failure", async () => {
+    const api = { getOperation: async () => null };
+    await expect(waitForOperations(api, [{ id: "op-1", status: "failed" }], 1)).rejects.toThrow(
+      "op-1 failed",
+    );
+  });
+
+  test("treats a 404 for a pending operation as an error, not as completion", async () => {
+    // Setup must not proceed to connection-string fetch and migrations on a lookup failure.
+    const api = { getOperation: async () => null };
+    await expect(waitForOperations(api, [{ id: "op-1", status: "running" }], 1)).rejects.toThrow(
+      "disappeared before finishing",
+    );
   });
 });

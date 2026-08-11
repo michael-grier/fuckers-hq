@@ -230,12 +230,16 @@ class NeonApi {
 }
 
 /** Branch creation is async on Neon's side; wait so the first migration run doesn't race a
- * compute endpoint that is still provisioning. */
-async function waitForOperations(api: NeonApi, operations: NeonOperation[]): Promise<void> {
+ * compute endpoint that is still provisioning. Exported for tests. */
+export async function waitForOperations(
+  api: Pick<NeonApi, "getOperation">,
+  operations: NeonOperation[],
+  pollIntervalMs = 2_000,
+): Promise<void> {
   const deadline = Date.now() + 120_000;
   for (const started of operations) {
-    let current: NeonOperation | null = started;
-    while (current !== null && current.status !== "finished") {
+    let current: NeonOperation = started;
+    while (current.status !== "finished") {
       if (
         current.status === "failed" ||
         current.status === "error" ||
@@ -246,8 +250,14 @@ async function waitForOperations(api: NeonApi, operations: NeonOperation[]): Pro
       if (Date.now() > deadline) {
         throw new Error("Timed out waiting for Neon branch operations to finish.");
       }
-      await Bun.sleep(2_000);
-      current = await api.getOperation(started.id);
+      await Bun.sleep(pollIntervalMs);
+      const polled = await api.getOperation(started.id);
+      if (polled === null) {
+        // A 404 for an operation Neon just returned is a lookup failure, not completion.
+        // Treating it as success would let migrations race a still-provisioning endpoint.
+        throw new Error(`Neon operation ${started.id} disappeared before finishing.`);
+      }
+      current = polled;
     }
   }
 }
