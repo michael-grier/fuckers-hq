@@ -19,11 +19,14 @@ dependencies or perform broad refactors without explaining why they are necessar
   worktree reads. `setup:worktree` makes that file read-only; treat a `Permission denied` on it as
   the guard working, not as a problem to route around. Ask before changing any credential. Editing
   the committed `.env.example` is fine and is how env-contract changes are proposed.
-- Keep TypeScript explicit and readable; avoid `any` unless a boundary genuinely requires it.
+- Let TypeScript infer wherever it can; annotate at boundaries so changes propagate instead of
+  requiring edits everywhere. `any` is a last resort a boundary genuinely forces.
 - Keep validation, authorization, and persistence boundaries visible.
 - Reuse existing components, utilities, and patterns before adding abstractions.
 - Preserve Biome formatting and lint conventions.
-- Add concise comments only for non-obvious constraints, invariants, or security decisions.
+- Add concise comments for non-obvious constraints, invariants, and security decisions, and to
+  describe the purpose and use of functions, classes, and modules above their definitions. Do not
+  narrate every line. Update comments in the same change that makes them stale.
 - In React code, prioritize semantic HTML, keyboard access, accessible names, and focus states.
 - Treat browser and client code as untrusted.
 
@@ -74,8 +77,9 @@ bun run typecheck
 bun run build
 ```
 
-Add regression coverage for behavior changes and failure modes. Do not apply migrations or use
-external production services as part of automated verification.
+Add focused regression coverage for behavior changes and failure modes — a test that would have
+caught the bug, not a suite of smoke tests around it. Do not apply migrations or use external
+production services as part of automated verification.
 
 ## Pushing And Review Cadence
 
@@ -83,6 +87,12 @@ Automated review capacity is a shared, rate-limited resource. CodeRabbit charges
 per push, and the hourly allowance is per developer across every repository, so a branch pushed
 commit by commit can exhaust it before the work is even ready to read.
 
+- Rebase onto the latest `main` before the first push of a branch: `git fetch origin` then
+  `git rebase origin/main`. Resolve conflicts and run the full local gate afterward, so the
+  pull request opens against current `main` and the review reads the code as it will merge.
+  Rebasing replays this branch's commits on top of what `main` already contains; it never pulls
+  in another pull request's unmerged work. Keeping a branch scoped governs which changes you
+  author on it, not whether you update it from `main`.
 - Batch commits locally and push once when a branch is ready for review. Do not push after each
   commit, and do not push intermediate work in progress.
 - Run the full local gate before pushing, so a push does not become a series of fixup pushes.
