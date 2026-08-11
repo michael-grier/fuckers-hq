@@ -26,6 +26,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
   let client: ReturnType<typeof postgres>;
   let database: Database;
   let repository: OrderFulfillmentRepository & InventoryExceptionRepository;
+  let realDbClient: typeof import("@/lib/db/client");
 
   beforeAll(async () => {
     if (!testDatabaseUrl) {
@@ -47,7 +48,11 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     database = drizzle(client, { schema: await import("@/lib/db/schema") });
 
     // The admin repository resolves its connection through getDb() rather than receiving one, so
-    // the client module is replaced before the repository module is first imported.
+    // the client module is replaced before the repository module is first imported. Module mocks
+    // are process-wide and bun test shares one module registry across every test file, so the
+    // real module is captured first and afterAll puts it back; otherwise whichever file runs
+    // next would resolve getDb() to this suite's schema, dropped and disconnected below.
+    realDbClient = await import("@/lib/db/client");
     mock.module("@/lib/db/client", () => ({ getDb: () => database }));
     ({ adminOrderRepository: repository } = await import("@/lib/orders/admin-order-repository"));
   });
@@ -100,6 +105,9 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
       return;
     }
 
+    // Restore before the teardown below, so later test files see the real client even if a drop
+    // or disconnect throws.
+    mock.module("@/lib/db/client", () => ({ ...realDbClient }));
     await adminClient.unsafe(`drop schema if exists "${schemaName}" cascade`);
     await client.end({ timeout: 5 });
     await adminClient.end({ timeout: 5 });
