@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import {
@@ -42,6 +42,20 @@ export async function deleteProductRecord(
       return { outcome: "active" as const };
     }
 
+    // Lock every variant row before the history check. Inserts that reference
+    // a variant (order items, reservation items) hold a KEY SHARE lock on it,
+    // which conflicts with FOR UPDATE, so a concurrent checkout either commits
+    // first and is seen by the history check below, or waits here and fails
+    // its FK once the cascade removes the variant. Without this lock an order
+    // item could land in the check-then-delete window and be silently
+    // orphaned, because its FK is set-null rather than restrict.
+    await tx
+      .select({ id: productVariants.id })
+      .from(productVariants)
+      .where(eq(productVariants.productId, productId))
+      .orderBy(asc(productVariants.id))
+      .for("update");
+
     const [historyRow] = await tx
       .select({ variantId: productVariants.id })
       .from(productVariants)
@@ -74,10 +88,9 @@ export async function deleteProductRecord(
       .from(productImages)
       .where(eq(productImages.productId, productId));
 
-    // The row lock above does not stop a concurrent checkout from inserting a
-    // reservation item between the history check and this delete. The restrict
-    // FK on inventory_reservation_items.variant_id aborts the delete in that
-    // race; the caller maps the 23503 to the same refusal.
+    // The variant locks above serialize concurrent checkouts; the restrict FK
+    // on inventory_reservation_items.variant_id remains as defense in depth,
+    // and the caller maps its 23503 to the same refusal.
     await tx.delete(products).where(eq(products.id, productId));
 
     return {

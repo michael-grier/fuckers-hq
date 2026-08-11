@@ -221,6 +221,46 @@ describe.skipIf(!testDatabaseUrl)("guarded product deletion with real Postgres",
     expect(await database.select().from(products)).toHaveLength(1);
   });
 
+  test("serializes product deletion with a concurrent order-item insert", async () => {
+    // An order-item insert holds a KEY SHARE lock on the referenced variant
+    // until its transaction ends. Hold one open, start the delete against it,
+    // then commit: the delete must wait on the variant locks and refuse once
+    // it sees the committed row — never cascade past it into a set-null
+    // orphan. Both operations succeeding would be the regression.
+    let releaseInsert!: () => void;
+    const insertHeld = new Promise<void>((resolve) => {
+      releaseInsert = resolve;
+    });
+    let insertRan!: () => void;
+    const insertRanSignal = new Promise<void>((resolve) => {
+      insertRan = resolve;
+    });
+
+    const insertTransaction = client.begin(async (transaction) => {
+      await transaction`
+        insert into order_items
+          (id, order_id, variant_id, product_name_snapshot, variant_name_snapshot,
+           unit_price_cents_snapshot, quantity)
+        values
+          ('30000000-0000-4000-8000-000000000102', ${orderId}, ${variantId},
+           'Database Deck', '8.25"', 8900, 1)
+      `;
+      insertRan();
+      await insertHeld;
+    });
+
+    await insertRanSignal;
+    const deletePromise = deleteProductRecord(database, productId);
+    // Give the delete time to reach the variant locks and block on them.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    releaseInsert();
+    await insertTransaction;
+
+    await expect(deletePromise).resolves.toEqual({ outcome: "has_commerce_history" });
+    expect(await database.select().from(products)).toHaveLength(1);
+    expect(await database.select().from(orderItems)).toHaveLength(1);
+  });
+
   test("an archived product with no history can be deleted", async () => {
     await database.update(products).set({ status: "archived" }).where(eq(products.id, productId));
 
