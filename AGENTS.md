@@ -90,8 +90,9 @@ commit by commit can exhaust it before the work is even ready to read.
 - Rebase onto the latest `main` before the first push of a branch: `git fetch origin` then
   `git rebase origin/main`. Resolve conflicts and run the full local gate afterward, so the
   pull request opens against current `main` and the review reads the code as it will merge.
-  Rebasing to update a branch is expected and is not the same as merging `main` in to pull
-  another PR's changes into scope.
+  Rebasing replays this branch's commits on top of what `main` already contains; it never pulls
+  in another pull request's unmerged work. Keeping a branch scoped governs which changes you
+  author on it, not whether you update it from `main`.
 - Batch commits locally and push once when a branch is ready for review. Do not push after each
   commit, and do not push intermediate work in progress.
 - Run the full local gate before pushing, so a push does not become a series of fixup pushes.
