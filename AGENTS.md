@@ -13,12 +13,21 @@ dependencies or perform broad refactors without explaining why they are necessar
 
 - Use Bun and the committed lockfile. Do not introduce a second package manager.
 - In a fresh `git worktree`, run `bun install` and `bun run setup:worktree` before running the app.
-  The second command links the main checkout's gitignored `.env.local` into the worktree.
-- Never create, edit, or overwrite `.env` or `.env*.local`. Worktrees share one physical
+  The second command links the main checkout's gitignored `.env.local` into the worktree and, when
+  `NEON_API_KEY` and `NEON_PROJECT_ID` are set in that file, gives the worktree its own Neon branch
+  database named after the git branch: it writes generated `.env.development.local` and
+  `.env.production.local` overrides and runs migrations against the new branch. Without those
+  credentials the worktree shares the main checkout's database, so migration state is global across
+  worktrees. Run `bun run teardown:worktree` before removing a worktree so its Neon branch is
+  deleted rather than accumulating.
+- Never create, edit, or overwrite `.env` or `.env*.local` by hand. Worktrees share one physical
   `.env.local` by symlink, so writing to it from any worktree rewrites the credentials every other
   worktree reads. `setup:worktree` makes that file read-only; treat a `Permission denied` on it as
-  the guard working, not as a problem to route around. Ask before changing any credential. Editing
-  the committed `.env.example` is fine and is how env-contract changes are proposed.
+  the guard working, not as a problem to route around. The generated per-worktree
+  `.env.development.local`/`.env.production.local` overrides are managed exclusively by
+  `setup:worktree` and `teardown:worktree`; regenerate them with those commands instead of editing.
+  Ask before changing any credential. Editing the committed `.env.example` is fine and is how
+  env-contract changes are proposed.
 - Let TypeScript infer wherever it can; annotate at boundaries so changes propagate instead of
   requiring edits everywhere. `any` is a last resort a boundary genuinely forces.
 - Keep validation, authorization, and persistence boundaries visible.
