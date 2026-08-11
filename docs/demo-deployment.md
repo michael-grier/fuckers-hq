@@ -9,13 +9,14 @@ what is necessary for the demonstration.
 
 1. A pull request to `main` receives a Vercel Preview deployment and the GitHub `Quality` check.
 2. GitHub permits the merge only after `Quality` passes.
-3. Vercel builds the merged `main` commit as a Production deployment.
-4. The `Quality` workflow runs again on the exact merged commit.
-5. When configured as a Vercel Deployment Check, `Quality` must pass before Vercel moves the
-   production domain to the new deployment.
+3. On push to `main`, the `Deploy Production` workflow first applies pending Drizzle migrations to
+   the production database, then deploys the merged commit to Vercel with the CLI.
+4. A failing or aborting migration fails the workflow and blocks the deploy, so the running
+   application version never gets ahead of the schema it expects.
 
-Vercel's Git integration performs the deploy. GitHub Actions should not store Vercel credentials or
-run a second, competing deployment.
+`vercel.json` disables Vercel's git-driven deploys of `main`, so the workflow is the only
+production deploy path. See [migrations/README.md](migrations/README.md) for the migration
+runbook and the GitHub Actions secrets the workflow requires.
 
 ## 1. Prepare the demo resources
 
@@ -209,14 +210,12 @@ In **GitHub → Settings → Rules → Rulesets**, edit the ruleset targeting th
 
 In **Vercel → Project → Settings → Production environment**:
 
-- Confirm Branch Tracking is `main`.
-- Keep automatic production deployments and automatic production aliasing enabled.
-- If **Deployment Checks** is available, add the uniquely named GitHub Actions check `Quality`.
-  This lets Vercel build immediately after merge but withhold the production alias until CI passes
-  on that exact `main` commit.
+- Confirm Branch Tracking is `main`, so the CLI deploy from the workflow is treated as Production.
+- Keep automatic production aliasing enabled. Automatic git deployments of `main` are disabled by
+  `vercel.json`; the `Deploy Production` workflow performs the deploy after migrations succeed.
 
-Do not add a second GitHub Action that calls `vercel deploy`; it would duplicate the Git integration
-and can create competing deployments.
+Do not re-enable git-driven production deployments; they would race the workflow's
+migrate-then-deploy ordering.
 
 ## 6. Verify the deployed demo
 
