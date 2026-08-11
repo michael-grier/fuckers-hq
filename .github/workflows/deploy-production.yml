@@ -5,7 +5,7 @@ on:
     branches:
       - main
   # Manual replays: re-running after a guarded migration aborts and the data has been fixed, or
-  # after repository secrets change.
+  # after repository secrets change. The ref guard on the migrate job limits dispatches to main.
   workflow_dispatch:
 
 permissions:
@@ -21,6 +21,10 @@ concurrency:
 jobs:
   migrate:
     name: Migrate production database
+    # A manual dispatch can select any branch, which would run that branch's code against
+    # production with the deploy secrets. Only main may migrate; skipping this job also skips
+    # the dependent deploy job.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

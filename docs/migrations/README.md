@@ -58,9 +58,10 @@ CI:
 3. Fix forward with a reviewed change — either a data fix for the named rows or a follow-up PR
    extending the migration's explicit mapping, exactly as the preflight section of the
    migration's own doc describes.
-4. Once the fix has landed on `main` (or the data fix is applied), re-run the workflow from the
-   Actions tab (`workflow_dispatch` or re-run failed jobs). The migrator picks up where it left
-   off.
+4. Once the fix has landed on `main` (or the data fix is applied), re-run the failed run from
+   the Actions tab, or dispatch the workflow manually on `main` — the workflow refuses to run
+   on any other ref, so a dispatch cannot ship an unmerged branch to production. The migrator
+   picks up where it left off.
 
 ## Dev branch
 
