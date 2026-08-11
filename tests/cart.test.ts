@@ -1,56 +1,24 @@
 import { afterAll, beforeEach, describe, expect, test } from "bun:test";
-
 import {
   getCheckoutCartFingerprint,
   resolveFulfillmentMethod,
   toCheckoutRequest,
 } from "@/lib/cart/selectors";
+import { useCartStore } from "@/lib/cart/store";
 import type { CartDisplayLine } from "@/lib/cart/types";
 
-class MemoryStorage implements Storage {
-  readonly values = new Map<string, string>();
-
-  get length(): number {
-    return this.values.size;
-  }
-
-  clear(): void {
-    this.values.clear();
-  }
-
-  getItem(key: string): string | null {
-    return this.values.get(key) ?? null;
-  }
-
-  key(index: number): string | null {
-    return Array.from(this.values.keys())[index] ?? null;
-  }
-
-  removeItem(key: string): void {
-    this.values.delete(key);
-  }
-
-  setItem(key: string, value: string): void {
-    this.values.set(key, value);
-  }
-}
-
-const storage = new MemoryStorage();
-const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
-Object.defineProperty(globalThis, "localStorage", {
-  configurable: true,
-  value: storage,
-});
-
-const { useCartStore } = await import("@/lib/cart/store");
+// The store captures `localStorage` once, when its module first evaluates — and bun test shares
+// one module cache across all test files, in an order that varies between checkouts. Swapping in
+// a fake storage here is therefore too late whenever another file (any component test that
+// renders the cart) imported the store first, which is exactly what made these tests fail on CI
+// but not locally. Assert against happy-dom's real localStorage instead: the preload registers
+// it before any test file runs, so it is the storage the store captured no matter who won the
+// import race.
+const storage = globalThis.localStorage;
 
 afterAll(() => {
-  if (originalLocalStorage) {
-    Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
-    return;
-  }
-
-  Reflect.deleteProperty(globalThis, "localStorage");
+  // Other files share this storage; do not leak a persisted cart into whichever runs next.
+  storage.clear();
 });
 
 const deck: CartDisplayLine = {
