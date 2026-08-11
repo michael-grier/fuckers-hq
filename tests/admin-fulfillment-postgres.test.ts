@@ -51,8 +51,10 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     // the client module is replaced before the repository module is first imported. Module mocks
     // are process-wide and bun test shares one module registry across every test file, so the
     // real module is captured first and afterAll puts it back; otherwise whichever file runs
-    // next would resolve getDb() to this suite's schema, dropped and disconnected below.
-    realDbClient = await import("@/lib/db/client");
+    // next would resolve getDb() to this suite's schema, dropped and disconnected below. The
+    // spread snapshots the real exports as plain properties: mock.module rewrites the live
+    // bindings of the namespace object itself, so holding the namespace would capture the mock.
+    realDbClient = { ...(await import("@/lib/db/client")) };
     mock.module("@/lib/db/client", () => ({ getDb: () => database }));
     ({ adminOrderRepository: repository } = await import("@/lib/orders/admin-order-repository"));
   });
