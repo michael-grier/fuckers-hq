@@ -31,17 +31,6 @@ const defaultFalseBooleanString = z.preprocess(
   z.enum(["true", "false"]).transform((value) => value === "true"),
 );
 
-const defaultFalseBooleanString = z.preprocess(
-  (value) => {
-    if (value == null || value === "") {
-      return "false";
-    }
-
-    return typeof value === "string" ? value.toLowerCase() : value;
-  },
-  z.enum(["true", "false"]).transform((value) => value === "true"),
-);
-
 const envSchema = z.object({
   DATABASE_URL: optionalString,
   STRIPE_SECRET_KEY: optionalString,
