@@ -96,9 +96,10 @@ commit by commit can exhaust it before the work is even ready to read.
 - Batch commits locally and push once when a branch is ready for review. Do not push after each
   commit, and do not push intermediate work in progress.
 - Run the full local gate before pushing, so a push does not become a series of fixup pushes.
-- Automatic incremental review is disabled in `.coderabbit.yaml`. After pushing follow-up commits,
-  request the re-review explicitly with `@coderabbitai review` once the branch is ready, rather
-  than after each individual fix.
+- Automatic incremental review is disabled in `.coderabbit.yaml`, and it stays that way. Never
+  post `@coderabbitai review` or otherwise request a re-review — not after addressing review
+  findings, not after a follow-up push, not when a branch looks ready. Requesting the next review
+  run is the user's decision alone. Push the batched fixes, report what changed, and stop.
 - When several branches are ready at once, open their pull requests spaced out rather than
   back to back.
 - Treat a `Review limit reached` comment as expected pacing rather than a failure. The window

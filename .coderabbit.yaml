@@ -17,7 +17,8 @@ reviews:
     # Each review run, including an automatic incremental one, consumes from a
     # per-developer hourly allowance shared across every repository. Reviewing
     # each work-in-progress push exhausts it well before a branch is ready, so
-    # incremental reviews are requested manually via `@coderabbitai review`.
+    # only the maintainer decides when a branch gets another review run. Agents
+    # must never post `@coderabbitai review` to re-trigger one.
     auto_incremental_review: false
     auto_pause_after_reviewed_commits: 2
 
