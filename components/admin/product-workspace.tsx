@@ -15,7 +15,7 @@ import { MoveButtons } from "@/components/admin/move-buttons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveProductWorkspace, type WorkspaceVariantRow } from "@/lib/actions/product-workspace";
-import { archiveProduct } from "@/lib/actions/products";
+import { archiveProduct, deleteProduct } from "@/lib/actions/products";
 import type { ActionFailure } from "@/lib/actions/result";
 import { deleteVariant, moveVariant } from "@/lib/actions/variants";
 import type { VariantMoveDirection } from "@/lib/admin/variant-order";
@@ -65,6 +65,7 @@ export function ProductWorkspace({
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [isMovingVariant, setIsMovingVariant] = useState(false);
   const [deletingVariantId, setDeletingVariantId] = useState<string | null>(null);
   // Read straight from props rather than held in state: checkout owns these
@@ -80,7 +81,11 @@ export function ProductWorkspace({
   const errors = form.formState.errors;
   const isDirty = form.formState.isDirty;
   const busy =
-    form.formState.isSubmitting || isArchiving || isMovingVariant || deletingVariantId !== null;
+    form.formState.isSubmitting ||
+    isArchiving ||
+    isDeleting ||
+    isMovingVariant ||
+    deletingVariantId !== null;
   const watchedVariants = form.watch("variants");
   const watchedStatus = form.watch("status");
   const watchedCategory = form.watch("category");
@@ -161,6 +166,32 @@ export function ProductWorkspace({
       setActionError("The product could not be archived. Try again shortly.");
     } finally {
       setIsArchiving(false);
+    }
+  }
+
+  async function onDelete() {
+    if (!window.confirm("Permanently delete this product? This cannot be undone.")) {
+      return;
+    }
+
+    setActionError(null);
+    setSuccessMessage(null);
+    setIsDeleting(true);
+
+    try {
+      const result = await deleteProduct({ productId });
+
+      if (!result.success) {
+        showActionFailure(result);
+        return;
+      }
+
+      router.push("/admin/products");
+      router.refresh();
+    } catch {
+      setActionError("The product could not be deleted. Try again shortly.");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -619,34 +650,52 @@ export function ProductWorkspace({
             </dl>
           </section>
 
-          {savedStatus !== "archived" ? (
-            <section
-              aria-labelledby="danger-heading"
-              className="rounded-lg border border-destructive/30 bg-background"
-            >
-              <div className="border-destructive/20 border-b px-4 py-3.5">
-                <h2 className="font-bold text-base text-destructive" id="danger-heading">
-                  Danger zone
-                </h2>
-              </div>
-              <div className="space-y-3 p-4">
-                <Button
-                  className="w-full"
-                  disabled={busy || isDirty}
-                  onClick={onArchive}
-                  type="button"
-                  variant="destructive"
-                >
-                  {isArchiving ? "Archiving…" : "Archive product"}
-                </Button>
-                <p className="text-muted-foreground text-xs">
-                  {isDirty
-                    ? "Save your changes before archiving."
-                    : "Hides the product from the storefront. Order history is kept, and you can re-activate later."}
-                </p>
-              </div>
-            </section>
-          ) : null}
+          <section
+            aria-labelledby="danger-heading"
+            className="rounded-lg border border-destructive/30 bg-background"
+          >
+            <div className="border-destructive/20 border-b px-4 py-3.5">
+              <h2 className="font-bold text-base text-destructive" id="danger-heading">
+                Danger zone
+              </h2>
+            </div>
+            <div className="space-y-3 p-4">
+              {savedStatus !== "archived" ? (
+                <>
+                  <Button
+                    className="w-full"
+                    disabled={busy || isDirty}
+                    onClick={onArchive}
+                    type="button"
+                    variant="destructive"
+                  >
+                    {isArchiving ? "Archiving…" : "Archive product"}
+                  </Button>
+                  <p className="text-muted-foreground text-xs">
+                    {isDirty
+                      ? "Save your changes before archiving."
+                      : "Hides the product from the storefront. Order history is kept, and you can re-activate later."}
+                  </p>
+                </>
+              ) : null}
+              <Button
+                className="w-full"
+                disabled={busy || isDirty || savedStatus === "active"}
+                onClick={onDelete}
+                type="button"
+                variant="destructive"
+              >
+                {isDeleting ? "Deleting…" : "Delete product"}
+              </Button>
+              <p className="text-muted-foreground text-xs">
+                {savedStatus === "active"
+                  ? "Set the product to draft or archived before deleting it."
+                  : isDirty
+                    ? "Save your changes before deleting."
+                    : "Permanently removes the product, its variants, and its images. Only possible while it has no order or checkout history."}
+              </p>
+            </div>
+          </section>
         </div>
       </div>
 
