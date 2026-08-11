@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Links the main checkout's .env.local into a linked worktree.
+# Prepares a linked worktree: links the main checkout's .env.local, then provisions a
+# per-worktree Neon branch database via scripts/worktree-db.ts.
 #
 # .env.local is gitignored, so `git worktree add` produces a checkout with no local
 # environment. Next.js only loads env files from its own project root, so without this
@@ -29,34 +30,44 @@ harden_shared_env() {
   fi
 }
 
-# A link whose target has since been deleted or moved holds no data, and reporting success
-# would leave the worktree with an env the app cannot read. Clear it so the checks below
-# either relink or print how to restore the shared file.
-if [ -L "$target" ] && [ ! -e "$target" ]; then
-  echo "Removing dangling symlink $target -> $(readlink "$target")." >&2
-  rm "$target"
-fi
+link_env() {
+  # A link whose target has since been deleted or moved holds no data, and reporting success
+  # would leave the worktree with an env the app cannot read. Clear it so the checks below
+  # either relink or print how to restore the shared file.
+  if [ -L "$target" ] && [ ! -e "$target" ]; then
+    echo "Removing dangling symlink $target -> $(readlink "$target")." >&2
+    rm "$target"
+  fi
 
-if [ -L "$target" ]; then
-  echo "$target is already linked; leaving it unchanged."
+  if [ -L "$target" ]; then
+    echo "$target is already linked; leaving it unchanged."
+    harden_shared_env
+    return 0
+  fi
+
+  if [ -e "$target" ]; then
+    # A real file here is a deliberate per-worktree override, so the shared file is not in play.
+    echo "$target already exists as a regular file; leaving it unchanged."
+    return 0
+  fi
+
+  if [ ! -f "$source_env" ]; then
+    echo "No .env.local in the main checkout ($main_root)." >&2
+    # Absolute paths matter: a relative copy would land in this worktree, and the
+    # already-exists guard above would then skip linking on every later run.
+    echo "Create one there first: cp \"$main_root/.env.example\" \"$source_env\"" >&2
+    return 1
+  fi
+
+  ln -s "$source_env" "$target"
+  echo "Linked $target -> $source_env"
   harden_shared_env
-  exit 0
-fi
+}
 
-if [ -e "$target" ]; then
-  # A real file here is a deliberate per-worktree override, so the shared file is not in play.
-  echo "$target already exists as a regular file; leaving it unchanged."
-  exit 0
-fi
+link_env
 
-if [ ! -f "$source_env" ]; then
-  echo "No .env.local in the main checkout ($main_root)." >&2
-  # Absolute paths matter: a relative copy would land in this worktree, and the
-  # already-exists guard above would then skip linking on every later run.
-  echo "Create one there first: cp \"$main_root/.env.example\" \"$source_env\"" >&2
-  exit 1
-fi
-
-ln -s "$source_env" "$target"
-echo "Linked $target -> $source_env"
-harden_shared_env
+# Give this worktree its own Neon branch database so its migration lineage cannot collide
+# with other worktrees through the shared DATABASE_URL. Warns and leaves the shared
+# behaviour in place when Neon credentials are absent from .env.local.
+cd "$worktree_root"
+bun scripts/worktree-db.ts setup

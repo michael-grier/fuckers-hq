@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "setup:worktree": "bash scripts/setup-worktree.sh",
+    "teardown:worktree": "bun scripts/worktree-db.ts teardown",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run lib/db/migrate.ts",
     "db:seed": "bun run lib/db/seed.ts",
