@@ -5,11 +5,18 @@ import { revalidatePath } from "next/cache";
 
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
+import {
+  type DeleteProductRecordResult,
+  deleteProductRecord,
+} from "@/lib/admin/product-repository";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidateProductSlugs } from "@/lib/catalog/cache";
 import { getDb } from "@/lib/db/client";
 import { products } from "@/lib/db/schema";
+import { env } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
+import { deleteProductImageObject } from "@/lib/r2";
+import { getR2ObjectKeyFromPublicUrl, isProductImageObjectKey } from "@/lib/r2/upload-contract";
 import {
   adminProductFormSchema,
   adminProductIdSchema,
@@ -23,6 +30,10 @@ type CreatedProduct = {
 
 function isUniqueViolation(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "23505";
+}
+
+function isForeignKeyViolation(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "23503";
 }
 
 function revalidateAdminProduct(productId: string): void {
@@ -153,6 +164,79 @@ export async function archiveProduct(input: unknown): Promise<ActionResult> {
   }
 
   revalidateProductSlugs([product.slug]);
+  revalidateAdminProduct(parsed.data.productId);
+
+  return {
+    success: true,
+    data: undefined,
+  };
+}
+
+const deleteRefusedMessage =
+  "This product has order or checkout history and cannot be deleted. Archive it instead.";
+
+export async function deleteProduct(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = adminProductIdSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  let result: DeleteProductRecordResult;
+
+  try {
+    result = await deleteProductRecord(getDb(), parsed.data.productId);
+  } catch (error) {
+    // A checkout can insert a reservation item between the history check and
+    // the delete; the restrict FK turns that race into this clean refusal.
+    if (isForeignKeyViolation(error)) {
+      return { success: false, message: deleteRefusedMessage };
+    }
+
+    captureServerException(error, {
+      area: "admin",
+      operation: "admin.delete-product",
+    });
+    throw error;
+  }
+
+  if (result.outcome === "not_found") {
+    return { success: false, message: "Product not found." };
+  }
+
+  if (result.outcome === "active") {
+    return {
+      success: false,
+      message: "Set the product to draft or archived before deleting it.",
+    };
+  }
+
+  if (result.outcome === "has_commerce_history") {
+    return { success: false, message: deleteRefusedMessage };
+  }
+
+  // After commit only: an R2 failure leaves an orphaned object to reap later,
+  // never a half-deleted product.
+  if (env.R2_PUBLIC_URL) {
+    for (const url of result.imageUrls) {
+      const objectKey = getR2ObjectKeyFromPublicUrl(env.R2_PUBLIC_URL, url);
+
+      if (objectKey && isProductImageObjectKey(objectKey, parsed.data.productId)) {
+        try {
+          await deleteProductImageObject(objectKey);
+        } catch (error) {
+          captureServerException(error, {
+            area: "r2",
+            operation: "r2.delete-image-object",
+          });
+        }
+      }
+    }
+  }
+
+  revalidateProductSlugs([result.slug]);
   revalidateAdminProduct(parsed.data.productId);
 
   return {
