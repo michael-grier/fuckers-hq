@@ -59,8 +59,19 @@ export default function ShippingPage() {
 
       <PolicySection heading="Tracking">
         <PolicyParagraph>
-          [TRACKING POLICY: e.g. We email a tracking number once your order ships. If you have not
-          received tracking within X business days of ordering, contact us.]
+          When your order ships we email you a shipping notice with the carrier and tracking number,
+          linked to the carrier's tracking page where one is available. If you have not received
+          that email within [TRACKING EMAIL WINDOW, e.g. 5] business days of ordering, check your
+          spam folder and then contact us.
+        </PolicyParagraph>
+      </PolicySection>
+
+      {/* Only shown to customers when PICKUP_ENABLED is true; see docs/production-launch-requirements.md §2. */}
+      <PolicySection heading="Local pickup">
+        <PolicyParagraph>
+          [LOCAL PICKUP: delete this section if you are not offering pickup. If you are, state the
+          pickup location, the hours it is available, and what a customer should bring or say when
+          collecting. Pickup orders are not shipped and are not charged shipping.]
         </PolicyParagraph>
       </PolicySection>
 

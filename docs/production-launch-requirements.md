@@ -9,6 +9,30 @@ that environment is configured. This document covers what changes for production
 Requirements are grouped by who owns them: **Brand** items are things the owners must supply or
 decide, **Build** items are work that follows once the brand item arrives.
 
+## Document status
+
+**Claims in this document were last verified against `main` at commit `c0fa3f2`.** Statements about
+what does and does not exist in the codebase go stale quickly — several were already wrong within
+two weeks of first being written. Re-verify against the code before acting on any "current state"
+claim here, and update this line when you do.
+
+### Build status at a glance
+
+| Capability | Status | Where |
+| --- | --- | --- |
+| Open Graph / social share metadata | **Built** | `app/layout.tsx`, `app/opengraph-image.png`, per-product in `app/(shop)/products/[slug]/page.tsx` |
+| Favicon and app icons | **Built** | `app/favicon.ico`, `app/icon.png`, `app/apple-icon.png` |
+| Shipment tracking emails | **Built** | `lib/email/order-shipped.tsx`, `lib/orders/shipping-carriers.ts` |
+| Local pickup fulfilment | **Built, disabled by default** | `lib/checkout/pickup.ts`, `PICKUP_ENABLED` |
+| Policy and contact pages | **Built as unreviewed drafts** | `app/(shop)/{returns,shipping,privacy,terms,contact}` |
+| Product subcategory taxonomy | **Built, required on every product** | `lib/catalog/categories.ts`, migration `0011` |
+| Crew page content | **Not built** — empty state | `app/(shop)/crew/page.tsx` |
+| Videos page content | **Not built** — empty state | `app/(shop)/videos/page.tsx` |
+| Discount codes, newsletter, gift cards, analytics | **Not built**, not scoped | — |
+
+The remaining blockers are overwhelmingly *brand inputs*, not engineering work. The critical path is
+**domain purchase → DNS access → email and Clerk verification**, described in section 4.
+
 ---
 
 ## 1. Stripe and business setup
@@ -72,7 +96,7 @@ webhook signing secret in production.
 
 ---
 
-## 2. Shipping
+## 2. Shipping and fulfilment
 
 **Decisions required:**
 
@@ -80,24 +104,83 @@ webhook signing secret in production.
 - Flat shipping rate in cents (`SHIPPING_STANDARD_RATE_CENTS`).
 - Free-shipping threshold, if any, in cents (`SHIPPING_FREE_THRESHOLD_CENTS`).
 - Who physically packs and ships orders.
-- Which carrier they use, and whether tracking numbers need to reach the customer.
+- Processing time before dispatch, and realistic delivery estimates per region. These feed the
+  bracketed placeholders on `/shipping`.
+
+### Tracking emails are already built
+
+Admins record a carrier and tracking number when marking an order shipped, and the customer is
+emailed automatically. Supported carriers are fixed in `lib/orders/shipping-carriers.ts`: Canada
+Post, UPS, FedEx, Purolator, USPS, DHL, and `other`. Each maps to a public tracking URL, except
+`other`, which renders the number as plain text rather than a dead link.
+
+**Decision required:** which carrier the brand actually uses. Adding a carrier outside that list is
+a code change plus a Postgres enum migration, not configuration.
+
+### Local pickup is built but disabled
+
+Pickup is offered only when `PICKUP_ENABLED` is `true` **and** the location name, address, and hours
+are all set. A half-configured deploy deliberately will not offer it, so customers cannot select a
+pickup option that fails to say where or when to collect.
+
+**Decision required:** whether to offer pickup at all. Given the brand operates out of an apartment,
+this needs a deliberate answer — it means publishing a collection address and inviting strangers to
+it. If they want it, they must supply:
+
+| Variable | Content |
+| --- | --- |
+| `PICKUP_LOCATION_NAME` | Public name of the pickup point |
+| `PICKUP_ADDRESS` | Street address; may contain newlines |
+| `PICKUP_HOURS` | When customers can collect |
+| `PICKUP_INSTRUCTIONS` | Optional: buzzer codes, parking, who to ask for |
+
+If they decline, leave `PICKUP_ENABLED=false` and the option never appears.
 
 ---
 
 ## 3. Policy and legal pages
 
-None of these pages exist in the app yet. Stripe expects a storefront to publish them, and consumer
-protection law effectively requires the refund and contact information.
+**The pages are built and linked from the footer. The copy is not approved and must not ship as
+is.** Stripe expects a storefront to publish these, and consumer protection law effectively requires
+the refund and contact information.
 
-**Brand provides (copy, or approval of drafts):**
+| Page | Route |
+| --- | --- |
+| Returns & Refunds | `/returns` |
+| Shipping & Delivery | `/shipping` |
+| Privacy Policy | `/privacy` |
+| Terms of Service | `/terms` |
+| Contact | `/contact` |
 
-- Refund and return policy
-- Shipping and delivery policy
-- Privacy policy
-- Terms of service
-- Contact information for customer inquiries
+### How the drafts are marked
 
-**Build follow-up:** build the pages and link them from the site footer.
+Every brand-specific value is a visible `[BRACKETED]` placeholder — return window, who pays return
+shipping, processing times, jurisdiction, retention periods, and so on. The four policy pages also
+render `PolicyDraftNotice`, a callout stating the policy is a working draft and not yet binding.
+
+**To publish:** replace every placeholder with confirmed values, have the brand approve the wording,
+then delete `components/shop/policy-draft-notice.tsx`. The compiler then points at each page that
+still renders it, so the notice cannot be left behind by accident.
+
+Search for `[` across `app/(shop)/{returns,shipping,privacy,terms,contact}/page.tsx` to enumerate
+every outstanding value.
+
+### These are drafts written by a developer, not legal advice
+
+They are a reasonable starting point that reflects how this specific store actually operates, but
+the brand should have someone qualified read the final terms — particularly the assumption-of-risk
+and limitation-of-liability clauses in `/terms`, which are the ones that matter if someone is
+injured on a product they sold.
+
+### The privacy policy describes this codebase specifically
+
+It is not boilerplate. It states that card data never reaches our servers (Stripe hosted Checkout),
+that orders store email and `shippingAddress`, that the cart lives in browser `localStorage`, and
+that there are no analytics or advertising trackers — which is true today. It names all seven
+service providers.
+
+**If the stack changes, this page must change with it.** Adding analytics, a newsletter integration,
+or any third-party script makes the current wording false.
 
 ---
 
@@ -183,13 +266,30 @@ Those three answers determine whether this is a ten-minute task or a two-week on
 Photos and descriptions are not sufficient on their own. The admin forms require structured data for
 every product and every purchasable variant.
 
-**Per product:** name, category (hardgoods / softgoods / accessories), description, status.
+**Per product:** name, slug, category, **subcategory**, description, status.
 
 **Per variant:** variant name (size or colourway), SKU, price, starting inventory count.
 
 Request this as a spreadsheet. It is usually the slowest item on this list to collect.
 
 Also needed: sizing charts and fit notes for any apparel.
+
+### Subcategory is mandatory and comes from a fixed list
+
+Every product must carry a subcategory, and each subcategory belongs to exactly one parent category.
+The list is a closed taxonomy defined in `lib/catalog/categories.ts` and mirrored by a database check
+constraint (migration `0011`), so **schema and contract must change together** — adding a value is a
+code change plus a migration, not a data entry choice.
+
+| Category | Valid subcategories |
+| --- | --- |
+| Hardgoods | Decks, Trucks, Wheels, Bearings, Griptape, Hardware |
+| Softgoods | T-Shirts, Hoodies, Jackets, Pants, Hats, Socks |
+| Accessories | Stickers, Patches, Keychains, Buttons, Papers |
+
+Give the brand this table when requesting the catalogue spreadsheet, and add a subcategory column.
+If they sell something that does not fit — grip cleaners, bushings, wax, bags — that is a code and
+migration change, so surface it **before** the spreadsheet comes back rather than after.
 
 ---
 
@@ -198,32 +298,33 @@ Also needed: sizing charts and fit notes for any apparel.
 - Logo in vector format (SVG, AI, or EPS), plus a 2048 px transparent PNG fallback
 - Light-on-dark and dark-on-light logo variants — the site uses a dark header and footer with a
   white mid-band, so both get used
-- Favicon source image (see sizes below). There is currently no favicon in `public/`.
-- Social share / Open Graph image (see below)
 - Confirmation of the brand accent colour and typeface. The site currently uses Space Grotesk with a
   gold accent sampled from the flame logo.
 
-### Social share / Open Graph image
+Icons and the share image are **already built** from the existing flame logo (see below). The brand
+only needs to supply replacements if they want different artwork.
 
-Open Graph is the set of `<meta>` tags that tell other platforms how to render a preview card when a
-link is pasted. It produces the image, title, and description shown when a URL is shared into an
-Instagram DM or story, iMessage, Discord, WhatsApp, Slack, Facebook, or X. X uses its own
-`twitter:card` tags, which fall back to Open Graph when absent.
+### Icons and social share image — built
 
-With the tags missing, platforms improvise — usually a bare grey box showing the domain. It reads as
-broken, and it gets clicked noticeably less.
+| Asset | File | Source |
+| --- | --- | --- |
+| Favicon | `app/favicon.ico` | Derived from the flame logo |
+| App icon | `app/icon.png` | Derived from the flame logo |
+| Apple touch icon | `app/apple-icon.png` | Derived from the flame logo |
+| Share image | `app/opengraph-image.png` + `app/opengraph-image.alt.txt` | Composed from brand assets |
+| In-app logo | `public/logo.svg`, `components/brand-logo.tsx` | Used in the nav and footer |
 
-**Current state: nothing is configured.** `app/layout.tsx` sets `title` and `description` but no
-`openGraph` block and no `metadataBase`; there is no `opengraph-image` or `twitter-image` file in
-`app/`; and `generateMetadata` in `app/(shop)/products/[slug]/page.tsx` sets only `title` and
-`description`. Every shared link currently unfurls bare.
+Open Graph metadata is wired up in `app/layout.tsx` — `metadataBase` resolves from
+`NEXT_PUBLIC_APP_URL`, with `openGraph` and `twitter` blocks — and
+`app/(shop)/products/[slug]/page.tsx` sets per-product `openGraph.images` from each product's primary
+photo. Coverage is asserted by `tests/share-image.test.ts`.
 
-This is worth prioritising above most polish items. A small skate brand's distribution *is* link
-sharing — drops get posted to stories and dropped into group chats and Discord servers, so the
-preview card is often a customer's first look at the site, competing against designed content in the
-same feed. It is roughly an hour of work and it affects every share permanently.
+**Remaining risk, and it is a real one:** `metadataBase` derives from `NEXT_PUBLIC_APP_URL`, which
+defaults to `http://localhost:3000`. If that variable is not set to the real origin in Vercel
+production, every share preview silently breaks — scrapers cannot resolve relative image URLs, and
+nothing about it looks wrong locally. Verify it explicitly at deploy time.
 
-#### Image specification
+### If the brand wants to replace the share image
 
 **1200 × 630 px (1.91:1)** — accepted by every major platform.
 
@@ -235,30 +336,9 @@ same feed. It is roughly an hour of work and it affects every share permanently.
 - **Keep content away from the edges.** Platforms crop inconsistently — some show the full 1.91:1,
   others crop toward square. Assume the outer ~10% may be lost.
 
-#### Two levels of implementation
+Update `app/opengraph-image.alt.txt` alongside the image so the alt text still describes it.
 
-1. **Static site-wide image.** Logo and wordmark on the brand's dark charcoal with the gold accent.
-   Next.js picks this up automatically at `app/opengraph-image.png` with no code required, covering
-   the homepage, crew, videos, and any page without its own.
-2. **Per-product images**, so sharing a specific deck shows that deck. The cheap version points Open
-   Graph at the product's existing primary R2 photo from the existing `generateMetadata`. Product
-   photos are square, so platforms will crop or letterbox them into 1.91:1 — acceptable, and far
-   better than nothing. The composed version generates a 1200 × 630 card per product at request time
-   via `ImageResponse` (product photo on brand background with name and price). Start with the cheap
-   version; upgrade if the brand wants it.
-
-#### Required build item: `metadataBase`
-
-Without `metadataBase`, Next.js emits Open Graph image URLs as relative paths, which external
-scrapers cannot resolve — the preview silently falls back to nothing. It must be set to the
-production origin, wired to `NEXT_PUBLIC_APP_URL` (currently defaulting to `http://localhost:3000`)
-once the real domain exists.
-
-This is a footgun: everything looks correct locally and produces no preview in production. Add
-`og:site_name`, `og:type`, `twitter:card: summary_large_image`, and alt text on the image alongside
-it.
-
-#### Testing caveat
+### Verification and caching
 
 Open Graph previews cannot be tested from `localhost` — scrapers need a publicly reachable URL, so
 this is verified on a Vercel preview or production deploy using Facebook's Sharing Debugger and X's
@@ -266,29 +346,26 @@ Card Validator.
 
 Platforms cache aggressively and some cache indefinitely. If a link is shared before the tags are
 correct, the bad preview can persist for a long time; Facebook allows a forced re-scrape, iMessage
-effectively does not. **Get this right before the launch announcement, not after.**
-
-#### Questions to ask the brand
-
-> Either send a designed 1200 × 630 social share image, or send the logo files plus a yes/no on us
-> composing one from the logo on the brand's dark background. Also: do you want a tagline on it, or
-> logo only?
-
-Logo only on a solid brand background is perfectly acceptable and is what most small brands ship.
+effectively does not. **Confirm the production preview renders before the launch announcement, not
+after.**
 
 ---
 
 ## 7. Placeholder content still in the app
 
-- **Hero headline and subhead** — currently "Buy our stuff, we're broke." This is a deliberate voice
-  choice and needs explicit sign-off.
-- **Crew page** — currently an empty-state placeholder. Needs, per person: name, role, photo, short
-  bio, and social handle.
-- **Videos page** — currently an empty-state placeholder. Needs the list of videos with titles and
+- **Hero headline and subhead** — currently "Fuckers Skateboards" over "We work hard to support the
+  Calgary skate community, support us by buying some gear!" Needs sign-off on the wording.
+- **Crew page** — still an empty-state placeholder. Needs, per person: name, role, photo, short bio,
+  and social handle.
+- **Videos page** — still an empty-state placeholder. Needs the list of videos with titles and
   YouTube or Vimeo URLs.
+- **Policy page copy** — the pages exist but every bracketed value is unconfirmed. See
+  [section 3](#3-policy-and-legal-pages).
 - **SEO metadata** — site title and meta description.
 - **Footer social links** — confirm the existing Instagram and YouTube accounts are correct, and
   whether TikTok or Facebook should be added.
+- **Images** — the hero and category tiles use real photography, but confirm the brand has the
+  rights to every image and is happy to ship them. Product photos still come from the seed data.
 
 ### Video hosting recommendation
 
@@ -393,13 +470,20 @@ list.**
 
 ## 9. Scope questions to settle before launch
 
-Worth raising early so they are not assumed to be included:
+Not built and not scoped. Raise these early so the brand does not assume they are included:
 
 - Discount and promo codes
 - Newsletter signup
 - Gift cards
-- Order tracking numbers emailed to customers
 - Web analytics
+- Customer accounts and order history (checkout is guest-only by design)
+
+**Already built, so do not re-scope these:** tracking-number emails, local pickup, per-product social
+share previews, and the policy pages. See the status table at the top.
+
+**Note on analytics:** adding any analytics or advertising script makes the current `/privacy`
+wording false, since it states there are none. Treat a privacy-policy update as part of that work
+rather than a follow-up.
 
 ---
 
@@ -465,3 +549,66 @@ unprofessional.
 - Do not send screenshots.
 - Do not send images downloaded or re-saved from Instagram.
 - Do not pre-resize anything. Downscaling is easy; upscaling is not.
+
+---
+
+## Production environment variables
+
+Every variable the app reads is declared in `lib/env.ts` and mirrored in `.env.example`, which is the
+source of truth. The ones below need deliberate production values rather than a copied demo value.
+
+| Variable | Production requirement |
+| --- | --- |
+| `NEXT_PUBLIC_APP_URL` | The real origin. Defaults to `http://localhost:3000`; a wrong value silently breaks every social share preview. |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Live keys and a separate live webhook signing secret. |
+| `STRIPE_TAX_ENABLED` | Stays `false` unless the brand is tax-registered *and* jurisdictions are configured in Stripe. |
+| `DATABASE_URL` | Dedicated production Neon branch or project, never the demo one. |
+| `EMAIL_FROM` / `SUPPORT_EMAIL` | Brand addresses on a Resend-verified domain. `SUPPORT_EMAIL` is baked into the statically rendered `/contact` page at build time, so changing it requires a redeploy. |
+| `ADMIN_USER_IDS` | Clerk **user IDs**, not emails. The accounts must exist first. |
+| `R2_PUBLIC_URL` | A custom domain on the bucket, not `r2.dev`. |
+| `SHIPPING_*` | Countries, flat rate, and free-shipping threshold, per section 2. |
+| `PICKUP_*` | Only if the brand opts into local pickup, per section 2. |
+| `CRON_SECRET` | High-entropy value; the schema enforces a minimum length. |
+| `SENTRY_*` | A production Sentry project and scoped source-map token. |
+
+---
+
+## Handoff notes
+
+### Where this work lives
+
+Branch `docs/production-launch-requirements`, rebased onto `main` at `c0fa3f2`. It contains this
+document plus the policy and contact pages. No pull request has been opened.
+
+### What is done on this branch
+
+- This requirements document
+- `/returns`, `/shipping`, `/privacy`, `/terms`, `/contact` pages, drafts marked per section 3
+- Shared shells: `components/shop/policy-page.tsx`, `components/shop/policy-draft-notice.tsx`
+- Footer policy navigation in `components/shop/site-footer.tsx`
+- `STRIPE_TAX_ENABLED` defaults to `false` in `lib/env.ts` so a missing variable cannot enable tax
+  collection
+
+### Known follow-ups, none blocking
+
+- The `socialLinks` array is duplicated between `components/shop/site-footer.tsx` and
+  `app/(shop)/contact/page.tsx`. Worth extracting to one module.
+- `/contact` is statically prerendered, so `SUPPORT_EMAIL` is captured at build time.
+- The `[MAILING ADDRESS]` placeholder on `/contact` is deliberately optional — the brand operates
+  from a residence and may not want a public address. Confirm before filling it in.
+
+### Verifying a change here
+
+```bash
+bun install   # main adds dependencies frequently; run this after any rebase
+bun run lint
+bun test
+bun run typecheck
+bun run build
+```
+
+Run the whole gate **after** rebasing, not just after resolving conflicts. A prior rebase produced a
+duplicate `const` declaration in `lib/env.ts` that git merged without raising a conflict, because
+`main` had independently added an identically named helper. Lint caught it; nothing else would have.
+Also avoid piping lint through `tail` in a `&&` chain — the pipeline exit code comes from `tail`, so
+failures pass silently.
