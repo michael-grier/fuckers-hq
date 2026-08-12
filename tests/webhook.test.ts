@@ -214,7 +214,7 @@ describe("paid Checkout Session parsing", () => {
         metadata: {
           pendingCheckoutToken: "checkout_abcDEF123456789",
           reservationToken: "reservation_abcDEF123456",
-          fulfillmentMethod: "pickup",
+          fulfillmentMethod: "delivery",
           cart: "untrusted",
         },
       }),

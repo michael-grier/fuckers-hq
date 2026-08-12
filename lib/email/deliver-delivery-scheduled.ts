@@ -1,21 +1,21 @@
 import { createElement } from "react";
 
+import { DeliveryScheduledEmail, type DeliveryScheduledView } from "@/lib/email/delivery-scheduled";
 import {
   type OrderEmailClient,
   type OrderEmailConfig,
   OrderEmailDeliveryError,
 } from "@/lib/email/order-email-transport";
-import { PickupReadyEmail, type PickupReadyView } from "@/lib/email/pickup-ready";
 
-export type PickupReadyDelivery = {
+export type DeliveryScheduledDelivery = {
   orderId: string;
   idempotencyKey: string;
   recipientEmail: string;
-  order: PickupReadyView;
+  order: DeliveryScheduledView;
 };
 
-export async function deliverPickupReady(
-  delivery: PickupReadyDelivery,
+export async function deliverDeliveryScheduled(
+  delivery: DeliveryScheduledDelivery,
   config: OrderEmailConfig,
   client: OrderEmailClient,
 ): Promise<string> {
@@ -24,8 +24,8 @@ export async function deliverPickupReady(
       from: config.from,
       to: delivery.recipientEmail,
       replyTo: config.supportEmail,
-      subject: `Order ${delivery.order.orderNumber} is ready to pick up`,
-      react: createElement(PickupReadyEmail, {
+      subject: `Order ${delivery.order.orderNumber} is ready for delivery`,
+      react: createElement(DeliveryScheduledEmail, {
         order: delivery.order,
         supportEmail: config.supportEmail,
       }),

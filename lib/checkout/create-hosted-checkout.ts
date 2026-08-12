@@ -1,11 +1,10 @@
 import type Stripe from "stripe";
 import { z } from "zod";
-
+import type { DeliveryArea } from "@/lib/checkout/delivery";
 import {
   buildStripeLineItemsFromSnapshots,
   getCheckoutSnapshotSubtotalCents,
 } from "@/lib/checkout/items";
-import { formatPickupAddressInline, type PickupLocation } from "@/lib/checkout/pickup";
 import { type AllowedShippingCountry, buildShippingOptions } from "@/lib/checkout/shipping";
 import type { FulfillmentMethod, JsonRecord, PendingCheckoutLineSnapshot } from "@/lib/db/schema";
 import type { CartLine } from "@/lib/validators/cart";
@@ -59,7 +58,7 @@ export type HostedCheckoutSettings = {
   /** Omitted when the store charges a flat rate with no free-shipping tier. */
   freeShippingThresholdCents?: number;
   taxEnabled: boolean;
-  pickupLocation: PickupLocation | null;
+  deliveryArea: DeliveryArea | null;
 };
 
 type HostedCheckoutDependencies = {
@@ -77,10 +76,10 @@ export async function createHostedCheckout(
 ): Promise<{ url: string }> {
   const { items, requestId, fulfillmentMethod } = checkoutSchema.parse(input);
 
-  // Availability is decided here, on the server, so a crafted request cannot select pickup while
-  // it is turned off and skip both the shipping address and the shipping charge.
-  if (fulfillmentMethod === "pickup" && !settings.pickupLocation) {
-    throw new CheckoutError("Local pickup is not available.", 400);
+  // Availability is decided here, on the server, so a crafted request cannot select local
+  // delivery while it is turned off and skip the shipping charge.
+  if (fulfillmentMethod === "delivery" && !settings.deliveryArea) {
+    throw new CheckoutError("Local delivery is not available.", 400);
   }
 
   const now = dependencies.now?.() ?? new Date();
@@ -136,7 +135,7 @@ export function buildStripeSessionParams(
   settings: HostedCheckoutSettings,
 ): Stripe.Checkout.SessionCreateParams {
   const appUrl = settings.appUrl.replace(/\/$/, "");
-  const isPickup = reservation.fulfillmentMethod === "pickup";
+  const isDelivery = reservation.fulfillmentMethod === "delivery";
 
   return {
     mode: "payment",
@@ -147,12 +146,15 @@ export function buildStripeSessionParams(
     client_reference_id: reservation.reservationToken,
     line_items: buildStripeLineItemsFromSnapshots(reservation.lineItems),
     automatic_tax: { enabled: settings.taxEnabled },
-    // Pickup collects no address and offers no shipping rate, so Stripe charges no shipping and
-    // reports none back on the paid Session.
-    ...(isPickup
+    ...(isDelivery
       ? {
-          // Automatic tax needs a customer location, and pickup collects no shipping address.
-          billing_address_collection: "required" as const,
+          // Local delivery is offered within one Canadian service area only, so the address is
+          // collected for Canada alone regardless of the shipping allowlist. Stripe cannot
+          // restrict below country level; the operator verifies the area when arranging the
+          // drop-off. Offering no shipping_options keeps delivery free of shipping charges.
+          shipping_address_collection: {
+            allowed_countries: ["CA" as const],
+          },
         }
       : {
           shipping_address_collection: {
@@ -166,11 +168,11 @@ export function buildStripeSessionParams(
             },
           ),
         }),
-    ...(isPickup && settings.pickupLocation
+    ...(isDelivery && settings.deliveryArea
       ? {
           custom_text: {
             submit: {
-              message: `Pick up at ${settings.pickupLocation.name}, ${formatPickupAddressInline(settings.pickupLocation)}. We'll email you when your order is ready.`,
+              message: `Local delivery is available within ${settings.deliveryArea.areaName} only. We'll contact you after checkout to arrange a delivery time.`,
             },
           },
         }
@@ -215,7 +217,8 @@ export function parsePersistedStripeSessionParams(
     parsed.data.client_reference_id !== reservation.reservationToken ||
     parsed.data.metadata.pendingCheckoutToken !== reservation.pendingCheckoutToken ||
     parsed.data.metadata.reservationToken !== reservation.reservationToken ||
-    // Sessions persisted before local pickup existed carry no method and are always shipping.
+    // Sessions persisted before the fulfillment choice existed carry no method and are always
+    // shipping.
     (parsed.data.metadata.fulfillmentMethod ?? "shipping") !== reservation.fulfillmentMethod ||
     parsed.data.expires_at !== Math.floor(reservation.expiresAt.getTime() / 1000)
   ) {

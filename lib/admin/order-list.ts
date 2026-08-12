@@ -35,8 +35,9 @@ export function orderNeedsAction(order: FilterableOrder): boolean {
   return order.inventoryStatus === "exception" || order.confirmationDeliveryStatus === "failed";
 }
 
-// Pickup orders have their own queue at /admin/pickups, so they must not appear in a
-// shipping-only lane. `isOrderFulfillmentEligible` alone would also match a staged pickup order.
+// Delivery orders have their own queue at /admin/deliveries, so they must not appear in a
+// shipping-only lane. `isOrderFulfillmentEligible` alone would also match a scheduled delivery
+// order.
 function isAwaitingShipment(order: FilterableOrder): boolean {
   return (
     order.fulfillmentMethod === "shipping" &&

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import { createHostedCheckout } from "@/lib/checkout/create-hosted-checkout";
+import { resolveDeliveryArea } from "@/lib/checkout/delivery";
 import { toCheckoutErrorResponse } from "@/lib/checkout/error-response";
-import { resolvePickupLocation } from "@/lib/checkout/pickup";
 import { checkoutRepository } from "@/lib/checkout/repository";
 import { parseAllowedShippingCountries } from "@/lib/checkout/shipping";
 import { env, requireEnv } from "@/lib/env";
@@ -32,7 +32,7 @@ export async function POST(request: Request): Promise<Response> {
           // Optional: unset means flat-rate shipping with no free-shipping tier.
           freeShippingThresholdCents: env.SHIPPING_FREE_THRESHOLD_CENTS,
           taxEnabled: env.STRIPE_TAX_ENABLED,
-          pickupLocation: resolvePickupLocation(env),
+          deliveryArea: resolveDeliveryArea(env),
         },
         {
           repository: checkoutRepository,

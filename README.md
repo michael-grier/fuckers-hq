@@ -159,6 +159,15 @@ unaffected. Apply and verify it on a disposable database branch before deploymen
 deploy the previous application first, then use a reviewed follow-up migration that reverses the
 renames; note that Postgres cannot remove the `ready_for_pickup` enum value, so leave it in place.
 
+Migration `0012_local-delivery.sql` converts local pickup into local delivery, which was never
+enabled in production. It renames the `pickup` fulfillment method to `delivery`, the
+`ready_for_pickup` order status to `delivery_scheduled`, the `pickup_ready` email kind to
+`delivery_scheduled`, and the `orders.ready_for_pickup_at` column to `delivery_scheduled_at`,
+recreating the three check constraints that referenced the old status text. Enum value renames
+rewrite stored rows in place, so any staged pickup orders become scheduled deliveries. To roll
+back, deploy the previous application first, then reverse the renames with a reviewed follow-up
+migration.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:

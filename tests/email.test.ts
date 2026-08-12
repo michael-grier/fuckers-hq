@@ -9,6 +9,7 @@ import {
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
 import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
+import { DeliveryScheduledEmail, type DeliveryScheduledView } from "@/lib/email/delivery-scheduled";
 import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
 import {
   attemptOrderEmailDelivery,
@@ -19,7 +20,6 @@ import {
 } from "@/lib/email/order-email-delivery";
 import { OrderEmailDeliveryError } from "@/lib/email/order-email-transport";
 import { OrderShippedEmail, type OrderShippedView } from "@/lib/email/order-shipped";
-import { PickupReadyEmail, type PickupReadyView } from "@/lib/email/pickup-ready";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 import {
@@ -49,12 +49,15 @@ const delivery: ConfirmationEmailDelivery = {
       },
     ],
     shippingAddressLines: ["Test Skater", "123 Test Street", "Calgary, AB T1T 1T1", "CA"],
-    pickup: null,
+    isLocalDelivery: false,
   },
 };
 
 const confirmationRef: OrderEmailRef = { orderId: delivery.orderId, kind: "confirmation" };
-const pickupReadyRef: OrderEmailRef = { orderId: delivery.orderId, kind: "pickup_ready" };
+const deliveryScheduledRef: OrderEmailRef = {
+  orderId: delivery.orderId,
+  kind: "delivery_scheduled",
+};
 const shippedRef: OrderEmailRef = { orderId: delivery.orderId, kind: "shipped" };
 
 const shippedView: OrderShippedView = {
@@ -68,15 +71,12 @@ const shippedView: OrderShippedView = {
   },
 };
 
-const pickupReadyView: PickupReadyView = {
+const deliveryScheduledView: DeliveryScheduledView = {
   orderNumber: "FHQ-20260713-ABC12345",
   currency: "cad",
   totalCents: 8900,
   items: [{ productName: "Database Deck", variantName: '8.25"', quantity: 1 }],
-  pickupLocationName: "The Shop",
-  pickupAddressLines: ["123 Test Street", "Calgary, AB T1T 1T1"],
-  pickupHours: "Wed\u2013Sun, 11am\u20136pm",
-  pickupInstructions: "Ring the buzzer.",
+  deliveryAddressLines: ["Test Skater", "123 Test Street", "Calgary, AB T1T 1T1", "CA"],
 };
 
 describe("order confirmation template", () => {
@@ -309,83 +309,79 @@ describe("durable order confirmation retries", () => {
   });
 });
 
-describe("pickup-ready template", () => {
-  test("renders the collection address, hours, and instructions", async () => {
+describe("delivery-scheduled template", () => {
+  test("renders the drop-off address, the arranging note, and the contents", async () => {
     const html = await render(
-      createElement(PickupReadyEmail, {
-        order: pickupReadyView,
+      createElement(DeliveryScheduledEmail, {
+        order: deliveryScheduledView,
         supportEmail: "support@example.com",
       }),
     );
 
     expect(html).toContain("FHQ-20260713-ABC12345");
-    expect(html).toContain("The Shop");
+    expect(html).toContain("Delivering to");
     expect(html).toContain("123 Test Street");
-    expect(html).toContain("Ring the buzzer.");
+    expect(html).toContain("arrange a delivery day and time");
     expect(html).toContain("Database Deck");
     expect(html).toContain("support@example.com");
-    // Nothing is owed on collection, so no shipping or balance-due language belongs here.
+    // Nothing is owed on drop-off, so no shipping or balance-due language belongs here.
     expect(html).not.toContain("Shipping");
     expect(html).not.toContain(delivery.orderId);
   });
 
-  test("omits optional instructions when none are configured", async () => {
+  test("omits the address section when no address was recorded", async () => {
     const html = await render(
-      createElement(PickupReadyEmail, {
-        order: { ...pickupReadyView, pickupInstructions: null },
+      createElement(DeliveryScheduledEmail, {
+        order: { ...deliveryScheduledView, deliveryAddressLines: [] },
         supportEmail: "support@example.com",
       }),
     );
 
-    expect(html).not.toContain("Ring the buzzer.");
-    expect(html).toContain("The Shop");
+    expect(html).not.toContain("Delivering to");
+    expect(html).toContain("arrange a delivery day and time");
   });
 });
 
-describe("pickup confirmation template", () => {
-  test("shows the pickup location instead of a shipping address", async () => {
+describe("delivery confirmation template", () => {
+  test("shows the address as a drop-off with the arranging note", async () => {
     const html = await render(
       createElement(OrderConfirmationEmail, {
         order: {
           ...delivery.order,
           shippingCents: 0,
-          shippingAddressLines: [],
-          pickup: {
-            location: {
-              name: "The Shop",
-              addressLines: ["123 Test Street", "Calgary, AB T1T 1T1"],
-              hours: "Wed–Sun, 11am–6pm",
-            },
-          },
+          isLocalDelivery: true,
         },
         supportEmail: "support@example.com",
       }),
     );
 
-    expect(html).toContain("Picking up at");
-    expect(html).toContain("The Shop");
+    expect(html).toContain("Delivering to");
+    expect(html).toContain("123 Test Street");
+    // The charge line reads "Delivery / Free"; the old method label must not resurface.
+    expect(html).toContain("Delivery");
     expect(html).toContain("Free");
+    expect(html).not.toContain("Pickup");
+    expect(html).toContain("arrange a delivery time");
     expect(html).not.toContain("Shipping to");
   });
 
-  test("still identifies a pickup order when the location cannot be resolved", async () => {
+  test("still identifies a delivery order when no address was recorded", async () => {
     const html = await render(
       createElement(OrderConfirmationEmail, {
         order: {
           ...delivery.order,
           shippingCents: 0,
           shippingAddressLines: [],
-          // Configuration was unavailable when the receipt was rendered.
-          pickup: { location: null },
+          isLocalDelivery: true,
         },
         supportEmail: "support@example.com",
       }),
     );
 
-    // The receipt still goes out, and still tells the customer this is a pickup order rather
+    // The receipt still goes out, and still tells the customer this is a delivery order rather
     // than silently omitting every fulfillment detail.
-    expect(html).toContain("Picking up at");
-    expect(html).toContain("ready to collect");
+    expect(html).toContain("Delivering to");
+    expect(html).toContain("arrange a delivery time");
     expect(html).not.toContain("Shipping to");
   });
 });
@@ -398,8 +394,8 @@ describe("order email idempotency keys", () => {
     expect(makeOrderEmailIdempotencyKey(orderId, "confirmation")).toBe(
       `order-confirmation/${orderId}`,
     );
-    expect(makeOrderEmailIdempotencyKey(orderId, "pickup_ready")).toBe(
-      `order-pickup-ready/${orderId}`,
+    expect(makeOrderEmailIdempotencyKey(orderId, "delivery_scheduled")).toBe(
+      `order-delivery-scheduled/${orderId}`,
     );
     expect(makeOrderEmailIdempotencyKey(orderId, "shipped")).toBe(`order-shipped/${orderId}`);
 
@@ -576,8 +572,8 @@ describe("shipped delivery", () => {
   });
 });
 
-describe("pickup-ready outbox", () => {
-  test("retries the pickup email independently of the confirmation email", async () => {
+describe("delivery-scheduled outbox", () => {
+  test("retries the delivery email independently of the confirmation email", async () => {
     const claimed: OrderEmailRef[] = [];
     const repository: OrderEmailDeliveryRepository = {
       claimDelivery: mock(async (ref) => {
@@ -592,7 +588,7 @@ describe("pickup-ready outbox", () => {
       }),
       markDelivered: mock(async () => true),
       markFailed: mock(async () => true),
-      findDueDeliveries: mock(async () => [pickupReadyRef]),
+      findDueDeliveries: mock(async () => [deliveryScheduledRef]),
     };
     const sent: Array<{ kind: string; key: string }> = [];
     const send = mock(async (ref: OrderEmailRef, key: string) => {
@@ -605,14 +601,16 @@ describe("pickup-ready outbox", () => {
       sent: 1,
       failed: 0,
     });
-    expect(claimed).toEqual([pickupReadyRef]);
-    expect(sent).toEqual([{ kind: "pickup_ready", key: `order-pickup-ready/${delivery.orderId}` }]);
+    expect(claimed).toEqual([deliveryScheduledRef]);
+    expect(sent).toEqual([
+      { kind: "delivery_scheduled", key: `order-delivery-scheduled/${delivery.orderId}` },
+    ]);
   });
 
-  test("defers a pickup email that cannot name a configured location", async () => {
+  test("defers a delivery email blocked by an email configuration gap", async () => {
     const repository: OrderEmailDeliveryRepository = {
       claimDelivery: mock(async (ref) => ({
-        id: "delivery_pickup",
+        id: "delivery_scheduled_row",
         orderId: ref.orderId,
         kind: ref.kind,
         idempotencyKey: makeOrderEmailIdempotencyKey(ref.orderId, ref.kind),
@@ -629,8 +627,8 @@ describe("pickup-ready outbox", () => {
     };
 
     expect(
-      await attemptOrderEmailDelivery(pickupReadyRef, repository, async () => {
-        throw new Error("PICKUP_LOCATION is required.");
+      await attemptOrderEmailDelivery(deliveryScheduledRef, repository, async () => {
+        throw new Error("EMAIL_FROM is required.");
       }),
     ).toMatchObject({ status: "failed", terminal: false });
     expect(repository.markFailed).toHaveBeenCalledTimes(1);

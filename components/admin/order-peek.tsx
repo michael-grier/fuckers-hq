@@ -122,7 +122,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
               {order.email}
             </a>
           </PeekRow>
-          <PeekRow label="Ship to">
+          <PeekRow label={order.fulfillmentMethod === "delivery" ? "Deliver to" : "Ship to"}>
             {shippingAddressLines.length > 0 ? (
               <address className="not-italic">{shippingAddressLines.join(", ")}</address>
             ) : (

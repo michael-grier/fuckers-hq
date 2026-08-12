@@ -21,24 +21,24 @@ import {
 import { getCartItemCount } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import type { CartDisplayLine } from "@/lib/cart/types";
-import type { PickupLocation } from "@/lib/checkout/pickup";
+import type { DeliveryArea } from "@/lib/checkout/delivery";
 import { cn } from "@/lib/utils";
 
 type CartSidebarProps = {
   children: ReactNode;
-  pickupLocation?: PickupLocation | null;
+  deliveryArea?: DeliveryArea | null;
 };
 
 type CartSidebarContentProps = {
   lines: CartDisplayLine[];
   onClear: () => void;
-  pickupLocation?: PickupLocation | null;
+  deliveryArea?: DeliveryArea | null;
 };
 
 export function CartSidebarContent({
   lines,
   onClear,
-  pickupLocation = null,
+  deliveryArea = null,
 }: CartSidebarContentProps) {
   const itemCount = getCartItemCount(lines);
   const itemLabel = itemCount === 1 ? "item" : "items";
@@ -87,9 +87,9 @@ export function CartSidebarContent({
             ))}
           </div>
           <SheetFooter className="shrink-0 gap-2.5 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
-            <FulfillmentPicker compact pickupLocation={pickupLocation} />
-            <CartSummary compact isPickupAvailable={pickupLocation !== null} />
-            <CheckoutButton isPickupAvailable={pickupLocation !== null} />
+            <FulfillmentPicker compact deliveryArea={deliveryArea} />
+            <CartSummary compact isDeliveryAvailable={deliveryArea !== null} />
+            <CheckoutButton isDeliveryAvailable={deliveryArea !== null} />
             <SheetClose asChild>
               <Link
                 className={cn(buttonVariants({ variant: "outline" }), "w-full")}
@@ -105,7 +105,7 @@ export function CartSidebarContent({
   );
 }
 
-export function CartSidebar({ children, pickupLocation = null }: CartSidebarProps) {
+export function CartSidebar({ children, deliveryArea = null }: CartSidebarProps) {
   const lines = useCartStore((state) => state.lines);
   const clear = useCartStore((state) => state.clear);
   const isCartOpen = useCartStore((state) => state.isCartOpen);
@@ -139,7 +139,7 @@ export function CartSidebar({ children, pickupLocation = null }: CartSidebarProp
               : null;
         }}
       >
-        <CartSidebarContent lines={lines} onClear={clear} pickupLocation={pickupLocation} />
+        <CartSidebarContent deliveryArea={deliveryArea} lines={lines} onClear={clear} />
       </SheetContent>
     </Sheet>
   );

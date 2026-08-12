@@ -57,12 +57,14 @@ describe("matchesAdminOrderFilter", () => {
     expect(matchesAdminOrderFilter(order({ inventoryStatus: "exception" }), "to-ship")).toBe(false);
   });
 
-  test("to-ship excludes pickup orders, which have their own queue", () => {
-    expect(matchesAdminOrderFilter(order({ fulfillmentMethod: "pickup" }), "to-ship")).toBe(false);
-    // A staged pickup order stays fulfillment-eligible, so it would otherwise leak in here.
+  test("to-ship excludes delivery orders, which have their own queue", () => {
+    expect(matchesAdminOrderFilter(order({ fulfillmentMethod: "delivery" }), "to-ship")).toBe(
+      false,
+    );
+    // A scheduled delivery order stays fulfillment-eligible, so it would otherwise leak in here.
     expect(
       matchesAdminOrderFilter(
-        order({ fulfillmentMethod: "pickup", status: "ready_for_pickup" }),
+        order({ fulfillmentMethod: "delivery", status: "delivery_scheduled" }),
         "to-ship",
       ),
     ).toBe(false);

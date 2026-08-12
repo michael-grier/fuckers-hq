@@ -64,9 +64,9 @@ const orderEmailKindCopy: Record<OrderEmailKind, { name: string; failureImpact: 
     name: "confirmation",
     failureImpact: "The customer has no receipt.",
   },
-  pickup_ready: {
-    name: "pickup",
-    failureImpact: "The customer has not been told their order is ready.",
+  delivery_scheduled: {
+    name: "delivery",
+    failureImpact: "The customer has not been told their delivery is being arranged.",
   },
   shipped: {
     name: "shipping",

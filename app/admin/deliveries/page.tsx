@@ -5,79 +5,77 @@ import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-b
 import { OrderInventoryStatusBadge } from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatAdminDate } from "@/lib/admin/format";
-import { getAdminPickupQueue } from "@/lib/admin/queries";
-import { resolvePickupLocation, splitPickupAddressLines } from "@/lib/checkout/pickup";
+import { getAdminDeliveryQueue } from "@/lib/admin/queries";
+import { resolveDeliveryArea } from "@/lib/checkout/delivery";
 import { env } from "@/lib/env";
 import { formatMoney } from "@/lib/money";
 import type { OrderFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 
-type PickupQueue = Awaited<ReturnType<typeof getAdminPickupQueue>>;
-type PickupOrder = PickupQueue["toPrepare"][number];
+type DeliveryQueue = Awaited<ReturnType<typeof getAdminDeliveryQueue>>;
+type DeliveryOrder = DeliveryQueue["toSchedule"][number];
 
-export default async function AdminPickupsPage() {
-  const queue = await getAdminPickupQueue();
-  const pickupLocation = resolvePickupLocation(env);
+export default async function AdminDeliveriesPage() {
+  const queue = await getAdminDeliveryQueue();
+  const deliveryArea = resolveDeliveryArea(env);
 
   return (
     <div className="space-y-8">
       <div className="space-y-2">
-        <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Pickup queue</h1>
+        <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Delivery queue</h1>
         <p className="text-muted-foreground">
-          Paid local-pickup orders, oldest first. Marking an order ready emails the customer to come
-          collect it.
+          Paid local-delivery orders, oldest first. Scheduling an order emails the customer that
+          you'll be in touch to arrange the drop-off; the delivery address is on each order.
         </p>
       </div>
 
-      {pickupLocation ? (
+      {deliveryArea ? (
         <section
-          aria-labelledby="pickup-location-heading"
+          aria-labelledby="delivery-area-heading"
           className="rounded-lg border bg-background p-6"
         >
-          <h2 className="font-bold text-xl" id="pickup-location-heading">
-            Pickup location
+          <h2 className="font-bold text-xl" id="delivery-area-heading">
+            Delivery area
           </h2>
-          <address className="mt-3 not-italic text-muted-foreground text-sm">
-            <span className="block font-semibold text-foreground">{pickupLocation.name}</span>
-            {splitPickupAddressLines(pickupLocation.address).map((line) => (
-              <span className="block" key={line}>
-                {line}
-              </span>
-            ))}
-            <span className="mt-2 block">{pickupLocation.hours}</span>
-          </address>
+          <div className="mt-3 space-y-2 text-muted-foreground text-sm">
+            <p className="font-semibold text-foreground">{deliveryArea.areaName}</p>
+            <p>
+              Checkout states the area but Stripe cannot enforce it, so confirm each address is
+              inside the area before arranging the drop-off.
+            </p>
+            {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
+          </div>
         </section>
       ) : (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-950">
-          <h2 className="font-bold text-xl">Pickup is not configured</h2>
+          <h2 className="font-bold text-xl">Local delivery is not configured</h2>
           <p className="mt-2 max-w-3xl text-sm">
-            New pickup orders cannot be placed, and pickup-ready emails will fail until
-            PICKUP_ENABLED, PICKUP_LOCATION_NAME, PICKUP_ADDRESS, and PICKUP_HOURS are all set.
-            Existing pickup orders below still need to be handed over.
+            New delivery orders cannot be placed until DELIVERY_ENABLED and DELIVERY_AREA_NAME are
+            both set. Existing delivery orders below still need to be delivered.
           </p>
         </section>
       )}
 
-      <PickupSection
-        description="Paid and allocated. Pack these, then mark them ready to notify the customer."
-        emptyMessage="Nothing waiting to be packed."
-        heading="To prepare"
-        id="to-prepare"
-        orders={queue.toPrepare}
-        transition="ready_for_pickup"
+      <DeliverySection
+        description="Paid and allocated. Pack these, then schedule delivery to notify the customer."
+        emptyMessage="Nothing waiting to be scheduled."
+        heading="To schedule"
+        id="to-schedule"
+        orders={queue.toSchedule}
+        transition="schedule_delivery"
       />
 
-      <PickupSection
-        description="The customer has been emailed. Mark as picked up once they collect it."
-        emptyMessage="No orders are waiting for collection."
-        heading="Awaiting collection"
-        id="awaiting-collection"
-        orders={queue.awaitingCollection}
-        showReadySince
-        transition="picked_up"
+      <DeliverySection
+        description="The customer has been emailed. Mark as delivered once the order is dropped off."
+        emptyMessage="No orders are waiting to be delivered."
+        heading="Awaiting delivery"
+        id="awaiting-delivery"
+        orders={queue.awaitingDelivery}
+        showScheduledSince
+        transition="delivered"
       />
 
       {queue.blocked.length > 0 ? (
-        <PickupSection
+        <DeliverySection
           description="Stock could not be allocated. Resolve the inventory exception on each order before it can be handed over."
           emptyMessage=""
           heading="Blocked"
@@ -89,25 +87,25 @@ export default async function AdminPickupsPage() {
   );
 }
 
-type PickupSectionProps = {
+type DeliverySectionProps = {
   description: string;
   emptyMessage: string;
   heading: string;
   id: string;
-  orders: PickupOrder[];
-  showReadySince?: boolean;
+  orders: DeliveryOrder[];
+  showScheduledSince?: boolean;
   transition?: OrderFulfillmentTransition;
 };
 
-function PickupSection({
+function DeliverySection({
   description,
   emptyMessage,
   heading,
   id,
   orders,
-  showReadySince = false,
+  showScheduledSince = false,
   transition,
-}: PickupSectionProps) {
+}: DeliverySectionProps) {
   return (
     <section aria-labelledby={`${id}-heading`} className="space-y-4">
       <div className="space-y-1">
@@ -124,14 +122,14 @@ function PickupSection({
       ) : (
         <div className="overflow-x-auto rounded-lg border bg-background">
           <table className="w-full min-w-3xl text-left text-sm">
-            <caption className="sr-only">{heading} pickup orders, oldest first</caption>
+            <caption className="sr-only">{heading} delivery orders, oldest first</caption>
             <thead className="border-b bg-muted/50">
               <tr>
                 <TableHeading>Order</TableHeading>
                 <TableHeading>Customer</TableHeading>
                 <TableHeading>Items</TableHeading>
                 <TableHeading>Total</TableHeading>
-                <TableHeading>{showReadySince ? "Ready since" : "Paid"}</TableHeading>
+                <TableHeading>{showScheduledSince ? "Scheduled since" : "Paid"}</TableHeading>
                 <TableHeading>
                   <span className="sr-only">Actions</span>
                 </TableHeading>
@@ -156,7 +154,7 @@ function PickupSection({
                     {formatMoney(order.totalCents, order.currency)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 align-top">
-                    <PickupTimestamp order={order} showReadySince={showReadySince} />
+                    <DeliveryTimestamp order={order} showScheduledSince={showScheduledSince} />
                   </td>
                   <td className="px-4 py-4 align-top">
                     <div className="flex flex-wrap items-start justify-end gap-2">
@@ -184,14 +182,14 @@ function PickupSection({
   );
 }
 
-function PickupTimestamp({
+function DeliveryTimestamp({
   order,
-  showReadySince,
+  showScheduledSince,
 }: {
-  order: PickupOrder;
-  showReadySince: boolean;
+  order: DeliveryOrder;
+  showScheduledSince: boolean;
 }) {
-  const timestamp = showReadySince ? order.readyForPickupAt : order.createdAt;
+  const timestamp = showScheduledSince ? order.deliveryScheduledAt : order.createdAt;
 
   if (!timestamp) {
     return <span className="text-muted-foreground">Not recorded</span>;

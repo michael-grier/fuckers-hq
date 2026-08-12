@@ -62,7 +62,8 @@ export const checkoutSchema = z
   .object({
     requestId: z.string().uuid(),
     items: cartSchema,
-    // Absent means shipping so a client that predates local pickup keeps working unchanged.
+    // Absent means shipping so a client that predates the fulfillment choice keeps working
+    // unchanged.
     fulfillmentMethod: fulfillmentMethodSchema.default("shipping"),
   })
   .strict();

@@ -171,10 +171,10 @@ describe("cart store", () => {
   test("builds checkout intent without display snapshot fields", () => {
     useCartStore.getState().addLine({ ...deck, quantity: 2 });
 
-    expect(toCheckoutRequest(useCartStore.getState().lines, "request-123", "pickup")).toEqual({
+    expect(toCheckoutRequest(useCartStore.getState().lines, "request-123", "delivery")).toEqual({
       requestId: "request-123",
       items: [{ variantId: deck.variantId, quantity: 2 }],
-      fulfillmentMethod: "pickup",
+      fulfillmentMethod: "delivery",
     });
   });
 
@@ -190,13 +190,13 @@ describe("cart store", () => {
   test("gives a new request identity when the fulfillment method changes", () => {
     // A reserved checkout refuses replay under a different method, so the IDs must differ.
     expect(getCheckoutCartFingerprint([deck], "shipping")).not.toBe(
-      getCheckoutCartFingerprint([deck], "pickup"),
+      getCheckoutCartFingerprint([deck], "delivery"),
     );
   });
 
-  test("honours a stored pickup preference only while pickup is offered", () => {
-    expect(resolveFulfillmentMethod("pickup", true)).toBe("pickup");
-    expect(resolveFulfillmentMethod("pickup", false)).toBe("shipping");
+  test("honours a stored delivery preference only while delivery is offered", () => {
+    expect(resolveFulfillmentMethod("delivery", true)).toBe("delivery");
+    expect(resolveFulfillmentMethod("delivery", false)).toBe("shipping");
     expect(resolveFulfillmentMethod("shipping", true)).toBe("shipping");
   });
 });

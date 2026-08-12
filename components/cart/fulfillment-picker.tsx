@@ -4,65 +4,61 @@ import { useId } from "react";
 import { resolveFulfillmentMethod } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import type { CartFulfillmentMethod } from "@/lib/cart/types";
-import { type PickupLocation, splitPickupAddressLines } from "@/lib/checkout/pickup";
+import type { DeliveryArea } from "@/lib/checkout/delivery";
 import { cn } from "@/lib/utils";
 
 type FulfillmentPickerProps = {
-  pickupLocation: PickupLocation | null;
-  /** Sidebar variant: a segmented control with the address behind a disclosure. */
+  deliveryArea: DeliveryArea | null;
+  /** Sidebar variant: a segmented control with the details behind a disclosure. */
   compact?: boolean;
 };
 
-export function FulfillmentPicker({ pickupLocation, compact = false }: FulfillmentPickerProps) {
+export function FulfillmentPicker({ deliveryArea, compact = false }: FulfillmentPickerProps) {
   const preference = useCartStore((state) => state.fulfillmentMethod);
   const setFulfillmentMethod = useCartStore((state) => state.setFulfillmentMethod);
   const groupName = useId();
-  const selected = resolveFulfillmentMethod(preference, pickupLocation !== null);
+  const selected = resolveFulfillmentMethod(preference, deliveryArea !== null);
 
-  if (!pickupLocation) {
+  if (!deliveryArea) {
     return null;
   }
 
-  const isPickup = selected === "pickup";
+  const isDelivery = selected === "delivery";
 
   if (compact) {
     return (
       // The sheet footer also holds the summary and checkout button, so this stays roughly one
-      // control tall and keeps the pickup address collapsed until it is asked for.
+      // control tall and keeps the delivery details collapsed until they are asked for.
       <fieldset className="space-y-2">
         <legend className="font-semibold text-sm">How do you want it?</legend>
         <div className="grid grid-cols-2 gap-2">
           <SegmentedOption
-            checked={!isPickup}
+            checked={!isDelivery}
             label="Ship it"
             name={groupName}
             onSelect={setFulfillmentMethod}
             value="shipping"
           />
           <SegmentedOption
-            checked={isPickup}
-            label="Local pickup"
+            checked={isDelivery}
+            label="Local delivery"
             name={groupName}
             onSelect={setFulfillmentMethod}
-            value="pickup"
+            value="delivery"
           />
         </div>
-        {isPickup ? (
+        {isDelivery ? (
           <details className="text-muted-foreground text-xs">
             <summary className="cursor-pointer rounded outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Free · {pickupLocation.name} · {pickupLocation.hours}
+              Free · {deliveryArea.areaName} only
             </summary>
-            <address className="mt-2 not-italic">
-              {splitPickupAddressLines(pickupLocation.address).map((line) => (
-                <span className="block" key={line}>
-                  {line}
-                </span>
-              ))}
-              {pickupLocation.instructions ? (
-                <span className="mt-1.5 block">{pickupLocation.instructions}</span>
-              ) : null}
-              <span className="mt-1.5 block">We'll email you when your order is ready.</span>
-            </address>
+            <div className="mt-2 space-y-1.5">
+              <p>
+                We deliver within {deliveryArea.areaName}. Enter your delivery address at checkout,
+                and we'll contact you to arrange a time.
+              </p>
+              {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
+            </div>
           </details>
         ) : (
           <p className="text-muted-foreground text-xs">Rates and tax are calculated at checkout.</p>
@@ -76,7 +72,7 @@ export function FulfillmentPicker({ pickupLocation, compact = false }: Fulfillme
       <legend className="px-1 font-grotesk font-semibold text-lg">How do you want it?</legend>
       <div className="mt-3 space-y-3">
         <FulfillmentOption
-          checked={!isPickup}
+          checked={!isDelivery}
           description="We ship it to your address. Rates and tax are calculated at checkout."
           label="Ship it to me"
           name={groupName}
@@ -84,26 +80,23 @@ export function FulfillmentPicker({ pickupLocation, compact = false }: Fulfillme
           value="shipping"
         />
         <FulfillmentOption
-          checked={isPickup}
-          description={`Free. Collect at ${pickupLocation.name} — ${pickupLocation.hours}. We'll email you when your order is ready.`}
-          label="Local pickup"
+          checked={isDelivery}
+          description={`Free within ${deliveryArea.areaName}. We'll contact you after checkout to arrange a delivery time.`}
+          label="Local delivery"
           name={groupName}
           onSelect={setFulfillmentMethod}
-          value="pickup"
+          value="delivery"
         />
       </div>
-      {isPickup ? (
-        <address className="mt-4 border-t pt-4 not-italic text-muted-foreground text-sm">
-          <span className="block font-semibold text-foreground">{pickupLocation.name}</span>
-          {splitPickupAddressLines(pickupLocation.address).map((line) => (
-            <span className="block" key={line}>
-              {line}
-            </span>
-          ))}
-          {pickupLocation.instructions ? (
-            <span className="mt-2 block">{pickupLocation.instructions}</span>
-          ) : null}
-        </address>
+      {isDelivery ? (
+        <div className="mt-4 space-y-2 border-t pt-4 text-muted-foreground text-sm">
+          <p>
+            Available within{" "}
+            <span className="font-semibold text-foreground">{deliveryArea.areaName}</span> only.
+            Enter your delivery address at checkout.
+          </p>
+          {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
+        </div>
       ) : null}
     </fieldset>
   );

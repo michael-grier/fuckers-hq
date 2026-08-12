@@ -64,13 +64,11 @@ const envSchema = z.object({
   SHIPPING_ALLOWED_COUNTRIES: optionalString.default("CA"),
   SHIPPING_STANDARD_RATE_CENTS: optionalIntegerString,
   SHIPPING_FREE_THRESHOLD_CENTS: optionalIntegerString,
-  // Pickup stays off unless it is explicitly enabled and fully described, so a half-configured
-  // deploy cannot offer a pickup option that omits where or when to collect the order.
-  PICKUP_ENABLED: defaultFalseBooleanString,
-  PICKUP_LOCATION_NAME: optionalString,
-  PICKUP_ADDRESS: optionalString,
-  PICKUP_HOURS: optionalString,
-  PICKUP_INSTRUCTIONS: optionalString,
+  // Local delivery stays off unless it is explicitly enabled and its service area is named, so a
+  // half-configured deploy cannot offer delivery without saying where it applies.
+  DELIVERY_ENABLED: defaultFalseBooleanString,
+  DELIVERY_AREA_NAME: optionalString,
+  DELIVERY_INSTRUCTIONS: optionalString,
 });
 
 export type Env = z.infer<typeof envSchema>;

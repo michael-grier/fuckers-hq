@@ -40,7 +40,7 @@ const OVERRIDE_FILES = [".env.development.local", ".env.production.local"];
 
 /**
  * Minimal dotenv parser, used only to read DATABASE_URL out of the shared `.env.local`.
- * Multi-line quoted values (e.g. PICKUP_ADDRESS) are not reassembled; their continuation
+ * Multi-line quoted values are not reassembled; their continuation
  * lines parse as junk keys, which is fine because only DATABASE_URL is consumed.
  */
 export function parseEnvFile(content: string): Record<string, string> {

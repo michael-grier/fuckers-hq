@@ -39,8 +39,8 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
         .update(orders)
         .set({
           status: rule.toStatus,
-          // Recorded once, when the order is staged, and kept after it is collected.
-          ...(rule.toStatus === "ready_for_pickup" ? { readyForPickupAt: occurredAt } : {}),
+          // Recorded once, when the delivery is scheduled, and kept after it is dropped off.
+          ...(rule.toStatus === "delivery_scheduled" ? { deliveryScheduledAt: occurredAt } : {}),
           // Written as a set so a re-shipped order cannot keep tracking from an earlier attempt.
           ...(transition === "ship"
             ? {

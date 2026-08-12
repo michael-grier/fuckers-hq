@@ -111,7 +111,7 @@ describe("order fulfillment transitions", () => {
   test("records the shipment against a ship transition only", async () => {
     const shipment = { carrier: "canada_post", trackingNumber: "1234 5678" } as const;
     const shippingRepository = makeRepository();
-    const pickupRepository = makeRepository();
+    const deliveryRepository = makeRepository();
     const now = new Date("2026-08-04T12:00:00.000Z");
 
     await applyOrderFulfillmentTransition(orderId, "ship", shippingRepository, { now, shipment });
@@ -122,15 +122,15 @@ describe("order fulfillment transitions", () => {
       shipment,
     );
 
-    // Tracking has no meaning for an order collected in person, and persisting it would violate
+    // Tracking has no meaning for an order dropped off in person, and persisting it would violate
     // the orders_shipment_requires_shipping_method constraint.
-    await applyOrderFulfillmentTransition(orderId, "ready_for_pickup", pickupRepository, {
+    await applyOrderFulfillmentTransition(orderId, "schedule_delivery", deliveryRepository, {
       now,
       shipment,
     });
-    expect(pickupRepository.applyFulfillmentTransition).toHaveBeenCalledWith(
+    expect(deliveryRepository.applyFulfillmentTransition).toHaveBeenCalledWith(
       orderId,
-      "ready_for_pickup",
+      "schedule_delivery",
       now,
       null,
     );
@@ -138,52 +138,54 @@ describe("order fulfillment transitions", () => {
 
   test("queues the customer notification each transition owes", () => {
     expect(orderFulfillmentTransitionRules.ship.queuedEmailKind).toBe("shipped");
-    expect(orderFulfillmentTransitionRules.ready_for_pickup.queuedEmailKind).toBe("pickup_ready");
-    // Collection happens in person, so being handed the order is the notification.
-    expect(orderFulfillmentTransitionRules.picked_up.queuedEmailKind).toBeNull();
+    expect(orderFulfillmentTransitionRules.schedule_delivery.queuedEmailKind).toBe(
+      "delivery_scheduled",
+    );
+    // The drop-off happens in person, so being handed the order is the notification.
+    expect(orderFulfillmentTransitionRules.delivered.queuedEmailKind).toBeNull();
   });
 
-  test("stages a paid pickup order, then completes it on collection", async () => {
+  test("schedules a paid delivery order, then completes it on drop-off", async () => {
     const readyRepository = makeRepository();
-    const collectedRepository = makeRepository();
+    const deliveredRepository = makeRepository();
 
     await expect(
-      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", readyRepository),
+      applyOrderFulfillmentTransition(orderId, "schedule_delivery", readyRepository),
     ).resolves.toEqual({ changed: true });
     await expect(
-      applyOrderFulfillmentTransition(orderId, "picked_up", collectedRepository),
+      applyOrderFulfillmentTransition(orderId, "delivered", deliveredRepository),
     ).resolves.toEqual({ changed: true });
   });
 
   test("treats a repeated transition as an idempotent success", async () => {
     const shipped = makeBlockedRepository(makeState({ status: "fulfilled" }));
     const staged = makeBlockedRepository(
-      makeState({ status: "ready_for_pickup", fulfillmentMethod: "pickup" }),
+      makeState({ status: "delivery_scheduled", fulfillmentMethod: "delivery" }),
     );
 
     await expect(applyOrderFulfillmentTransition(orderId, "ship", shipped)).resolves.toEqual({
       changed: false,
     });
     await expect(
-      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", staged),
+      applyOrderFulfillmentTransition(orderId, "schedule_delivery", staged),
     ).resolves.toEqual({ changed: false });
   });
 
   test("refuses to fulfill an order through the wrong method's flow", async () => {
     const shippingOrder = makeBlockedRepository(makeState({ fulfillmentMethod: "shipping" }));
-    const pickupOrder = makeBlockedRepository(makeState({ fulfillmentMethod: "pickup" }));
+    const deliveryOrder = makeBlockedRepository(makeState({ fulfillmentMethod: "delivery" }));
 
     await expect(
-      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", shippingOrder),
+      applyOrderFulfillmentTransition(orderId, "schedule_delivery", shippingOrder),
     ).rejects.toEqual(
       new OrderFulfillmentError(
-        "This is a shipping order and cannot be fulfilled through the pickup flow.",
+        "This is a shipping order and cannot be fulfilled through the local-delivery flow.",
         "invalid_status",
       ),
     );
-    await expect(applyOrderFulfillmentTransition(orderId, "ship", pickupOrder)).rejects.toEqual(
+    await expect(applyOrderFulfillmentTransition(orderId, "ship", deliveryOrder)).rejects.toEqual(
       new OrderFulfillmentError(
-        "This is a pickup order and cannot be marked as shipped.",
+        "This is a local-delivery order and cannot be marked as shipped.",
         "invalid_status",
       ),
     );
@@ -207,18 +209,18 @@ describe("order fulfillment transitions", () => {
     );
   });
 
-  test("stops a staged pickup order that was later refunded in full", async () => {
+  test("stops a scheduled delivery order that was later refunded in full", async () => {
     const repository = makeBlockedRepository(
       makeState({
-        status: "ready_for_pickup",
-        fulfillmentMethod: "pickup",
+        status: "delivery_scheduled",
+        fulfillmentMethod: "delivery",
         refundStatus: "full",
       }),
     );
 
-    await expect(applyOrderFulfillmentTransition(orderId, "picked_up", repository)).rejects.toEqual(
+    await expect(applyOrderFulfillmentTransition(orderId, "delivered", repository)).rejects.toEqual(
       new OrderFulfillmentError(
-        "Only orders marked ready for pickup can be marked as picked up.",
+        "Only orders scheduled for delivery can be marked as delivered.",
         "invalid_status",
       ),
     );
@@ -226,8 +228,8 @@ describe("order fulfillment transitions", () => {
 
   test("blocks fulfillment while a paid order has an inventory exception", async () => {
     const shipping = makeBlockedRepository(makeState({ inventoryStatus: "exception" }));
-    const pickup = makeBlockedRepository(
-      makeState({ inventoryStatus: "exception", fulfillmentMethod: "pickup" }),
+    const deliveryBlocked = makeBlockedRepository(
+      makeState({ inventoryStatus: "exception", fulfillmentMethod: "delivery" }),
     );
 
     await expect(applyOrderFulfillmentTransition(orderId, "ship", shipping)).rejects.toEqual(
@@ -237,7 +239,7 @@ describe("order fulfillment transitions", () => {
       ),
     );
     await expect(
-      applyOrderFulfillmentTransition(orderId, "ready_for_pickup", pickup),
+      applyOrderFulfillmentTransition(orderId, "schedule_delivery", deliveryBlocked),
     ).rejects.toEqual(
       new OrderFulfillmentError(
         "Resolve the inventory exception before fulfilling this order.",
@@ -251,15 +253,15 @@ describe("order fulfillment transitions", () => {
       isOrderFulfillmentEligible(order);
 
     expect(eligible({ status: "paid", refundStatus: "partial", disputeStatus: "none" })).toBe(true);
-    // A staged pickup order is still awaiting hand-off, so it stays eligible.
+    // A scheduled delivery order is still awaiting drop-off, so it stays eligible.
     expect(
-      eligible({ status: "ready_for_pickup", refundStatus: "none", disputeStatus: "none" }),
+      eligible({ status: "delivery_scheduled", refundStatus: "none", disputeStatus: "none" }),
     ).toBe(true);
     expect(
-      eligible({ status: "ready_for_pickup", refundStatus: "full", disputeStatus: "none" }),
+      eligible({ status: "delivery_scheduled", refundStatus: "full", disputeStatus: "none" }),
     ).toBe(false);
     expect(
-      eligible({ status: "ready_for_pickup", refundStatus: "none", disputeStatus: "open" }),
+      eligible({ status: "delivery_scheduled", refundStatus: "none", disputeStatus: "open" }),
     ).toBe(false);
     expect(eligible({ status: "refunded", refundStatus: "full", disputeStatus: "none" })).toBe(
       false,
@@ -340,27 +342,27 @@ describe("retry order email authorization", () => {
     const authorize = mock(async () => ({ userId: "user_admin123" }));
     const attempt = mock(async () => ({ status: "sent" as const }));
 
-    expect(retryOrderEmailSchema.parse({ orderId, kind: "pickup_ready" })).toEqual({
+    expect(retryOrderEmailSchema.parse({ orderId, kind: "delivery_scheduled" })).toEqual({
       orderId,
-      kind: "pickup_ready",
+      kind: "delivery_scheduled",
     });
     expect(() => retryOrderEmailSchema.parse({ orderId, kind: "unknown" })).toThrow();
     expect(() => retryOrderEmailSchema.parse({ orderId })).toThrow();
 
     await expect(
       retryOrderEmailForAdmin(
-        { orderId, kind: "pickup_ready" },
+        { orderId, kind: "delivery_scheduled" },
         { authorize, attempt, reportError: () => {} },
       ),
     ).resolves.toEqual({ success: true, data: undefined });
     expect(authorize).toHaveBeenCalledTimes(1);
-    expect(attempt).toHaveBeenCalledWith({ orderId, kind: "pickup_ready" });
+    expect(attempt).toHaveBeenCalledWith({ orderId, kind: "delivery_scheduled" });
   });
 
   test("names the failing email when delivery is deferred", async () => {
     await expect(
       retryOrderEmailForAdmin(
-        { orderId, kind: "pickup_ready" },
+        { orderId, kind: "delivery_scheduled" },
         {
           authorize: async () => ({}),
           attempt: async () => ({ status: "failed", error: new Error("nope"), terminal: false }),
@@ -369,7 +371,7 @@ describe("retry order email authorization", () => {
       ),
     ).resolves.toEqual({
       success: false,
-      message: "Pickup notification delivery failed and was scheduled to retry.",
+      message: "Delivery notification delivery failed and was scheduled to retry.",
     });
   });
 });

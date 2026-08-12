@@ -61,9 +61,9 @@ export default function ShippingPage() {
         </PolicyParagraph>
       </PolicySection>
 
-      {/* Gated on the same server flag checkout uses, so a store with pickup off never advertises
-          it here; see docs/production-launch-requirements.md §2. */}
-      {env.PICKUP_ENABLED ? (
+      {/* Gated on the same server flag checkout uses, so a store with delivery off never
+          advertises it here; see docs/production-launch-requirements.md §2. */}
+      {env.DELIVERY_ENABLED ? (
         <PolicySection heading="Local delivery">
           <PolicyParagraph>
             Orders within Rockyview County, Alberta are eligible for local delivery. We will contact
