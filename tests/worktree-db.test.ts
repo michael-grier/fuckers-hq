@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+  classifyPrune,
   endpointHostFromUrl,
   GENERATED_MARKER,
   generatedNeonBranchId,
   isPooledUrl,
+  type NeonBranch,
+  type PruneWorktree,
   parseEnvFile,
+  parseWorktreeList,
   renderOverrideEnv,
   waitForOperations,
 } from "@/scripts/worktree-db";
@@ -73,6 +77,104 @@ describe("generated override files", () => {
   test("refuses to treat a hand-written file as generated", () => {
     // Teardown deletes files based on this check, so a manual override must never match.
     expect(generatedNeonBranchId("DATABASE_URL=x\nNEON_BRANCH_ID=br-manual")).toBeNull();
+  });
+});
+
+describe("parseWorktreeList", () => {
+  test("reads paths and branch names, treating detached worktrees as branchless", () => {
+    const porcelain = [
+      "worktree /repo/main",
+      "HEAD aaa",
+      "branch refs/heads/main",
+      "",
+      "worktree /repo/wt-feature",
+      "HEAD bbb",
+      "branch refs/heads/feat/pickup",
+      "",
+      "worktree /repo/wt-detached",
+      "HEAD ccc",
+      "detached",
+      "",
+    ].join("\n");
+    expect(parseWorktreeList(porcelain)).toEqual([
+      { path: "/repo/main", branch: "main" },
+      { path: "/repo/wt-feature", branch: "feat/pickup" },
+      { path: "/repo/wt-detached", branch: null },
+    ]);
+  });
+});
+
+describe("classifyPrune", () => {
+  const neonBranch = (id: string, overrides?: Partial<NeonBranch>): NeonBranch => ({
+    id,
+    name: id,
+    default: false,
+    protected: false,
+    ...overrides,
+  });
+  const worktree = (overrides: Partial<PruneWorktree>): PruneWorktree => ({
+    path: "/repo/wt",
+    branch: "feat/x",
+    neonBranchId: null,
+    hasGeneratedOverrides: false,
+    merged: false,
+    ...overrides,
+  });
+
+  test("selects merged worktrees with overrides and unreferenced Neon branches", () => {
+    const mergedWithDb = worktree({
+      path: "/repo/wt-merged",
+      neonBranchId: "br-merged",
+      hasGeneratedOverrides: true,
+      merged: true,
+    });
+    const result = classifyPrune({
+      neonBranches: [neonBranch("br-merged"), neonBranch("br-active"), neonBranch("br-orphan")],
+      worktrees: [
+        mergedWithDb,
+        // Merged but never had a database: nothing to prune there.
+        worktree({ path: "/repo/wt-merged-no-db", merged: true }),
+        worktree({ path: "/repo/wt-active", neonBranchId: "br-active", merged: false }),
+      ],
+      excludedBranchIds: new Set(),
+    });
+    expect(result.mergedWorktrees).toEqual([mergedWithDb]);
+    expect(result.orphanBranches.map((branch) => branch.id)).toEqual(["br-orphan"]);
+  });
+
+  test("never offers default, protected, or excluded branches as orphans", () => {
+    const result = classifyPrune({
+      neonBranches: [
+        neonBranch("br-default", { default: true }),
+        neonBranch("br-protected", { protected: true }),
+        neonBranch("br-dev"),
+      ],
+      worktrees: [],
+      // The shared dev branch is excluded by id, exactly as prune() builds this set.
+      excludedBranchIds: new Set(["br-dev"]),
+    });
+    expect(result.orphanBranches).toEqual([]);
+  });
+
+  test("a merged worktree recording an excluded branch id is never a teardown candidate", () => {
+    // Defense in depth for the shared dev branch: even a generated-looking override that
+    // points at it must not route it into deletion via the merged-worktree path.
+    const result = classifyPrune({
+      neonBranches: [neonBranch("br-dev")],
+      worktrees: [worktree({ neonBranchId: "br-dev", hasGeneratedOverrides: true, merged: true })],
+      excludedBranchIds: new Set(["br-dev"]),
+    });
+    expect(result.mergedWorktrees).toEqual([]);
+    expect(result.orphanBranches).toEqual([]);
+  });
+
+  test("a branch referenced by an unmerged worktree is not an orphan", () => {
+    const result = classifyPrune({
+      neonBranches: [neonBranch("br-active")],
+      worktrees: [worktree({ neonBranchId: "br-active" })],
+      excludedBranchIds: new Set(),
+    });
+    expect(result.orphanBranches).toEqual([]);
   });
 });
 
