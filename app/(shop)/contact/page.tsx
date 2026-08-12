@@ -18,9 +18,7 @@ const socialLinks: ReadonlyArray<{ href: string; label: string; Icon: typeof Ins
 ];
 
 export default function ContactPage() {
-  // Falls back to a visible placeholder so an unconfigured deployment cannot silently
-  // publish a page with no way to reach the store.
-  const supportEmail = env.SUPPORT_EMAIL ?? "[SUPPORT EMAIL]";
+  const supportEmail = env.SUPPORT_EMAIL;
 
   return (
     <PolicyPage
@@ -30,17 +28,13 @@ export default function ContactPage() {
       <PolicySection heading="Email us">
         <PolicyParagraph>
           The fastest way to reach us is{" "}
-          {env.SUPPORT_EMAIL ? (
-            <a
-              className="font-semibold text-foreground underline decoration-accent decoration-2 underline-offset-4 hover:decoration-4"
-              href={`mailto:${supportEmail}`}
-            >
-              {supportEmail}
-            </a>
-          ) : (
-            <span className="font-semibold text-foreground">{supportEmail}</span>
-          )}
-          . We reply within [RESPONSE TIME, e.g. 1-2 business days].
+          <a
+            className="font-semibold text-foreground underline decoration-accent decoration-2 underline-offset-4 hover:decoration-4"
+            href={`mailto:${supportEmail}`}
+          >
+            {supportEmail}
+          </a>
+          . We reply within 5 business days.
         </PolicyParagraph>
         <PolicyParagraph>
           If your message is about an existing order, include your order number — it is in your
@@ -97,14 +91,6 @@ export default function ContactPage() {
             </li>
           ))}
         </ul>
-      </PolicySection>
-
-      <PolicySection heading="Mailing address">
-        <PolicyParagraph>
-          [MAILING ADDRESS — optional, but confirm whether you want a public address listed. Do not
-          publish a home address you are not comfortable sharing. Returns are only accepted after
-          contacting us, so an address is not required here.]
-        </PolicyParagraph>
       </PolicySection>
     </PolicyPage>
   );

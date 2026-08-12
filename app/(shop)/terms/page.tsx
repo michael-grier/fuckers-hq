@@ -7,6 +7,7 @@ import {
   PolicyParagraph,
   PolicySection,
 } from "@/components/shop/policy-page";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Terms of Service",
@@ -17,15 +18,15 @@ export default function TermsPage() {
   return (
     <PolicyPage
       description="The rules that apply when you shop with us."
-      effectiveDate="[EFFECTIVE DATE]"
+      effectiveDate="August 12, 2026"
       title="Terms of service."
     >
       <PolicyDraftNotice />
 
       <PolicySection heading="Who you are dealing with">
         <PolicyParagraph>
-          This store is operated by [LEGAL NAME OF OPERATOR], located in [CITY, PROVINCE, COUNTRY].
-          By placing an order you agree to these terms.
+          This store is operated by Tristan Hawkins, located in Calgary, Alberta, Canada. By placing
+          an order you agree to these terms.
         </PolicyParagraph>
       </PolicySection>
 
@@ -43,8 +44,8 @@ export default function TermsPage() {
 
       <PolicySection heading="Pricing and payment">
         <PolicyParagraph>
-          All prices are in [CURRENCY, e.g. Canadian dollars (CAD)]. Prices may change at any time,
-          but the price you see at checkout is the price you pay for that order.
+          All prices are in Canadian dollars (CAD). Prices may change at any time, but the price you
+          see at checkout is the price you pay for that order.
         </PolicyParagraph>
         <PolicyParagraph>
           Payments are processed by Stripe. We do not receive or store your card details. Stripe's
@@ -82,8 +83,8 @@ export default function TermsPage() {
 
       <PolicySection heading="Intellectual property">
         <PolicyParagraph>
-          All brand names, logos, graphics, photography, and video on this site belong to [LEGAL
-          NAME OF OPERATOR] or are used with permission. You may not reproduce, resell, or use them
+          All brand names, logos, graphics, photography, and video on this site belong to Tristan
+          Hawkins or are used with permission. You may not reproduce, resell, or use them
           commercially without written permission.
         </PolicyParagraph>
       </PolicySection>
@@ -110,8 +111,8 @@ export default function TermsPage() {
 
       <PolicySection heading="Governing law">
         <PolicyParagraph>
-          These terms are governed by the laws of [PROVINCE/STATE] and [COUNTRY]. Disputes will be
-          heard in the courts of [JURISDICTION].
+          These terms are governed by the laws of Alberta and Canada. Disputes will be heard in the
+          courts of Calgary, Alberta.
         </PolicyParagraph>
       </PolicySection>
 
@@ -123,7 +124,7 @@ export default function TermsPage() {
       </PolicySection>
 
       <PolicySection heading="Contact">
-        <PolicyParagraph>Questions about these terms: [SUPPORT EMAIL].</PolicyParagraph>
+        <PolicyParagraph>Questions about these terms: {env.SUPPORT_EMAIL}.</PolicyParagraph>
       </PolicySection>
     </PolicyPage>
   );
