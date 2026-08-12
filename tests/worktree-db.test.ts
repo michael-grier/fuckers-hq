@@ -128,17 +128,25 @@ describe("classifyPrune", () => {
       hasGeneratedOverrides: true,
       merged: true,
     });
+    // Overrides without a recorded branch id (e.g. written before the id line existed) still
+    // need their files cleaned up, so the worktree must be selected.
+    const mergedFilesOnly = worktree({
+      path: "/repo/wt-merged-files-only",
+      hasGeneratedOverrides: true,
+      merged: true,
+    });
     const result = classifyPrune({
       neonBranches: [neonBranch("br-merged"), neonBranch("br-active"), neonBranch("br-orphan")],
       worktrees: [
         mergedWithDb,
+        mergedFilesOnly,
         // Merged but never had a database: nothing to prune there.
         worktree({ path: "/repo/wt-merged-no-db", merged: true }),
         worktree({ path: "/repo/wt-active", neonBranchId: "br-active", merged: false }),
       ],
       excludedBranchIds: new Set(),
     });
-    expect(result.mergedWorktrees).toEqual([mergedWithDb]);
+    expect(result.mergedWorktrees).toEqual([mergedWithDb, mergedFilesOnly]);
     expect(result.orphanBranches.map((branch) => branch.id)).toEqual(["br-orphan"]);
   });
 
