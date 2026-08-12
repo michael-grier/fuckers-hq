@@ -10,7 +10,7 @@ const productStatusStyles: Record<Product["status"], string> = {
 const orderStatusStyles: Record<Order["status"], string> = {
   pending: "border-border bg-background text-muted-foreground",
   paid: "border-amber-200 bg-amber-50 text-amber-900",
-  ready_for_pickup: "border-sky-200 bg-sky-50 text-sky-900",
+  delivery_scheduled: "border-sky-200 bg-sky-50 text-sky-900",
   fulfilled: "border-emerald-200 bg-emerald-50 text-emerald-800",
   cancelled: "border-red-200 bg-red-50 text-red-800",
   refunded: "border-border bg-muted text-muted-foreground",
@@ -20,7 +20,7 @@ const orderStatusStyles: Record<Order["status"], string> = {
 const orderStatusLabels: Record<Order["status"], string> = {
   pending: "Pending",
   paid: "Paid",
-  ready_for_pickup: "Ready for pickup",
+  delivery_scheduled: "Delivery scheduled",
   fulfilled: "Shipped",
   cancelled: "Cancelled",
   refunded: "Refunded",
@@ -28,7 +28,7 @@ const orderStatusLabels: Record<Order["status"], string> = {
 
 const fulfillmentMethodLabels: Record<Order["fulfillmentMethod"], string> = {
   shipping: "Shipping",
-  pickup: "Local pickup",
+  delivery: "Local delivery",
 };
 
 const orderInventoryStatusStyles: Record<Order["inventoryStatus"], string> = {
@@ -88,12 +88,12 @@ export function OrderStatusBadge({
   status: Order["status"];
   fulfillmentMethod?: Order["fulfillmentMethod"];
 }) {
-  // `fulfilled` means shipped or collected depending on the method, so without one the label
+  // `fulfilled` means shipped or delivered depending on the method, so without one the label
   // stays neutral rather than asserting a shipment that may never have happened.
   const label =
     status === "fulfilled"
-      ? fulfillmentMethod === "pickup"
-        ? "Picked up"
+      ? fulfillmentMethod === "delivery"
+        ? "Delivered"
         : fulfillmentMethod === "shipping"
           ? "Shipped"
           : "Completed"
@@ -110,7 +110,7 @@ export function FulfillmentMethodBadge({ method }: { method: Order["fulfillmentM
   return (
     <Badge
       className={
-        method === "pickup"
+        method === "delivery"
           ? "border-sky-200 bg-sky-50 text-sky-900"
           : "border-border bg-background text-muted-foreground"
       }

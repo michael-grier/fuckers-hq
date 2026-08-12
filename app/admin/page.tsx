@@ -65,14 +65,14 @@ export default async function AdminPage() {
           value={summary.awaitingFulfillmentCount}
         />
         <SummaryCard
-          href={"/admin/pickups" as Route}
-          label="Pickups to prepare"
-          value={summary.pickupToPrepareCount}
+          href={"/admin/deliveries" as Route}
+          label="Deliveries to schedule"
+          value={summary.deliveriesToScheduleCount}
         />
         <SummaryCard
-          href={"/admin/pickups" as Route}
-          label="Awaiting collection"
-          value={summary.awaitingCollectionCount}
+          href={"/admin/deliveries" as Route}
+          label="Awaiting delivery"
+          value={summary.awaitingDeliveryCount}
         />
         <SummaryCard
           highlight={summary.inventoryExceptionCount > 0}

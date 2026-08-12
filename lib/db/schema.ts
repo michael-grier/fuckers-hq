@@ -16,18 +16,19 @@ import { productCategoryValues, productSubcategories } from "@/lib/catalog/categ
 import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
 
 export const productStatusValues = ["draft", "active", "archived"] as const;
-// `fulfilled` is the terminal state for both methods: shipped for shipping, collected for pickup.
+// `fulfilled` is the terminal state for both methods: shipped for shipping, dropped off for
+// local delivery.
 export const orderStatusValues = [
   "pending",
   "paid",
-  "ready_for_pickup",
+  "delivery_scheduled",
   "fulfilled",
   "cancelled",
   "refunded",
 ] as const;
 export const orderInventoryStatusValues = ["allocated", "exception"] as const;
-export const fulfillmentMethodValues = ["shipping", "pickup"] as const;
-export const orderEmailKindValues = ["confirmation", "pickup_ready", "shipped"] as const;
+export const fulfillmentMethodValues = ["shipping", "delivery"] as const;
+export const orderEmailKindValues = ["confirmation", "delivery_scheduled", "shipped"] as const;
 export const refundStatusValues = ["none", "partial", "full"] as const;
 export const disputeStatusValues = ["none", "open", "won", "lost", "prevented"] as const;
 export const stripePaymentEventKindValues = ["refund", "dispute"] as const;
@@ -291,7 +292,7 @@ export const orders = pgTable(
     status: orderStatus("status").notNull().default("pending"),
     inventoryStatus: orderInventoryStatus("inventory_status").notNull().default("allocated"),
     fulfillmentMethod: fulfillmentMethod("fulfillment_method").notNull().default("shipping"),
-    readyForPickupAt: timestamp("ready_for_pickup_at", { withTimezone: true }),
+    deliveryScheduledAt: timestamp("delivery_scheduled_at", { withTimezone: true }),
     shippedAt: timestamp("shipped_at", { withTimezone: true }),
     // Tracking is optional: not every shipment has a number, and the shipping notification is sent
     // either way. Both columns are written together or not at all.
@@ -331,21 +332,21 @@ export const orders = pgTable(
     // migration in one transaction, so an enum-literal comparison here would break a fresh deploy.
     check(
       "orders_fulfilled_inventory_allocated",
-      sql`${table.status}::text NOT IN ('fulfilled', 'ready_for_pickup') OR ${table.inventoryStatus} = 'allocated'`,
+      sql`${table.status}::text NOT IN ('fulfilled', 'delivery_scheduled') OR ${table.inventoryStatus} = 'allocated'`,
     ),
     check(
-      "orders_ready_for_pickup_requires_pickup",
-      sql`${table.status}::text <> 'ready_for_pickup' OR ${table.fulfillmentMethod} = 'pickup'`,
+      "orders_delivery_scheduled_requires_delivery",
+      sql`${table.status}::text <> 'delivery_scheduled' OR ${table.fulfillmentMethod} = 'delivery'`,
     ),
-    // The timestamp survives collection so the admin history keeps how long the order waited.
-    // Covers `fulfilled` as well, so a pickup order cannot reach its terminal state without the
-    // staging step that told the customer to collect it. The application already enforces the
-    // paid -> ready_for_pickup -> fulfilled path; this keeps a direct write from bypassing it.
+    // The timestamp survives drop-off so the admin history keeps how long the order waited.
+    // Covers `fulfilled` as well, so a delivery order cannot reach its terminal state without the
+    // scheduling step that told the customer to expect it. The application already enforces the
+    // paid -> delivery_scheduled -> fulfilled path; this keeps a direct write from bypassing it.
     check(
-      "orders_ready_for_pickup_at_required",
-      sql`${table.status}::text NOT IN ('ready_for_pickup', 'fulfilled')
-        OR ${table.fulfillmentMethod} <> 'pickup'
-        OR ${table.readyForPickupAt} IS NOT NULL`,
+      "orders_delivery_scheduled_at_required",
+      sql`${table.status}::text NOT IN ('delivery_scheduled', 'fulfilled')
+        OR ${table.fulfillmentMethod} <> 'delivery'
+        OR ${table.deliveryScheduledAt} IS NOT NULL`,
     ),
     // A number without a carrier cannot produce a tracking link, and a carrier without a number
     // tells the customer nothing, so a half-recorded shipment is rejected outright.
@@ -354,7 +355,7 @@ export const orders = pgTable(
       sql`(${table.trackingCarrier} IS NULL AND ${table.trackingNumber} IS NULL)
         OR (${table.trackingCarrier} IS NOT NULL AND ${table.trackingNumber} IS NOT NULL)`,
     ),
-    // Shipment facts only exist for shipping orders; a pickup order is handed over in person.
+    // Shipment facts only exist for shipping orders; a delivery order is handed over in person.
     // There is deliberately no "fulfilled shipping order must have shipped_at" check: orders
     // fulfilled before this column existed have no shipment time, and inventing one would put
     // fabricated history into the record.

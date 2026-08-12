@@ -45,16 +45,16 @@ describe("checkout contract", () => {
     ).toEqual({
       requestId,
       items: [{ variantId, quantity: 2 }],
-      // Omitted by clients that predate local pickup, so it defaults to shipping.
+      // Omitted by clients that predate the fulfillment choice, so it defaults to shipping.
       fulfillmentMethod: "shipping",
     });
     expect(
       checkoutSchema.parse({
         requestId,
         items: [{ variantId, quantity: 2 }],
-        fulfillmentMethod: "pickup",
+        fulfillmentMethod: "delivery",
       }).fulfillmentMethod,
-    ).toBe("pickup");
+    ).toBe("delivery");
     expect(() =>
       checkoutSchema.parse({
         requestId,

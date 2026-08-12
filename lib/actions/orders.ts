@@ -30,10 +30,10 @@ import {
   retryOrderInventoryAllocationSchema,
 } from "@/lib/validators/admin";
 
-/** Kept stable across kinds so existing Sentry queries for the pickup email keep matching. */
+/** One stable Sentry operation per email kind, so dashboards can query each notification. */
 const fulfillmentEmailOperations: Record<OrderEmailKind, string> = {
   confirmation: "email.confirmation",
-  pickup_ready: "email.pickup-ready",
+  delivery_scheduled: "email.delivery-scheduled",
   shipped: "email.shipped",
 };
 
@@ -100,7 +100,7 @@ async function runFulfillmentTransition(
 
   revalidatePath("/admin");
   revalidatePath("/admin/orders");
-  revalidatePath("/admin/pickups");
+  revalidatePath("/admin/deliveries");
   revalidatePath(`/admin/orders/${request.orderId}`);
 
   return {
@@ -147,12 +147,12 @@ export async function markOrderAsShipped(input: unknown): Promise<ActionResult> 
   });
 }
 
-export async function markOrderReadyForPickup(input: unknown): Promise<ActionResult> {
-  return runOrderIdTransition(input, "ready_for_pickup", "admin.mark-order-ready-for-pickup");
+export async function scheduleOrderDelivery(input: unknown): Promise<ActionResult> {
+  return runOrderIdTransition(input, "schedule_delivery", "admin.schedule-order-delivery");
 }
 
-export async function markOrderPickedUp(input: unknown): Promise<ActionResult> {
-  return runOrderIdTransition(input, "picked_up", "admin.mark-order-picked-up");
+export async function markOrderDelivered(input: unknown): Promise<ActionResult> {
+  return runOrderIdTransition(input, "delivered", "admin.mark-order-delivered");
 }
 
 export async function retryOrderInventoryAllocation(input: unknown): Promise<ActionResult> {

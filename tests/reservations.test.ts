@@ -38,7 +38,7 @@ const sessionParams = buildStripeSessionParams(
     standardShippingRateCents: 1500,
     freeShippingThresholdCents: 10000,
     taxEnabled: true,
-    pickupLocation: null,
+    deliveryArea: null,
   },
 ) as unknown as JsonRecord;
 

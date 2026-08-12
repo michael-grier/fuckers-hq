@@ -70,7 +70,7 @@ type AttemptOrderEmailOptions = {
  */
 const orderEmailIdempotencyPrefixes: Record<OrderEmailKind, string> = {
   confirmation: "order-confirmation",
-  pickup_ready: "order-pickup-ready",
+  delivery_scheduled: "order-delivery-scheduled",
   shipped: "order-shipped",
 };
 
@@ -88,7 +88,7 @@ export function getOrderEmailRetryAt(attemptCount: number, failedAt: Date): Date
 export function getOrderEmailErrorCode(error: unknown): string {
   if (
     error instanceof Error &&
-    /^(RESEND_API_KEY|EMAIL_FROM|SUPPORT_EMAIL|PICKUP_[A-Z_]+) is required\.$/.test(error.message)
+    /^(RESEND_API_KEY|EMAIL_FROM|SUPPORT_EMAIL) is required\.$/.test(error.message)
   ) {
     return "configuration_error";
   }

@@ -1,4 +1,4 @@
-import { Handshake, LayoutDashboard, type LucideIcon, Package, ReceiptText } from "lucide-react";
+import { LayoutDashboard, type LucideIcon, Package, ReceiptText, Truck } from "lucide-react";
 import type { Route } from "next";
 
 export type AdminNavLink = {
@@ -27,7 +27,7 @@ export const adminNavGroups: ReadonlyArray<AdminNavGroup> = [
     label: "Sales",
     links: [
       { href: "/admin/orders" as Route, label: "Orders", icon: ReceiptText },
-      { href: "/admin/pickups" as Route, label: "Pickups", icon: Handshake },
+      { href: "/admin/deliveries" as Route, label: "Deliveries", icon: Truck },
     ],
   },
 ];

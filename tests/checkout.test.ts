@@ -46,16 +46,14 @@ const settings = {
   standardShippingRateCents: 1500,
   freeShippingThresholdCents: 10000,
   taxEnabled: true,
-  pickupLocation: null,
+  deliveryArea: null,
 };
 
-const pickupSettings = {
+const deliverySettings = {
   ...settings,
   allowedCountries: [...settings.allowedCountries],
-  pickupLocation: {
-    name: "The Shop",
-    address: "123 Test Street\nCalgary, AB T1T 1T1",
-    hours: "Wed–Sun, 11am–6pm",
+  deliveryArea: {
+    areaName: "Rocky View County, Alberta",
     instructions: "Ring the buzzer.",
   },
 };
@@ -333,10 +331,10 @@ describe("hosted checkout orchestration", () => {
       lineItems: reservationLineItems,
     };
 
-    for (const fulfillmentMethod of ["shipping", "pickup"] as const) {
+    for (const fulfillmentMethod of ["shipping", "delivery"] as const) {
       const params = buildStripeSessionParams(
         { ...shippingReservation, fulfillmentMethod },
-        pickupSettings,
+        deliverySettings,
       );
 
       // An explicit list turns off dynamic payment methods, so enabling Affirm or Klarna in the
@@ -409,48 +407,47 @@ describe("hosted checkout orchestration", () => {
   });
 });
 
-describe("local pickup checkout", () => {
-  const pickupReservation = {
+describe("local delivery checkout", () => {
+  const deliveryReservation = {
     pendingCheckoutToken: "checkout_abcDEF123456789",
     reservationToken: "reservation_abcDEF123456",
     expiresAt: new Date("2026-07-10T13:00:00.000Z"),
-    fulfillmentMethod: "pickup" as const,
+    fulfillmentMethod: "delivery" as const,
     lineItems: reservationLineItems,
   };
 
-  test("collects no address and offers no shipping rate", () => {
-    const params = buildStripeSessionParams(pickupReservation, pickupSettings);
+  test("collects a Canadian delivery address and offers no shipping rate", () => {
+    const params = buildStripeSessionParams(deliveryReservation, deliverySettings);
 
-    expect(params.shipping_address_collection).toBeUndefined();
+    // The address is collected for the drop-off, restricted to Canada regardless of the wider
+    // shipping allowlist. No shipping option means Stripe charges nothing for delivery.
+    expect(params.shipping_address_collection?.allowed_countries).toEqual(["CA"]);
     expect(params.shipping_options).toBeUndefined();
-    // Automatic tax still needs a customer location for a pickup order.
-    expect(params.billing_address_collection).toBe("required");
-    expect(params.metadata?.fulfillmentMethod).toBe("pickup");
+    expect(params.metadata?.fulfillmentMethod).toBe("delivery");
     const submitText = params.custom_text?.submit;
 
     expect(submitText && typeof submitText === "object" ? submitText.message : null).toContain(
-      "The Shop",
+      "Rocky View County, Alberta",
     );
   });
 
   test("keeps shipping collection and rates for a shipping order", () => {
     const params = buildStripeSessionParams(
-      { ...pickupReservation, fulfillmentMethod: "shipping" },
-      pickupSettings,
+      { ...deliveryReservation, fulfillmentMethod: "shipping" },
+      deliverySettings,
     );
 
     expect(params.shipping_address_collection?.allowed_countries).toEqual(["CA", "US"]);
     expect(params.shipping_options).toHaveLength(1);
-    expect(params.billing_address_collection).toBeUndefined();
     expect(params.metadata?.fulfillmentMethod).toBe("shipping");
   });
 
-  test("refuses a pickup request while pickup is switched off", async () => {
+  test("refuses a delivery request while delivery is switched off", async () => {
     let repositoryCalled = false;
 
     await expect(
       createHostedCheckout(
-        { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "pickup" },
+        { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "delivery" },
         { ...settings, allowedCountries: [...settings.allowedCountries] },
         {
           repository: makeRepository({
@@ -463,13 +460,13 @@ describe("local pickup checkout", () => {
           createToken: () => "unused-token",
         },
       ),
-    ).rejects.toThrow("Local pickup is not available.");
+    ).rejects.toThrow("Local delivery is not available.");
 
     // Stock must not be reserved for a checkout that can never be paid.
     expect(repositoryCalled).toBe(false);
   });
 
-  test("carries the pickup choice into the reservation the server persists", async () => {
+  test("carries the delivery choice into the reservation the server persists", async () => {
     const reservationWrites: Parameters<CheckoutRepository["reserveCheckout"]>[0][] = [];
     const repository = makeRepository({
       reserveCheckout: async (checkout) => {
@@ -488,34 +485,37 @@ describe("local pickup checkout", () => {
     });
 
     await createHostedCheckout(
-      { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "pickup" },
-      pickupSettings,
+      { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "delivery" },
+      deliverySettings,
       {
         repository,
         sessions: {
-          create: async () => ({ id: "cs_test_pickup", url: "https://checkout.stripe.com/pickup" }),
+          create: async () => ({
+            id: "cs_test_delivery",
+            url: "https://checkout.stripe.com/delivery",
+          }),
         },
         createToken: () => "checkout_abcDEF123456789",
       },
     );
 
-    expect(reservationWrites[0]?.fulfillmentMethod).toBe("pickup");
+    expect(reservationWrites[0]?.fulfillmentMethod).toBe("delivery");
   });
 
   test("rejects a persisted session request whose method no longer matches", () => {
-    const params = buildStripeSessionParams(pickupReservation, pickupSettings) as unknown;
+    const params = buildStripeSessionParams(deliveryReservation, deliverySettings) as unknown;
 
-    expect(parsePersistedStripeSessionParams(params, pickupReservation)).toBeDefined();
+    expect(parsePersistedStripeSessionParams(params, deliveryReservation)).toBeDefined();
     expect(() =>
       parsePersistedStripeSessionParams(params, {
-        ...pickupReservation,
+        ...deliveryReservation,
         fulfillmentMethod: "shipping",
       }),
     ).toThrow("Persisted Stripe Session request is invalid.");
   });
 
   test("accepts a persisted session carrying metadata this deploy does not know", () => {
-    const params = buildStripeSessionParams(pickupReservation, pickupSettings) as unknown as {
+    const params = buildStripeSessionParams(deliveryReservation, deliverySettings) as unknown as {
       metadata: Record<string, string>;
     };
     const fromNewerDeploy = {
@@ -525,11 +525,11 @@ describe("local pickup checkout", () => {
 
     // A rolling release can pay a Session created by a newer deploy. Rejecting the unknown key
     // would strand a verified payment behind a permanent parse failure.
-    expect(parsePersistedStripeSessionParams(fromNewerDeploy, pickupReservation)).toBeDefined();
+    expect(parsePersistedStripeSessionParams(fromNewerDeploy, deliveryReservation)).toBeDefined();
   });
 
-  test("treats a session persisted before pickup existed as shipping", () => {
-    const shippingReservation = { ...pickupReservation, fulfillmentMethod: "shipping" as const };
+  test("treats a session persisted before the fulfillment choice existed as shipping", () => {
+    const shippingReservation = { ...deliveryReservation, fulfillmentMethod: "shipping" as const };
     const legacyParams = buildStripeSessionParams(shippingReservation, {
       ...settings,
       allowedCountries: [...settings.allowedCountries],

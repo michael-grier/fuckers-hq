@@ -134,30 +134,30 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     expect(await database.$count(inventoryReservations)).toBe(1);
   });
 
-  test("carries the pickup method from the reserved checkout onto the paid order", async () => {
+  test("carries the delivery method from the reserved checkout onto the paid order", async () => {
     await insertVariant(database, variantId, 1);
 
     const reservation = await reserve(
       checkoutRepository,
       variantId,
       "10000000-0000-4000-8000-00000000000a",
-      "pickup",
+      "delivery",
     );
 
-    expect(reservation.fulfillmentMethod).toBe("pickup");
+    expect(reservation.fulfillmentMethod).toBe("delivery");
 
-    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_pickup");
-    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_pickup"));
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_delivery");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_delivery"));
 
     const order = await database.query.orders.findFirst({
-      columns: { fulfillmentMethod: true, status: true, readyForPickupAt: true },
+      columns: { fulfillmentMethod: true, status: true, deliveryScheduledAt: true },
     });
 
     // The method comes from the server-written pending checkout, never from Stripe metadata.
     expect(order).toEqual({
-      fulfillmentMethod: "pickup",
+      fulfillmentMethod: "delivery",
       status: "paid",
-      readyForPickupAt: null,
+      deliveryScheduledAt: null,
     });
     expect(await variantStock(database, variantId)).toEqual({
       inventoryQty: 0,
@@ -172,7 +172,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
 
     await reserve(checkoutRepository, variantId, requestId, "shipping");
 
-    await expect(reserve(checkoutRepository, variantId, requestId, "pickup")).rejects.toThrow(
+    await expect(reserve(checkoutRepository, variantId, requestId, "delivery")).rejects.toThrow(
       "another fulfillment method",
     );
     // The rejected replay must not reserve a second unit.
@@ -182,7 +182,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     });
   });
 
-  test("rejects a ready-for-pickup status on a shipping order", async () => {
+  test("rejects a delivery_scheduled status on a shipping order", async () => {
     await insertVariant(database, variantId, 1);
 
     const reservation = await reserve(
@@ -199,74 +199,74 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       await constraintViolation(() =>
         database
           .update(orders)
-          .set({ status: "ready_for_pickup", readyForPickupAt: new Date() })
+          .set({ status: "delivery_scheduled", deliveryScheduledAt: new Date() })
           .where(eq(orders.stripeSessionId, "cs_shipping")),
       ),
-    ).toBe("orders_ready_for_pickup_requires_pickup");
+    ).toBe("orders_delivery_scheduled_requires_delivery");
   });
 
-  test("rejects fulfilled pickup orders without a readiness timestamp", async () => {
+  test("rejects fulfilled delivery orders without a scheduling timestamp", async () => {
     await insertVariant(database, variantId, 1);
 
     const reservation = await reserve(
       checkoutRepository,
       variantId,
       "10000000-0000-4000-8000-00000000000d",
-      "pickup",
+      "delivery",
     );
 
-    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_pickup_direct");
-    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_pickup_direct"));
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_delivery_direct");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_delivery_direct"));
 
-    // A pickup order must pass through ready_for_pickup, so a direct jump to the terminal state
+    // A delivery order must pass through delivery_scheduled, so a direct jump to the terminal state
     // cannot quietly discard the record of when the customer was told to collect it.
     expect(
       await constraintViolation(() =>
         database
           .update(orders)
           .set({ status: "fulfilled" })
-          .where(eq(orders.stripeSessionId, "cs_pickup_direct")),
+          .where(eq(orders.stripeSessionId, "cs_delivery_direct")),
       ),
-    ).toBe("orders_ready_for_pickup_at_required");
+    ).toBe("orders_delivery_scheduled_at_required");
 
     // With the timestamp present the same transition is accepted.
     await database
       .update(orders)
-      .set({ status: "fulfilled", readyForPickupAt: new Date() })
-      .where(eq(orders.stripeSessionId, "cs_pickup_direct"));
+      .set({ status: "fulfilled", deliveryScheduledAt: new Date() })
+      .where(eq(orders.stripeSessionId, "cs_delivery_direct"));
 
     const order = await database.query.orders.findFirst({
       columns: { status: true },
-      where: (row, { eq: matches }) => matches(row.stripeSessionId, "cs_pickup_direct"),
+      where: (row, { eq: matches }) => matches(row.stripeSessionId, "cs_delivery_direct"),
     });
 
     expect(order?.status).toBe("fulfilled");
   });
 
-  test("rejects staging a pickup order whose stock was never allocated", async () => {
+  test("rejects scheduling a delivery order whose stock was never allocated", async () => {
     await insertVariant(database, variantId, 1);
 
     const reservation = await reserve(
       checkoutRepository,
       variantId,
       "10000000-0000-4000-8000-00000000000e",
-      "pickup",
+      "delivery",
     );
 
-    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_pickup_blocked");
-    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_pickup_blocked"));
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_delivery_blocked");
+    await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_delivery_blocked"));
     await database
       .update(orders)
       .set({ inventoryStatus: "exception" })
-      .where(eq(orders.stripeSessionId, "cs_pickup_blocked"));
+      .where(eq(orders.stripeSessionId, "cs_delivery_blocked"));
 
     // An order that could not allocate stock has nothing to hand over, so it cannot be staged.
     expect(
       await constraintViolation(() =>
         database
           .update(orders)
-          .set({ status: "ready_for_pickup", readyForPickupAt: new Date() })
-          .where(eq(orders.stripeSessionId, "cs_pickup_blocked")),
+          .set({ status: "delivery_scheduled", deliveryScheduledAt: new Date() })
+          .where(eq(orders.stripeSessionId, "cs_delivery_blocked")),
       ),
     ).toBe("orders_fulfilled_inventory_allocated");
   });
@@ -486,7 +486,7 @@ async function reserve(
   repository: CheckoutRepository,
   reservedVariantId: string,
   requestId: string,
-  fulfillmentMethod: "shipping" | "pickup" = "shipping",
+  fulfillmentMethod: "shipping" | "delivery" = "shipping",
 ) {
   const suffix = requestId.slice(-12);
 
@@ -641,7 +641,7 @@ const postgresTestSchema = [
     status text not null,
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
-    ready_for_pickup_at timestamptz,
+    delivery_scheduled_at timestamptz,
     shipped_at timestamptz,
     tracking_carrier text,
     tracking_number text,
@@ -657,17 +657,17 @@ const postgresTestSchema = [
     currency text not null,
     shipping_address jsonb,
     created_at timestamptz not null default now(),
-    constraint orders_ready_for_pickup_requires_pickup check (
-      status <> 'ready_for_pickup' or fulfillment_method = 'pickup'
+    constraint orders_delivery_scheduled_requires_delivery check (
+      status <> 'delivery_scheduled' or fulfillment_method = 'delivery'
     ),
-    constraint orders_ready_for_pickup_at_required check (
-      status not in ('ready_for_pickup', 'fulfilled')
-      or fulfillment_method <> 'pickup'
-      or ready_for_pickup_at is not null
+    constraint orders_delivery_scheduled_at_required check (
+      status not in ('delivery_scheduled', 'fulfilled')
+      or fulfillment_method <> 'delivery'
+      or delivery_scheduled_at is not null
     ),
     -- Mirrors production: neither terminal nor staged orders may carry unallocated stock.
     constraint orders_fulfilled_inventory_allocated check (
-      status not in ('fulfilled', 'ready_for_pickup') or inventory_status = 'allocated'
+      status not in ('fulfilled', 'delivery_scheduled') or inventory_status = 'allocated'
     ),
     constraint orders_tracking_pair_complete check (
       (tracking_carrier is null and tracking_number is null)

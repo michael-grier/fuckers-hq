@@ -1,16 +1,15 @@
 import "server-only";
 
-import { resolvePickupLocation, splitPickupAddressLines } from "@/lib/checkout/pickup";
 import { getDb } from "@/lib/db/client";
+import { deliverDeliveryScheduled } from "@/lib/email/deliver-delivery-scheduled";
 import {
   type ConfirmationEmailDelivery,
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
 import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
-import { deliverPickupReady } from "@/lib/email/deliver-pickup-ready";
 import type { OrderEmailRef } from "@/lib/email/order-email-delivery";
 import { getResend } from "@/lib/email/resend";
-import { env, requireEnv } from "@/lib/env";
+import { requireEnv } from "@/lib/env";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
 
@@ -34,17 +33,10 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
     from: requireEnv("EMAIL_FROM"),
     supportEmail: requireEnv("SUPPORT_EMAIL"),
   };
-  const pickupLocation = order.fulfillmentMethod === "pickup" ? resolvePickupLocation(env) : null;
-  const pickupAddressLines = pickupLocation ? splitPickupAddressLines(pickupLocation.address) : [];
-
-  if (ref.kind === "pickup_ready") {
-    if (!pickupLocation) {
-      // Retryable on purpose: the address can be restored by fixing configuration, and the email
-      // must not claim a pickup location the shop has not actually published.
-      throw new Error("PICKUP_LOCATION is required.");
-    }
-
-    return deliverPickupReady(
+  if (ref.kind === "delivery_scheduled") {
+    // Built entirely from the order record, so a later configuration change can never make this
+    // notification undeliverable or claim a service area the order was not placed under.
+    return deliverDeliveryScheduled(
       {
         orderId: order.id,
         idempotencyKey,
@@ -58,10 +50,7 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
             variantName: item.variantNameSnapshot,
             quantity: item.quantity,
           })),
-          pickupLocationName: pickupLocation.name,
-          pickupAddressLines,
-          pickupHours: pickupLocation.hours,
-          pickupInstructions: pickupLocation.instructions,
+          deliveryAddressLines: getShippingAddressLines(order.shippingAddress),
         },
       },
       config,
@@ -113,20 +102,7 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
         quantity: item.quantity,
       })),
       shippingAddressLines: getShippingAddressLines(order.shippingAddress),
-      // Keyed off the order, not off configuration, so a pickup receipt always says so even if
-      // the location cannot be resolved. The pickup-ready email carries the address regardless.
-      pickup:
-        order.fulfillmentMethod === "pickup"
-          ? {
-              location: pickupLocation
-                ? {
-                    name: pickupLocation.name,
-                    addressLines: pickupAddressLines,
-                    hours: pickupLocation.hours,
-                  }
-                : null,
-            }
-          : null,
+      isLocalDelivery: order.fulfillmentMethod === "delivery",
     },
   };
 

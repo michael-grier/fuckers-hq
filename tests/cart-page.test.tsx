@@ -17,7 +17,7 @@ describe("cart page", () => {
   // Returning from Stripe's hosted checkout is a full document load, so this server markup is what
   // the shopper stares at until the bundle rehydrates the persisted cart.
   test("renders a loading skeleton instead of the empty state before the cart hydrates", () => {
-    const markup = renderToStaticMarkup(<CartPageClient pickupLocation={null} />);
+    const markup = renderToStaticMarkup(<CartPageClient deliveryArea={null} />);
 
     expect(markup).toContain('role="status"');
     expect(markup).toContain('aria-busy="true"');
@@ -29,7 +29,7 @@ describe("cart page", () => {
 
   test("renders the empty state once a hydrated cart really is empty", () => {
     const markup = renderToStaticMarkup(
-      <CartPageContent lines={[]} onClear={() => undefined} pickupLocation={null} />,
+      <CartPageContent lines={[]} onClear={() => undefined} deliveryArea={null} />,
     );
 
     expect(markup).toContain("Your cart is empty");
@@ -40,7 +40,7 @@ describe("cart page", () => {
 
   test("renders stocked lines with the checkout column", () => {
     const markup = renderToStaticMarkup(
-      <CartPageContent lines={[deck]} onClear={() => undefined} pickupLocation={null} />,
+      <CartPageContent lines={[deck]} onClear={() => undefined} deliveryArea={null} />,
     );
 
     expect(markup).toContain("Database Deck");

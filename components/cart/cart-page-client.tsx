@@ -10,15 +10,15 @@ import { EmptyState } from "@/components/shop/empty-state";
 import { Button } from "@/components/ui/button";
 import { useCartHydrated, useCartStore } from "@/lib/cart/store";
 import type { CartDisplayLine } from "@/lib/cart/types";
-import type { PickupLocation } from "@/lib/checkout/pickup";
+import type { DeliveryArea } from "@/lib/checkout/delivery";
 
 const skeletonLines = ["line-one", "line-two"];
 
 type CartPageContentProps = {
   lines: CartDisplayLine[];
   onClear: () => void;
-  // Required rather than defaulted: omitting it would silently drop pickup from checkout.
-  pickupLocation: PickupLocation | null;
+  // Required rather than defaulted: omitting it would silently drop delivery from checkout.
+  deliveryArea: DeliveryArea | null;
 };
 
 function CartPageSkeleton() {
@@ -51,7 +51,7 @@ function CartPageSkeleton() {
   );
 }
 
-export function CartPageContent({ lines, onClear, pickupLocation }: CartPageContentProps) {
+export function CartPageContent({ lines, onClear, deliveryArea }: CartPageContentProps) {
   if (lines.length === 0) {
     return (
       <EmptyState
@@ -82,15 +82,15 @@ export function CartPageContent({ lines, onClear, pickupLocation }: CartPageCont
         </Button>
       </section>
       <div className="space-y-4">
-        <FulfillmentPicker pickupLocation={pickupLocation} />
-        <CartSummary isPickupAvailable={pickupLocation !== null} />
-        <CheckoutButton isPickupAvailable={pickupLocation !== null} />
+        <FulfillmentPicker deliveryArea={deliveryArea} />
+        <CartSummary isDeliveryAvailable={deliveryArea !== null} />
+        <CheckoutButton isDeliveryAvailable={deliveryArea !== null} />
       </div>
     </div>
   );
 }
 
-export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocation | null }) {
+export function CartPageClient({ deliveryArea }: { deliveryArea: DeliveryArea | null }) {
   const lines = useCartStore((state) => state.lines);
   const clear = useCartStore((state) => state.clear);
   const isHydrated = useCartHydrated();
@@ -102,5 +102,5 @@ export function CartPageClient({ pickupLocation }: { pickupLocation: PickupLocat
     return <CartPageSkeleton />;
   }
 
-  return <CartPageContent lines={lines} onClear={clear} pickupLocation={pickupLocation} />;
+  return <CartPageContent deliveryArea={deliveryArea} lines={lines} onClear={clear} />;
 }

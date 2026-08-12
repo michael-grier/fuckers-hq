@@ -11,7 +11,7 @@ import type { InventoryExceptionRepository } from "@/lib/orders/resolve-inventor
 const testDatabaseUrl = process.env.RESERVATION_TEST_DATABASE_URL;
 const schemaName = `fulfillment_test_${crypto.randomUUID().replaceAll("-", "")}`;
 const shippingOrderId = "0a3c9f18-64e5-4d33-90c4-2b6f5a1d77e2";
-const pickupOrderId = "7d1b8e52-3f47-4a90-8c15-9e60d2b4a831";
+const deliveryOrderId = "7d1b8e52-3f47-4a90-8c15-9e60d2b4a831";
 
 mock.module("server-only", () => ({}));
 
@@ -85,14 +85,14 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
         currency: "cad",
       },
       {
-        id: pickupOrderId,
-        orderNumber: "FHQ-20260806-PICK0001",
+        id: deliveryOrderId,
+        orderNumber: "FHQ-20260806-DLVR0001",
         email: "skater@example.com",
         status: "paid",
         inventoryStatus: "allocated",
-        fulfillmentMethod: "pickup",
-        stripeSessionId: "cs_test_pickup",
-        stripePaymentIntentId: "pi_test_pickup",
+        fulfillmentMethod: "delivery",
+        stripeSessionId: "cs_test_delivery",
+        stripePaymentIntentId: "pi_test_delivery",
         subtotalCents: 8900,
         taxCents: 0,
         shippingCents: 0,
@@ -200,17 +200,17 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
   });
 
   test("writes neither status nor outbox row when the transition is refused", async () => {
-    // A pickup order cannot be shipped. The order and the email must both stay untouched, since a
+    // A delivery order cannot be shipped. The order and the email must both stay untouched, since a
     // queued row would eventually email a customer about a shipment that never happened.
     await expect(
-      repository.applyFulfillmentTransition(pickupOrderId, "ship", new Date(), {
+      repository.applyFulfillmentTransition(deliveryOrderId, "ship", new Date(), {
         carrier: "ups",
         trackingNumber: "1Z999AA10123456784",
       }),
     ).resolves.toBe(false);
 
     const order = await database.query.orders.findFirst({
-      where: eq(orders.id, pickupOrderId),
+      where: eq(orders.id, deliveryOrderId),
     });
 
     expect(order).toMatchObject({
@@ -219,29 +219,29 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
       trackingCarrier: null,
       trackingNumber: null,
     });
-    expect(await findDeliveries(pickupOrderId)).toHaveLength(0);
+    expect(await findDeliveries(deliveryOrderId)).toHaveLength(0);
   });
 
-  test("queues the pickup email on the pickup path without touching shipment columns", async () => {
+  test("queues the delivery email on the delivery path without touching shipment columns", async () => {
     const readyAt = new Date("2026-08-06T12:00:00.000Z");
 
     await expect(
-      repository.applyFulfillmentTransition(pickupOrderId, "ready_for_pickup", readyAt, null),
+      repository.applyFulfillmentTransition(deliveryOrderId, "schedule_delivery", readyAt, null),
     ).resolves.toBe(true);
 
     const order = await database.query.orders.findFirst({
-      where: eq(orders.id, pickupOrderId),
+      where: eq(orders.id, deliveryOrderId),
     });
 
-    expect(order).toMatchObject({ status: "ready_for_pickup", shippedAt: null });
-    expect(order?.readyForPickupAt?.toISOString()).toBe(readyAt.toISOString());
+    expect(order).toMatchObject({ status: "delivery_scheduled", shippedAt: null });
+    expect(order?.deliveryScheduledAt?.toISOString()).toBe(readyAt.toISOString());
 
-    const deliveries = await findDeliveries(pickupOrderId);
+    const deliveries = await findDeliveries(deliveryOrderId);
 
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0]).toMatchObject({
-      kind: "pickup_ready",
-      idempotencyKey: `order-pickup-ready/${pickupOrderId}`,
+      kind: "delivery_scheduled",
+      idempotencyKey: `order-delivery-scheduled/${deliveryOrderId}`,
     });
   });
 });
@@ -256,7 +256,7 @@ const postgresTestSchema = [
     status text not null,
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
-    ready_for_pickup_at timestamptz,
+    delivery_scheduled_at timestamptz,
     shipped_at timestamptz,
     tracking_carrier text,
     tracking_number text,
@@ -273,15 +273,15 @@ const postgresTestSchema = [
     shipping_address jsonb,
     created_at timestamptz not null default now(),
     constraint orders_fulfilled_inventory_allocated check (
-      status not in ('fulfilled', 'ready_for_pickup') or inventory_status = 'allocated'
+      status not in ('fulfilled', 'delivery_scheduled') or inventory_status = 'allocated'
     ),
-    constraint orders_ready_for_pickup_requires_pickup check (
-      status <> 'ready_for_pickup' or fulfillment_method = 'pickup'
+    constraint orders_delivery_scheduled_requires_delivery check (
+      status <> 'delivery_scheduled' or fulfillment_method = 'delivery'
     ),
-    constraint orders_ready_for_pickup_at_required check (
-      status not in ('ready_for_pickup', 'fulfilled')
-      or fulfillment_method <> 'pickup'
-      or ready_for_pickup_at is not null
+    constraint orders_delivery_scheduled_at_required check (
+      status not in ('delivery_scheduled', 'fulfilled')
+      or fulfillment_method <> 'delivery'
+      or delivery_scheduled_at is not null
     ),
     constraint orders_tracking_pair_complete check (
       (tracking_carrier is null and tracking_number is null)

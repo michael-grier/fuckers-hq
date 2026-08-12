@@ -15,8 +15,9 @@ import type { AddCartLineInput, CartDisplayLine, CartFulfillmentMethod } from ".
 
 type CartState = {
   lines: CartDisplayLine[];
-  // A preference only. The server decides whether pickup is actually offered, and
-  // `resolveFulfillmentMethod` coerces this back to shipping when it is not.
+  // A preference only. The server decides whether delivery is actually offered, and
+  // `resolveFulfillmentMethod` coerces this back to shipping when it is not — including a
+  // persisted value from before the current method names existed.
   fulfillmentMethod: CartFulfillmentMethod;
   isCartOpen: boolean;
   setCartOpen: (open: boolean) => void;

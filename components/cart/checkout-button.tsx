@@ -12,7 +12,7 @@ import {
 import { useCartStore } from "@/lib/cart/store";
 import { checkoutErrorResponseSchema, checkoutResponseSchema } from "@/lib/validators/cart";
 
-export function CheckoutButton({ isPickupAvailable = false }: { isPickupAvailable?: boolean }) {
+export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvailable?: boolean }) {
   const lines = useCartStore((state) => state.lines);
   const fulfillmentPreference = useCartStore((state) => state.fulfillmentMethod);
   const [error, setError] = useState<string | null>(null);
@@ -24,7 +24,10 @@ export function CheckoutButton({ isPickupAvailable = false }: { isPickupAvailabl
     setIsLoading(true);
 
     try {
-      const fulfillmentMethod = resolveFulfillmentMethod(fulfillmentPreference, isPickupAvailable);
+      const fulfillmentMethod = resolveFulfillmentMethod(
+        fulfillmentPreference,
+        isDeliveryAvailable,
+      );
       const cartFingerprint = getCheckoutCartFingerprint(lines, fulfillmentMethod);
 
       if (requestIdentity.current?.cartFingerprint !== cartFingerprint) {

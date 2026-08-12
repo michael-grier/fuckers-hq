@@ -85,6 +85,13 @@
       "when": 1786152166918,
       "tag": "0011_product-subcategories",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786564684897,
+      "tag": "0012_local-delivery",
+      "breakpoints": true
     }
   ]
 }

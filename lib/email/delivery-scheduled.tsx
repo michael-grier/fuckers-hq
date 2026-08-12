@@ -15,61 +15,57 @@ import {
 
 import { formatMoney } from "@/lib/money";
 
-export type PickupReadyItem = {
+export type DeliveryScheduledItem = {
   productName: string;
   variantName: string;
   quantity: number;
 };
 
-export type PickupReadyView = {
+export type DeliveryScheduledView = {
   orderNumber: string;
   currency: string;
   totalCents: number;
-  items: PickupReadyItem[];
-  pickupLocationName: string;
-  pickupAddressLines: string[];
-  pickupHours: string;
-  pickupInstructions: string | null;
+  items: DeliveryScheduledItem[];
+  /** The address the customer gave at checkout; empty when none was recorded. */
+  deliveryAddressLines: string[];
 };
 
-type PickupReadyEmailProps = {
-  order: PickupReadyView;
+type DeliveryScheduledEmailProps = {
+  order: DeliveryScheduledView;
   supportEmail: string;
 };
 
-export function PickupReadyEmail({ order, supportEmail }: PickupReadyEmailProps) {
+/** Tells the customer their local-delivery order is packed and a drop-off is being arranged. */
+export function DeliveryScheduledEmail({ order, supportEmail }: DeliveryScheduledEmailProps) {
   return (
     <Html lang="en">
       <Head />
-      <Preview>Order {order.orderNumber} is ready to pick up</Preview>
+      <Preview>Order {order.orderNumber} is ready for delivery</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
           <Text style={styles.eyebrow}>Fuckers Skateboards</Text>
-          <Heading style={styles.heading}>Your order is ready.</Heading>
+          <Heading style={styles.heading}>Your order is ready for delivery.</Heading>
           <Text style={styles.intro}>
-            Order <strong>{order.orderNumber}</strong> is packed and waiting for you. Nothing left
-            to pay — just bring your order number.
+            Order <strong>{order.orderNumber}</strong> is packed. We'll reach out to this email
+            address to arrange a delivery day and time. Nothing left to pay.
           </Text>
 
-          <Section style={styles.section}>
-            <Heading as="h2" style={styles.sectionHeading}>
-              Where to collect it
-            </Heading>
-            <Text style={styles.locationName}>{order.pickupLocationName}</Text>
-            {order.pickupAddressLines.map((line) => (
-              <Text key={line} style={styles.addressLine}>
-                {line}
-              </Text>
-            ))}
-            <Text style={styles.hours}>{order.pickupHours}</Text>
-            {order.pickupInstructions ? (
-              <Text style={styles.instructions}>{order.pickupInstructions}</Text>
-            ) : null}
-          </Section>
+          {order.deliveryAddressLines.length > 0 ? (
+            <Section style={styles.section}>
+              <Heading as="h2" style={styles.sectionHeading}>
+                Delivering to
+              </Heading>
+              {order.deliveryAddressLines.map((line) => (
+                <Text key={line} style={styles.addressLine}>
+                  {line}
+                </Text>
+              ))}
+            </Section>
+          ) : null}
 
           <Section style={styles.section}>
             <Heading as="h2" style={styles.sectionHeading}>
-              What's waiting
+              What's coming
             </Heading>
             {order.items.map((item) => (
               <Row key={`${item.productName}-${item.variantName}`} style={styles.itemRow}>
@@ -149,29 +145,11 @@ const styles = {
     lineHeight: "24px",
     margin: "0 0 16px",
   },
-  locationName: {
-    fontSize: "15px",
-    fontWeight: "700",
-    lineHeight: "20px",
-    margin: "0 0 4px",
-  },
   addressLine: {
     color: "#52525b",
     fontSize: "14px",
     lineHeight: "20px",
     margin: 0,
-  },
-  hours: {
-    fontSize: "14px",
-    fontWeight: "700",
-    lineHeight: "20px",
-    margin: "12px 0 0",
-  },
-  instructions: {
-    color: "#52525b",
-    fontSize: "14px",
-    lineHeight: "20px",
-    margin: "12px 0 0",
   },
   itemRow: {
     marginBottom: "14px",

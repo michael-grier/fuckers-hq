@@ -75,16 +75,14 @@ describe("cart sidebar", () => {
     expect(header).toContain("sm:pr-14");
   });
 
-  test("offers pickup as a compact segmented control, address not inflating the footer", () => {
+  test("offers delivery as a compact segmented control, details not inflating the footer", () => {
     const markup = renderToStaticMarkup(
       <Sheet>
         <CartSidebarContent
           lines={[deck]}
           onClear={() => undefined}
-          pickupLocation={{
-            name: "The Shop",
-            address: "123 Test Street\nCalgary, AB T1T 1T1",
-            hours: "Wed-Sun, 11am-6pm",
+          deliveryArea={{
+            areaName: "Rocky View County, Alberta",
             instructions: "Ring the buzzer.",
           }}
         />
@@ -93,17 +91,17 @@ describe("cart sidebar", () => {
 
     expect(markup).toContain("How do you want it?");
     expect(markup).toContain("Ship it");
-    expect(markup).toContain("Local pickup");
+    expect(markup).toContain("Local delivery");
     // Real radios keep arrow-key navigation working even though the control looks segmented.
     expect(markup).toContain('type="radio"');
-    // The footer never carries the street address at rest; it lives behind a disclosure that
-    // only appears once pickup is chosen. Zustand serves its initial state to SSR, so that
+    // The footer never carries the delivery details at rest; they live behind a disclosure that
+    // only appears once delivery is chosen. Zustand serves its initial state to SSR, so that
     // selected branch is only reachable in a browser, not in static markup.
-    expect(markup).not.toContain("123 Test Street");
+    expect(markup).not.toContain("Rocky View County, Alberta");
     expect(markup).not.toContain("Ring the buzzer.");
   });
 
-  test("omits the picker entirely when pickup is not configured", () => {
+  test("omits the picker entirely when delivery is not configured", () => {
     const markup = renderToStaticMarkup(
       <Sheet>
         <CartSidebarContent lines={[deck]} onClear={() => undefined} />

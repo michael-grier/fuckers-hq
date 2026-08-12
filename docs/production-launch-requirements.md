@@ -23,7 +23,7 @@ claim here, and update this line when you do.
 | Open Graph / social share metadata | **Built** | `app/layout.tsx`, `app/opengraph-image.png`, per-product in `app/(shop)/products/[slug]/page.tsx` |
 | Favicon and app icons | **Built** | `app/favicon.ico`, `app/icon.png`, `app/apple-icon.png` |
 | Shipment tracking emails | **Built** | `lib/email/order-shipped.tsx`, `lib/orders/shipping-carriers.ts` |
-| Local pickup fulfilment | **Built, disabled by default** | `lib/checkout/pickup.ts`, `PICKUP_ENABLED` |
+| Local delivery fulfilment | **Built, disabled by default** | `lib/checkout/delivery.ts`, `DELIVERY_ENABLED` |
 | Policy and contact pages | **Built as unreviewed drafts** | `app/(shop)/{returns,shipping,privacy,terms,contact}` |
 | Product subcategory taxonomy | **Built, required on every product** | `lib/catalog/categories.ts`, migration `0011` |
 | Crew page content | **Not built** — empty state | `app/(shop)/crew/page.tsx` |
@@ -117,24 +117,24 @@ Post, UPS, FedEx, Purolator, USPS, DHL, and `other`. Each maps to a public track
 **Decision required:** which carrier the brand actually uses. Adding a carrier outside that list is
 a code change plus a Postgres enum migration, not configuration.
 
-### Local pickup is built but disabled
+### Local delivery is built but disabled
 
-Pickup is offered only when `PICKUP_ENABLED` is `true` **and** the location name, address, and hours
-are all set. A half-configured deploy deliberately will not offer it, so customers cannot select a
-pickup option that fails to say where or when to collect.
+Local delivery replaced local pickup (issue #106): because the business is headquartered in the
+owner's residence, they deliver local orders rather than publish a collection address. Delivery is
+offered only when `DELIVERY_ENABLED` is `true` **and** `DELIVERY_AREA_NAME` is set, so a
+half-configured deploy cannot offer delivery without saying where it applies.
 
-**Decision required:** whether to offer pickup at all. Given the brand operates out of an apartment,
-this needs a deliberate answer — it means publishing a collection address and inviting strangers to
-it. If they want it, they must supply:
+Checkout collects a Canada-only delivery address, charges nothing for delivery, and tells the
+customer the operator will contact them to arrange the drop-off. Stripe cannot restrict an address
+below country level, so the operator verifies each address is inside the area (Rocky View County,
+Alberta) when scheduling, and refunds out-of-area orders.
 
 | Variable | Content |
 | --- | --- |
-| `PICKUP_LOCATION_NAME` | Public name of the pickup point |
-| `PICKUP_ADDRESS` | Street address; may contain newlines |
-| `PICKUP_HOURS` | When customers can collect |
-| `PICKUP_INSTRUCTIONS` | Optional: buzzer codes, parking, who to ask for |
+| `DELIVERY_AREA_NAME` | Public name of the service area, e.g. `Rocky View County, Alberta` |
+| `DELIVERY_INSTRUCTIONS` | Optional note shown with the delivery option at checkout |
 
-If they decline, leave `PICKUP_ENABLED=false` and the option never appears.
+If the brand declines, leave `DELIVERY_ENABLED=false` and the option never appears.
 
 ---
 
@@ -478,7 +478,7 @@ Not built and not scoped. Raise these early so the brand does not assume they ar
 - Web analytics
 - Customer accounts and order history (checkout is guest-only by design)
 
-**Already built, so do not re-scope these:** tracking-number emails, local pickup, per-product social
+**Already built, so do not re-scope these:** tracking-number emails, local delivery, per-product social
 share previews, and the policy pages. See the status table at the top.
 
 **Note on analytics:** adding any analytics or advertising script makes the current `/privacy`
@@ -567,7 +567,7 @@ source of truth. The ones below need deliberate production values rather than a 
 | `ADMIN_USER_IDS` | Clerk **user IDs**, not emails. The accounts must exist first. |
 | `R2_PUBLIC_URL` | A custom domain on the bucket, not `r2.dev`. |
 | `SHIPPING_*` | Countries, flat rate, and free-shipping threshold, per section 2. |
-| `PICKUP_*` | Only if the brand opts into local pickup, per section 2. |
+| `DELIVERY_*` | Only if the brand opts into local delivery, per section 2. |
 | `CRON_SECRET` | High-entropy value; the schema enforces a minimum length. |
 | `SENTRY_*` | A production Sentry project and scoped source-map token. |
 
@@ -595,7 +595,7 @@ the moment the branch moves.
 - The `socialLinks` array is duplicated between `components/shop/site-footer.tsx` and
   `app/(shop)/contact/page.tsx`. Worth extracting to one module.
 - `/contact` is statically prerendered, so `SUPPORT_EMAIL` is captured at build time. The same
-  applies to `PICKUP_ENABLED` on `/shipping`, which gates the local-pickup section: turning pickup
+  applies to `DELIVERY_ENABLED` on `/shipping`, which gates the local-delivery section: turning delivery
   on or off requires a redeploy for the page to match checkout.
 - The `[MAILING ADDRESS]` placeholder on `/contact` is deliberately optional — the brand operates
   from a residence and may not want a public address. Confirm before filling it in.

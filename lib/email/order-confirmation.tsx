@@ -22,15 +22,6 @@ export type OrderConfirmationItem = {
   quantity: number;
 };
 
-export type OrderConfirmationPickup = {
-  /** Null when pickup configuration is unavailable; the section still states it is a pickup. */
-  location: {
-    name: string;
-    addressLines: string[];
-    hours: string;
-  } | null;
-};
-
 export type OrderConfirmationView = {
   orderNumber: string;
   currency: string;
@@ -40,8 +31,8 @@ export type OrderConfirmationView = {
   totalCents: number;
   items: OrderConfirmationItem[];
   shippingAddressLines: string[];
-  /** Set for local pickup orders, which have no shipping address to show instead. */
-  pickup: OrderConfirmationPickup | null;
+  /** Local-delivery orders show the address as a drop-off and explain the arranging step. */
+  isLocalDelivery: boolean;
 };
 
 type OrderConfirmationEmailProps = {
@@ -84,9 +75,9 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
             <Hr style={styles.rule} />
             <TotalRow label="Subtotal" value={formatMoney(order.subtotalCents, order.currency)} />
             <TotalRow
-              label={order.pickup ? "Pickup" : "Shipping"}
+              label={order.isLocalDelivery ? "Delivery" : "Shipping"}
               value={
-                order.pickup && order.shippingCents === 0
+                order.isLocalDelivery && order.shippingCents === 0
                   ? "Free"
                   : formatMoney(order.shippingCents, order.currency)
               }
@@ -104,37 +95,22 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
             </Row>
           </Section>
 
-          {order.pickup ? (
+          {order.isLocalDelivery || order.shippingAddressLines.length > 0 ? (
             <Section style={styles.section}>
               <Heading as="h2" style={styles.sectionHeading}>
-                Picking up at
-              </Heading>
-              {order.pickup.location ? (
-                <>
-                  <Text style={styles.pickupLocationName}>{order.pickup.location.name}</Text>
-                  {order.pickup.location.addressLines.map((line) => (
-                    <Text key={line} style={styles.addressLine}>
-                      {line}
-                    </Text>
-                  ))}
-                  <Text style={styles.pickupHours}>{order.pickup.location.hours}</Text>
-                </>
-              ) : null}
-              <Text style={styles.pickupNote}>
-                Hold tight — we'll email you again when it's ready to collect, with the collection
-                address and hours.
-              </Text>
-            </Section>
-          ) : order.shippingAddressLines.length > 0 ? (
-            <Section style={styles.section}>
-              <Heading as="h2" style={styles.sectionHeading}>
-                Shipping to
+                {order.isLocalDelivery ? "Delivering to" : "Shipping to"}
               </Heading>
               {order.shippingAddressLines.map((line) => (
                 <Text key={line} style={styles.addressLine}>
                   {line}
                 </Text>
               ))}
+              {order.isLocalDelivery ? (
+                <Text style={styles.deliveryNote}>
+                  Hold tight — we'll contact you at this email address to arrange a delivery time
+                  once your order is ready.
+                </Text>
+              ) : null}
             </Section>
           ) : null}
 
@@ -255,19 +231,7 @@ const styles = {
     lineHeight: "20px",
     margin: 0,
   },
-  pickupLocationName: {
-    fontSize: "15px",
-    fontWeight: "700",
-    lineHeight: "20px",
-    margin: "0 0 4px",
-  },
-  pickupHours: {
-    fontSize: "14px",
-    fontWeight: "700",
-    lineHeight: "20px",
-    margin: "12px 0 0",
-  },
-  pickupNote: {
+  deliveryNote: {
     color: "#52525b",
     fontSize: "14px",
     lineHeight: "20px",

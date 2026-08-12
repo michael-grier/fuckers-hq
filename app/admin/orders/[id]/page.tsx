@@ -21,9 +21,7 @@ import {
   formatOptionalAdminDate,
 } from "@/lib/admin/format";
 import { getAdminOrderById } from "@/lib/admin/queries";
-import { resolvePickupLocation, splitPickupAddressLines } from "@/lib/checkout/pickup";
 import type { OrderEmailDelivery, OrderEmailKind } from "@/lib/db/schema";
-import { env } from "@/lib/env";
 import { formatMoney } from "@/lib/money";
 import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
@@ -45,8 +43,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   }
 
   const shippingAddressLines = getShippingAddressLines(order.shippingAddress);
-  const isPickup = order.fulfillmentMethod === "pickup";
-  const pickupLocation = isPickup ? resolvePickupLocation(env) : null;
+  const isDelivery = order.fulfillmentMethod === "delivery";
   const nextTransition = resolveNextFulfillmentTransition(order);
   const tracking = resolveOrderTracking(order);
 
@@ -123,32 +120,30 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         </section>
         <section aria-labelledby="shipping-heading" className="rounded-lg border bg-background p-6">
           <h2 className="font-bold text-xl" id="shipping-heading">
-            {isPickup ? "Pickup" : "Shipping address"}
+            {isDelivery ? "Delivery address" : "Shipping address"}
           </h2>
-          {isPickup ? (
+          {isDelivery ? (
             <div className="mt-3 space-y-3 text-muted-foreground">
-              {pickupLocation ? (
+              {shippingAddressLines.length > 0 ? (
                 <address className="not-italic">
-                  <span className="block font-semibold text-foreground">{pickupLocation.name}</span>
-                  {splitPickupAddressLines(pickupLocation.address).map((line) => (
+                  {shippingAddressLines.map((line) => (
                     <span className="block" key={line}>
                       {line}
                     </span>
                   ))}
-                  <span className="mt-2 block">{pickupLocation.hours}</span>
                 </address>
               ) : (
-                <p>Pickup is not currently configured for this store.</p>
+                <p>No delivery address was recorded.</p>
               )}
-              {order.readyForPickupAt ? (
+              {order.deliveryScheduledAt ? (
                 <p>
-                  Marked ready{" "}
-                  <time dateTime={order.readyForPickupAt.toISOString()}>
-                    {formatAdminDate(order.readyForPickupAt)}
+                  Delivery scheduled{" "}
+                  <time dateTime={order.deliveryScheduledAt.toISOString()}>
+                    {formatAdminDate(order.deliveryScheduledAt)}
                   </time>
                 </p>
               ) : (
-                <p>Not yet marked ready for pickup.</p>
+                <p>Not yet scheduled for delivery.</p>
               )}
             </div>
           ) : (
@@ -209,13 +204,13 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         orderId={order.id}
       />
 
-      {isPickup ? (
+      {isDelivery ? (
         <EmailDeliverySection
-          delivery={order.pickupReadyDelivery}
-          emptyMessage="This order has not been marked ready for pickup yet, so no pickup email is queued."
-          heading="Pickup-ready email"
-          id="pickup-ready-delivery"
-          kind="pickup_ready"
+          delivery={order.deliveryScheduledDelivery}
+          emptyMessage="This order has not been scheduled for delivery yet, so no delivery email is queued."
+          heading="Delivery email"
+          id="delivery-scheduled-delivery"
+          kind="delivery_scheduled"
           orderId={order.id}
         />
       ) : (

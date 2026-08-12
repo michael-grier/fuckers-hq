@@ -12,7 +12,7 @@ export type CartDisplayLine = {
   imageUrl?: string | null;
 };
 
-export type CartFulfillmentMethod = "shipping" | "pickup";
+export type CartFulfillmentMethod = "shipping" | "delivery";
 
 export type CheckoutRequest = {
   requestId: string;

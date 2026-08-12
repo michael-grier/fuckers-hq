@@ -20,8 +20,8 @@ export async function getAdminDashboardSummary() {
     orderRows,
     awaitingFulfillmentRows,
     inventoryExceptionRows,
-    pickupToPrepareRows,
-    awaitingCollectionRows,
+    deliveriesToScheduleRows,
+    awaitingDeliveryRows,
   ] = await Promise.all([
     db.select({ count: count() }).from(products),
     db.select({ count: count() }).from(orders),
@@ -46,7 +46,7 @@ export async function getAdminDashboardSummary() {
       .where(
         and(
           eq(orders.status, "paid"),
-          eq(orders.fulfillmentMethod, "pickup"),
+          eq(orders.fulfillmentMethod, "delivery"),
           eq(orders.inventoryStatus, "allocated"),
           paymentEligible,
         ),
@@ -54,7 +54,7 @@ export async function getAdminDashboardSummary() {
     db
       .select({ count: count() })
       .from(orders)
-      .where(and(eq(orders.status, "ready_for_pickup"), paymentEligible)),
+      .where(and(eq(orders.status, "delivery_scheduled"), paymentEligible)),
   ]);
 
   return {
@@ -62,8 +62,8 @@ export async function getAdminDashboardSummary() {
     orderCount: orderRows[0]?.count ?? 0,
     awaitingFulfillmentCount: awaitingFulfillmentRows[0]?.count ?? 0,
     inventoryExceptionCount: inventoryExceptionRows[0]?.count ?? 0,
-    pickupToPrepareCount: pickupToPrepareRows[0]?.count ?? 0,
-    awaitingCollectionCount: awaitingCollectionRows[0]?.count ?? 0,
+    deliveriesToScheduleCount: deliveriesToScheduleRows[0]?.count ?? 0,
+    awaitingDeliveryCount: awaitingDeliveryRows[0]?.count ?? 0,
   };
 }
 
@@ -267,24 +267,25 @@ export async function getAdminOrderById(input: unknown) {
   return {
     ...rest,
     confirmationDelivery: emailDeliveries.find((row) => row.kind === "confirmation") ?? null,
-    pickupReadyDelivery: emailDeliveries.find((row) => row.kind === "pickup_ready") ?? null,
+    deliveryScheduledDelivery:
+      emailDeliveries.find((row) => row.kind === "delivery_scheduled") ?? null,
     shippedDelivery: emailDeliveries.find((row) => row.kind === "shipped") ?? null,
   };
 }
 
 /**
- * The pickup desk queue: paid pickup orders still to be staged, then staged orders awaiting
- * collection. Orders blocked by an inventory exception are returned separately in `blocked`;
- * they cannot be handed over until the exception is resolved.
+ * The local-delivery queue: paid delivery orders still to be scheduled, then scheduled orders
+ * awaiting drop-off. Orders blocked by an inventory exception are returned separately in
+ * `blocked`; they cannot be handed over until the exception is resolved.
  */
-export async function getAdminPickupQueue() {
+export async function getAdminDeliveryQueue() {
   await requireAdmin();
 
-  const pickupOrders = await getDb().query.orders.findMany({
+  const deliveryOrders = await getDb().query.orders.findMany({
     where: (orders, { and, eq, inArray, ne }) =>
       and(
-        eq(orders.fulfillmentMethod, "pickup"),
-        inArray(orders.status, ["paid", "ready_for_pickup"]),
+        eq(orders.fulfillmentMethod, "delivery"),
+        inArray(orders.status, ["paid", "delivery_scheduled"]),
         ne(orders.refundStatus, "full"),
         inArray(orders.disputeStatus, ["none", "won"]),
       ),
@@ -298,7 +299,7 @@ export async function getAdminPickupQueue() {
       disputeStatus: true,
       totalCents: true,
       currency: true,
-      readyForPickupAt: true,
+      deliveryScheduledAt: true,
       createdAt: true,
     },
     with: {
@@ -310,11 +311,11 @@ export async function getAdminPickupQueue() {
   });
 
   return {
-    toPrepare: pickupOrders.filter(
+    toSchedule: deliveryOrders.filter(
       (order) => order.status === "paid" && order.inventoryStatus === "allocated",
     ),
-    awaitingCollection: pickupOrders.filter((order) => order.status === "ready_for_pickup"),
-    blocked: pickupOrders.filter(
+    awaitingDelivery: deliveryOrders.filter((order) => order.status === "delivery_scheduled"),
+    blocked: deliveryOrders.filter(
       (order) => order.status === "paid" && order.inventoryStatus === "exception",
     ),
   };

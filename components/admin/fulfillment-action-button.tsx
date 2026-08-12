@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   markOrderAsShipped,
-  markOrderPickedUp,
-  markOrderReadyForPickup,
+  markOrderDelivered,
+  scheduleOrderDelivery,
 } from "@/lib/actions/orders";
 import type { OrderFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import {
@@ -39,16 +39,17 @@ const transitionCopy: Record<OrderFulfillmentTransition, TransitionCopy> = {
     idle: "Mark as shipped",
     pending: "Notifying…",
   },
-  ready_for_pickup: {
-    action: markOrderReadyForPickup,
-    confirm: "Mark this order ready for pickup? This emails the customer to come collect it.",
-    idle: "Mark ready for pickup",
+  schedule_delivery: {
+    action: scheduleOrderDelivery,
+    confirm:
+      "Schedule this order for delivery? This emails the customer that you'll be in touch to arrange the drop-off.",
+    idle: "Schedule delivery",
     pending: "Notifying…",
   },
-  picked_up: {
-    action: markOrderPickedUp,
-    confirm: "Mark this order as picked up by the customer?",
-    idle: "Mark as picked up",
+  delivered: {
+    action: markOrderDelivered,
+    confirm: "Mark this order as delivered to the customer?",
+    idle: "Mark as delivered",
     pending: "Updating…",
   },
 };

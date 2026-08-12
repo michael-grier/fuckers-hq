@@ -1,14 +1,14 @@
 import type { CartDisplayLine, CartFulfillmentMethod, CheckoutRequest } from "./types";
 
 /**
- * Pickup can be switched off between the moment a preference is stored and the moment checkout
- * starts, so the stored preference is only honoured while pickup is actually offered.
+ * Delivery can be switched off between the moment a preference is stored and the moment checkout
+ * starts, so the stored preference is only honoured while delivery is actually offered.
  */
 export function resolveFulfillmentMethod(
   preference: CartFulfillmentMethod,
-  isPickupAvailable: boolean,
+  isDeliveryAvailable: boolean,
 ): CartFulfillmentMethod {
-  return preference === "pickup" && isPickupAvailable ? "pickup" : "shipping";
+  return preference === "delivery" && isDeliveryAvailable ? "delivery" : "shipping";
 }
 
 export function getCartItemCount(lines: CartDisplayLine[]): number {
