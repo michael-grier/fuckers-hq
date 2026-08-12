@@ -577,8 +577,9 @@ source of truth. The ones below need deliberate production values rather than a 
 
 ### Where this work lives
 
-Branch `docs/production-launch-requirements`, rebased onto `main` at `c0fa3f2`. It contains this
-document plus the policy and contact pages. No pull request has been opened.
+This document and the policy and contact pages landed together. Branch state and review status
+deliberately live in git and the pull request rather than here, so this document does not go stale
+the moment the branch moves.
 
 ### What is done on this branch
 
@@ -593,7 +594,9 @@ document plus the policy and contact pages. No pull request has been opened.
 
 - The `socialLinks` array is duplicated between `components/shop/site-footer.tsx` and
   `app/(shop)/contact/page.tsx`. Worth extracting to one module.
-- `/contact` is statically prerendered, so `SUPPORT_EMAIL` is captured at build time.
+- `/contact` is statically prerendered, so `SUPPORT_EMAIL` is captured at build time. The same
+  applies to `PICKUP_ENABLED` on `/shipping`, which gates the local-pickup section: turning pickup
+  on or off requires a redeploy for the page to match checkout.
 - The `[MAILING ADDRESS]` placeholder on `/contact` is deliberately optional — the brand operates
   from a residence and may not want a public address. Confirm before filling it in.
 

@@ -7,6 +7,7 @@ import {
   PolicyParagraph,
   PolicySection,
 } from "@/components/shop/policy-page";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Shipping & Delivery",
@@ -66,14 +67,17 @@ export default function ShippingPage() {
         </PolicyParagraph>
       </PolicySection>
 
-      {/* Only shown to customers when PICKUP_ENABLED is true; see docs/production-launch-requirements.md §2. */}
-      <PolicySection heading="Local pickup">
-        <PolicyParagraph>
-          [LOCAL PICKUP: delete this section if you are not offering pickup. If you are, state the
-          pickup location, the hours it is available, and what a customer should bring or say when
-          collecting. Pickup orders are not shipped and are not charged shipping.]
-        </PolicyParagraph>
-      </PolicySection>
+      {/* Gated on the same server flag checkout uses, so a store with pickup off never advertises
+          it here; see docs/production-launch-requirements.md §2. */}
+      {env.PICKUP_ENABLED ? (
+        <PolicySection heading="Local pickup">
+          <PolicyParagraph>
+            [LOCAL PICKUP: state the pickup location, the hours it is available, and what a customer
+            should bring or say when collecting. Pickup orders are not shipped and are not charged
+            shipping.]
+          </PolicyParagraph>
+        </PolicySection>
+      ) : null}
 
       <PolicySection heading="Customs, duties, and import taxes">
         <PolicyParagraph>
