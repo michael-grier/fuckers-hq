@@ -219,7 +219,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     await paidOrders.createPaidOrder(paidCheckout(reservation, "cs_delivery_direct"));
 
     // A delivery order must pass through delivery_scheduled, so a direct jump to the terminal state
-    // cannot quietly discard the record of when the customer was told to collect it.
+    // cannot quietly discard the record of when the delivery was scheduled.
     expect(
       await constraintViolation(() =>
         database
@@ -266,6 +266,17 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
         database
           .update(orders)
           .set({ status: "delivery_scheduled", deliveryScheduledAt: new Date() })
+          .where(eq(orders.stripeSessionId, "cs_delivery_blocked")),
+      ),
+    ).toBe("orders_fulfilled_inventory_allocated");
+
+    // The same constraint guards the terminal state, so an inventory-exception order cannot slip
+    // straight to fulfilled either.
+    expect(
+      await constraintViolation(() =>
+        database
+          .update(orders)
+          .set({ status: "fulfilled", deliveryScheduledAt: new Date() })
           .where(eq(orders.stripeSessionId, "cs_delivery_blocked")),
       ),
     ).toBe("orders_fulfilled_inventory_allocated");

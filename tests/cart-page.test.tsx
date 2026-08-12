@@ -49,4 +49,18 @@ describe("cart page", () => {
     expect(markup).not.toContain("Your cart is empty");
     expect(markup).not.toContain('role="status"');
   });
+
+  test("offers the delivery choice when a delivery area is configured", () => {
+    const markup = renderToStaticMarkup(
+      <CartPageContent
+        deliveryArea={{ areaName: "Rocky View County, Alberta", instructions: null }}
+        lines={[deck]}
+        onClear={() => undefined}
+      />,
+    );
+
+    expect(markup).toContain("How do you want it?");
+    expect(markup).toContain("Local delivery");
+    expect(markup).toContain("Rocky View County, Alberta");
+  });
 });

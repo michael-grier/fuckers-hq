@@ -357,7 +357,10 @@ describe("delivery confirmation template", () => {
 
     expect(html).toContain("Delivering to");
     expect(html).toContain("123 Test Street");
+    // The charge line reads "Delivery / Free"; the old method label must not resurface.
+    expect(html).toContain("Delivery");
     expect(html).toContain("Free");
+    expect(html).not.toContain("Pickup");
     expect(html).toContain("arrange a delivery time");
     expect(html).not.toContain("Shipping to");
   });
