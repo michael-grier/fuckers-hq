@@ -115,6 +115,38 @@ describe("cart store", () => {
     expect(storage.getItem("fuckers-hq-cart")).toBeNull();
   });
 
+  // Valid JSON with the wrong shape used to shallow-merge straight into the store: a non-array
+  // `lines` would crash the shop layout's item-count reduce, and a string quantity or missing
+  // priceCents would render NaN prices. The whole payload is discarded instead of repaired.
+  test("settles hydration and discards a structurally invalid persisted cart", async () => {
+    const malformedStates = [
+      // lines is not an array — would throw in `lines.reduce` during layout render
+      { lines: { 0: deck }, fulfillmentMethod: "shipping" },
+      // string quantity — would make the subtotal NaN
+      { lines: [{ ...deck, quantity: "2" }], fulfillmentMethod: "shipping" },
+      // missing priceCents — would make the subtotal NaN
+      { lines: [{ ...deck, priceCents: undefined }], fulfillmentMethod: "shipping" },
+      // unknown fulfillment method — nothing downstream expects a third value
+      { lines: [deck], fulfillmentMethod: "carrier-pigeon" },
+    ];
+
+    for (const state of malformedStates) {
+      storage.setItem("fuckers-hq-cart", JSON.stringify({ state, version: 0 }));
+
+      let finishedHydration = false;
+      const unsubscribe = useCartStore.persist.onFinishHydration(() => {
+        finishedHydration = true;
+      });
+
+      await useCartStore.persist.rehydrate();
+      unsubscribe();
+
+      expect(finishedHydration).toBe(true);
+      expect(useCartStore.getState().lines).toEqual([]);
+      expect(storage.getItem("fuckers-hq-cart")).toBeNull();
+    }
+  });
+
   test("builds checkout intent without display snapshot fields", () => {
     useCartStore.getState().addLine({ ...deck, quantity: 2 });
 

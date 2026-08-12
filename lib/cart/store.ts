@@ -2,8 +2,14 @@
 
 import { useSyncExternalStore } from "react";
 import { create } from "zustand";
-import { createJSONStorage, type PersistStorage, persist } from "zustand/middleware";
+import {
+  createJSONStorage,
+  type PersistStorage,
+  persist,
+  type StorageValue,
+} from "zustand/middleware";
 
+import { persistedCartStateSchema } from "@/lib/validators/cart";
 import { MAX_CART_LINE_QUANTITY } from "./constants";
 import type { AddCartLineInput, CartDisplayLine, CartFulfillmentMethod } from "./types";
 
@@ -33,24 +39,48 @@ function clampQuantity(quantity: number): number {
  * hydration would then wait forever, so a corrupt payload would strand `/cart` on its skeleton.
  * A cart we cannot parse is not worth recovering: drop it so hydration settles on an empty cart,
  * which is what a shopper saw for corrupt data before hydration was gated at all.
+ *
+ * Parseable-but-misshapen payloads get the same treatment. Zustand's default `merge` shallow-merges
+ * whatever was stored straight into the store, and a non-array `lines` would then crash
+ * `getCartItemCount` in the shop layout on every page. Persisted state that fails
+ * `persistedCartStateSchema` — however it got that way — is discarded whole rather than repaired,
+ * so hydration always settles on either a well-formed cart or an empty one.
  */
 function createCartStorage(): PersistStorage<PersistedCartState> | undefined {
-  const storage = createJSONStorage<PersistedCartState>(() => localStorage);
+  // `unknown` state on the inner storage forces the schema check before anything is typed as a cart.
+  const storage = createJSONStorage<unknown>(() => localStorage);
 
   if (!storage) {
     return undefined;
   }
 
   return {
-    ...storage,
-    // localStorage is synchronous, so a parse failure surfaces as a throw rather than a rejection.
-    getItem: (name) => {
+    setItem: (name, value) => storage.setItem(name, value),
+    removeItem: (name) => storage.removeItem(name),
+    getItem: (name): StorageValue<PersistedCartState> | null => {
+      let stored: Awaited<ReturnType<typeof storage.getItem>>;
+
       try {
-        return storage.getItem(name);
+        // localStorage is synchronous, so a parse failure surfaces as a throw rather than a
+        // rejection, and the promise arm of the storage type never occurs.
+        stored = storage.getItem(name) as typeof stored;
       } catch {
         storage.removeItem(name);
         return null;
       }
+
+      if (stored === null) {
+        return null;
+      }
+
+      const state = persistedCartStateSchema.safeParse(stored.state);
+
+      if (!state.success) {
+        storage.removeItem(name);
+        return null;
+      }
+
+      return { ...stored, state: state.data };
     },
   };
 }

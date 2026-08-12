@@ -12,6 +12,27 @@ export const cartLineSchema = z
   })
   .strict();
 
+/**
+ * Shape of a cart line as persisted to localStorage, which is untrusted input on hydration:
+ * `CartDisplayLine` is compile-time only, so this schema is what actually guards the store against
+ * structurally invalid payloads (partial writes, other scripts on the key, stale shapes). The
+ * checkout constraints from `cartLineSchema` are inherited; the display fields are added on top.
+ */
+export const persistedCartLineSchema = cartLineSchema.extend({
+  productName: z.string(),
+  variantName: z.string(),
+  priceCents: z.number().int().nonnegative(),
+  imageUrl: z.string().nullish(),
+});
+
+/** The `partialize`d cart state the store writes to localStorage. */
+export const persistedCartStateSchema = z
+  .object({
+    lines: z.array(persistedCartLineSchema),
+    fulfillmentMethod: fulfillmentMethodSchema,
+  })
+  .strict();
+
 export const cartSchema = z
   .array(cartLineSchema)
   .min(1)
