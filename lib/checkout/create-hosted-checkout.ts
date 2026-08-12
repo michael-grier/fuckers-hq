@@ -56,7 +56,8 @@ export type HostedCheckoutSettings = {
   appUrl: string;
   allowedCountries: AllowedShippingCountry[];
   standardShippingRateCents: number;
-  freeShippingThresholdCents: number;
+  /** Omitted when the store charges a flat rate with no free-shipping tier. */
+  freeShippingThresholdCents?: number;
   taxEnabled: boolean;
   pickupLocation: PickupLocation | null;
 };

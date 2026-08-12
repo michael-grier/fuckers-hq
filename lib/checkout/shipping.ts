@@ -29,14 +29,18 @@ export function parseAllowedShippingCountries(value: string): AllowedShippingCou
 
 type ShippingSettings = {
   standardRateCents: number;
-  freeThresholdCents: number;
+  /** Omitted when the store charges a flat rate with no free-shipping tier. */
+  freeThresholdCents?: number;
 };
 
 export function buildShippingOptions(
   subtotalCents: number,
   settings: ShippingSettings,
 ): Stripe.Checkout.SessionCreateParams.ShippingOption[] {
-  const qualifiesForFreeShipping = subtotalCents >= settings.freeThresholdCents;
+  // An absent threshold means no order qualifies. Treating it as 0 would make every order ship
+  // free, so the check is on the threshold being configured at all, not on its value.
+  const qualifiesForFreeShipping =
+    settings.freeThresholdCents !== undefined && subtotalCents >= settings.freeThresholdCents;
 
   return [
     {
