@@ -145,6 +145,29 @@ describe("environment contract", () => {
     expect(() => parseEnv({ NODE_ENV: "test", STRIPE_TAX_ENABLED: "sometimes" })).toThrow();
   });
 
+  test("defaults shipping countries to the ones the shipping policy names", () => {
+    // The policy page tells customers checkout rejects addresses outside Canada. A default wider
+    // than the published policy would make that promise false on a deployment that omits the flag.
+    expect(parseEnv({ NODE_ENV: "test" }).SHIPPING_ALLOWED_COUNTRIES).toBe("CA");
+    expect(
+      parseEnv({ NODE_ENV: "test", SHIPPING_ALLOWED_COUNTRIES: "CA,US" })
+        .SHIPPING_ALLOWED_COUNTRIES,
+    ).toBe("CA,US");
+  });
+
+  test("resolves a support address even when the variable is unset", () => {
+    // requireEnv reads the parsed schema, so the default keeps order-email delivery working and
+    // stops the policy pages rendering an empty string mid-sentence. Reverting SUPPORT_EMAIL to a
+    // plain optional string would break both at once.
+    expect(parseEnv({ NODE_ENV: "test" }).SUPPORT_EMAIL).toBe("fu3kers.hq@gmail.com");
+    expect(parseEnv({ NODE_ENV: "test", SUPPORT_EMAIL: "" }).SUPPORT_EMAIL).toBe(
+      "fu3kers.hq@gmail.com",
+    );
+    expect(parseEnv({ NODE_ENV: "test", SUPPORT_EMAIL: "hi@example.com" }).SUPPORT_EMAIL).toBe(
+      "hi@example.com",
+    );
+  });
+
   test("requires a high-entropy cron secret when scheduled delivery is configured", () => {
     expect(parseEnv({ NODE_ENV: "test", CRON_SECRET: "test_cron_secret_123456" }).CRON_SECRET).toBe(
       "test_cron_secret_123456",

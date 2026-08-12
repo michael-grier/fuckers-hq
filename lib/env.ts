@@ -59,7 +59,9 @@ const envSchema = z.object({
   SENTRY_AUTH_TOKEN: optionalString,
   NEXT_PUBLIC_APP_URL: optionalUrl.default("http://localhost:3000"),
   ADMIN_USER_IDS: optionalString,
-  SHIPPING_ALLOWED_COUNTRIES: optionalString.default("CA,US"),
+  // Defaults to the countries the shipping policy page names. A default wider than the published
+  // policy would let checkout accept an address the page tells the customer it will reject.
+  SHIPPING_ALLOWED_COUNTRIES: optionalString.default("CA"),
   SHIPPING_STANDARD_RATE_CENTS: optionalIntegerString,
   SHIPPING_FREE_THRESHOLD_CENTS: optionalIntegerString,
   // Pickup stays off unless it is explicitly enabled and fully described, so a half-configured
