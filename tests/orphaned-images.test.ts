@@ -1,4 +1,8 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
+
+mock.module("server-only", () => ({}));
+
+import { listProductImageObjects } from "@/lib/r2";
 import {
   ORPHAN_GRACE_MS,
   type OrphanedImageReaperDependencies,
@@ -97,5 +101,34 @@ describe("reapOrphanedProductImages", () => {
 
     await expect(reapOrphanedProductImages(deps)).rejects.toThrow("refusing to reap orphans");
     expect(deps.deletedKeys).toEqual([]);
+  });
+});
+
+describe("listProductImageObjects", () => {
+  test("follows continuation tokens across pages and collects every key", async () => {
+    const requestedTokens: (string | undefined)[] = [];
+
+    const objects = await listProductImageObjects(async (continuationToken) => {
+      requestedTokens.push(continuationToken);
+
+      if (continuationToken === undefined) {
+        return {
+          Contents: [{ Key: "products/a.jpg", LastModified: pastGrace }, { Key: undefined }],
+          IsTruncated: true,
+          NextContinuationToken: "page-2",
+        };
+      }
+
+      return {
+        Contents: [{ Key: "products/b.jpg", LastModified: withinGrace }],
+        IsTruncated: false,
+      };
+    });
+
+    expect(requestedTokens).toEqual([undefined, "page-2"]);
+    expect(objects).toEqual([
+      { key: "products/a.jpg", lastModified: pastGrace },
+      { key: "products/b.jpg", lastModified: withinGrace },
+    ]);
   });
 });

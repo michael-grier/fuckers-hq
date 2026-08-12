@@ -117,20 +117,32 @@ export type ProductImageObject = {
   lastModified: Date | undefined;
 };
 
-// Lists every object under the product-image prefix, following pagination to
-// the end so orphan reconciliation sees the full bucket contents.
-export async function listProductImageObjects(): Promise<ProductImageObject[]> {
-  const objects: ProductImageObject[] = [];
-  let continuationToken: string | undefined;
+type ListObjectsPage = {
+  Contents?: { Key?: string; LastModified?: Date }[];
+  IsTruncated?: boolean;
+  NextContinuationToken?: string;
+};
 
-  do {
-    const result = await getR2Client().send(
+// Lists every object under the product-image prefix, following pagination to
+// the end so orphan reconciliation sees the full bucket contents. The page
+// fetcher is injectable so tests can exercise the continuation-token loop.
+export async function listProductImageObjects(
+  listPage: (continuationToken: string | undefined) => Promise<ListObjectsPage> = (
+    continuationToken,
+  ) =>
+    getR2Client().send(
       new ListObjectsV2Command({
         Bucket: getBucket(),
         Prefix: "products/",
         ContinuationToken: continuationToken,
       }),
-    );
+    ),
+): Promise<ProductImageObject[]> {
+  const objects: ProductImageObject[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const result = await listPage(continuationToken);
 
     for (const object of result.Contents ?? []) {
       if (object.Key) {
