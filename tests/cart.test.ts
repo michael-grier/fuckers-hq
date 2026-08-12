@@ -6,6 +6,7 @@ import {
 } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import type { CartDisplayLine } from "@/lib/cart/types";
+import { persistedCartLineSchema, persistedCartStateSchema } from "@/lib/validators/cart";
 
 // The store captures `localStorage` once, when its module first evaluates — and bun test shares
 // one module cache across all test files, in an order that varies between checkouts. Swapping in
@@ -113,6 +114,58 @@ describe("cart store", () => {
     expect(useCartStore.persist.hasHydrated()).toBe(true);
     expect(useCartStore.getState().lines).toEqual([]);
     expect(storage.getItem("fuckers-hq-cart")).toBeNull();
+  });
+
+  // Valid JSON with the wrong shape used to shallow-merge straight into the store: a non-array
+  // `lines` would crash the shop layout's item-count reduce, and a string quantity or missing
+  // priceCents would render NaN prices. The whole payload is discarded instead of repaired.
+  test("settles hydration and discards a structurally invalid persisted cart", async () => {
+    const malformedStates = [
+      // lines is not an array — would throw in `lines.reduce` during layout render
+      { lines: { 0: deck }, fulfillmentMethod: "shipping" },
+      // string quantity — would make the subtotal NaN
+      { lines: [{ ...deck, quantity: "2" }], fulfillmentMethod: "shipping" },
+      // missing priceCents — would make the subtotal NaN
+      { lines: [{ ...deck, priceCents: undefined }], fulfillmentMethod: "shipping" },
+      // unknown fulfillment method — nothing downstream expects a third value
+      { lines: [deck], fulfillmentMethod: "carrier-pigeon" },
+    ];
+
+    for (const state of malformedStates) {
+      storage.setItem("fuckers-hq-cart", JSON.stringify({ state, version: 0 }));
+
+      let finishedHydration = false;
+      const unsubscribe = useCartStore.persist.onFinishHydration(() => {
+        finishedHydration = true;
+      });
+
+      await useCartStore.persist.rehydrate();
+      unsubscribe();
+
+      expect(finishedHydration).toBe(true);
+      expect(useCartStore.getState().lines).toEqual([]);
+      expect(storage.getItem("fuckers-hq-cart")).toBeNull();
+    }
+  });
+
+  // Shape canary. If this fails, the persisted cart contract changed: carts already in shoppers'
+  // browsers were written with the old shape, and a breaking change makes hydration silently drop
+  // them. Additive optional fields are safe — just update the key lists. For a rename, type
+  // change, or removal, follow the versioning playbook on `createCartStorage` in
+  // lib/cart/store.ts before updating this test.
+  test("persisted cart shape changes follow the versioning playbook in store.ts", () => {
+    expect(Object.keys(persistedCartStateSchema.shape).sort()).toEqual([
+      "fulfillmentMethod",
+      "lines",
+    ]);
+    expect(Object.keys(persistedCartLineSchema.shape).sort()).toEqual([
+      "imageUrl",
+      "priceCents",
+      "productName",
+      "quantity",
+      "variantId",
+      "variantName",
+    ]);
   });
 
   test("builds checkout intent without display snapshot fields", () => {
