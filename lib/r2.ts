@@ -3,6 +3,7 @@ import "server-only";
 import {
   DeleteObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -109,4 +110,48 @@ export async function deleteProductImageObject(objectKey: string): Promise<void>
       Key: objectKey,
     }),
   );
+}
+
+export type ProductImageObject = {
+  key: string;
+  lastModified: Date | undefined;
+};
+
+type ListObjectsPage = {
+  Contents?: { Key?: string; LastModified?: Date }[];
+  IsTruncated?: boolean;
+  NextContinuationToken?: string;
+};
+
+// Lists every object under the product-image prefix, following pagination to
+// the end so orphan reconciliation sees the full bucket contents. The page
+// fetcher is injectable so tests can exercise the continuation-token loop.
+export async function listProductImageObjects(
+  listPage: (continuationToken: string | undefined) => Promise<ListObjectsPage> = (
+    continuationToken,
+  ) =>
+    getR2Client().send(
+      new ListObjectsV2Command({
+        Bucket: getBucket(),
+        Prefix: "products/",
+        ContinuationToken: continuationToken,
+      }),
+    ),
+): Promise<ProductImageObject[]> {
+  const objects: ProductImageObject[] = [];
+  let continuationToken: string | undefined;
+
+  do {
+    const result = await listPage(continuationToken);
+
+    for (const object of result.Contents ?? []) {
+      if (object.Key) {
+        objects.push({ key: object.Key, lastModified: object.LastModified });
+      }
+    }
+
+    continuationToken = result.IsTruncated ? result.NextContinuationToken : undefined;
+  } while (continuationToken);
+
+  return objects;
 }
