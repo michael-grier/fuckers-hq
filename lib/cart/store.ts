@@ -45,6 +45,23 @@ function clampQuantity(quantity: number): number {
  * `getCartItemCount` in the shop layout on every page. Persisted state that fails
  * `persistedCartStateSchema` — however it got that way — is discarded whole rather than repaired,
  * so hydration always settles on either a well-formed cart or an empty one.
+ *
+ * ── Changing the persisted cart shape? Read this first. ──────────────────────────────────────
+ * Additive optional fields need no ceremony: add them to the schema as `.optional()`/`.nullish()`
+ * and carts persisted before the change keep validating. Any breaking change — rename, type
+ * change, removed field, restructure — must be versioned HERE, not via zustand's `migrate`:
+ * this `getItem` runs before zustand's version check, so an updated schema would reject and
+ * delete every old-version cart before `migrate` ever saw it. Instead:
+ *
+ *   1. Keep the outgoing schema around as `persistedCartStateV<n>Schema`.
+ *   2. Branch on `stored.version` in `getItem`: validate old payloads against their own version's
+ *      schema, convert them with a plain function, and return the converted state stamped with
+ *      the new version. Unknown versions fall through to the existing drop path, which is the
+ *      correct behavior for rollbacks and garbage.
+ *   3. Add `version: <n + 1>` to the persist options so new writes are stamped.
+ *
+ * The shape canary in tests/cart.test.ts fails on any change to the persisted contract so this
+ * comment gets read before a shape change ships.
  */
 function createCartStorage(): PersistStorage<PersistedCartState> | undefined {
   // `unknown` state on the inner storage forces the schema check before anything is typed as a cart.

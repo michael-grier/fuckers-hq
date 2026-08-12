@@ -17,6 +17,10 @@ export const cartLineSchema = z
  * `CartDisplayLine` is compile-time only, so this schema is what actually guards the store against
  * structurally invalid payloads (partial writes, other scripts on the key, stale shapes). The
  * checkout constraints from `cartLineSchema` are inherited; the display fields are added on top.
+ *
+ * Breaking changes to this schema or `persistedCartStateSchema` silently drop carts already
+ * persisted in shoppers' browsers — follow the versioning playbook on `createCartStorage` in
+ * `lib/cart/store.ts` first. Additive `.optional()`/`.nullish()` fields are safe.
  */
 export const persistedCartLineSchema = cartLineSchema.extend({
   productName: z.string(),
