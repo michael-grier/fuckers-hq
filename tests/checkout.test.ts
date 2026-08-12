@@ -179,6 +179,17 @@ describe("checkout shipping", () => {
     ).toBe(0);
   });
 
+  test("charges the standard rate at every subtotal when no threshold is configured", () => {
+    // Guards the flat-rate store: an absent threshold must not read as 0, which would make every
+    // order — including a $0 subtotal — ship free.
+    for (const subtotalCents of [0, 9999, 1_000_000]) {
+      const [option] = buildShippingOptions(subtotalCents, { standardRateCents: 2000 });
+
+      expect(option.shipping_rate_data?.fixed_amount?.amount).toBe(2000);
+      expect(option.shipping_rate_data?.display_name).toBe("Standard shipping");
+    }
+  });
+
   test("normalizes and validates configured countries", () => {
     expect(parseAllowedShippingCountries("ca, US,ca")).toEqual(["CA", "US"]);
     expect(() => parseAllowedShippingCountries("CA,GB")).toThrow("must contain only CA and/or US");

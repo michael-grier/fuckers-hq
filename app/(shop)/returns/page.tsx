@@ -7,6 +7,7 @@ import {
   PolicyParagraph,
   PolicySection,
 } from "@/components/shop/policy-page";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Returns & Refunds",
@@ -17,23 +18,22 @@ export default function ReturnsPage() {
   return (
     <PolicyPage
       description="What to do if something isn't right with your order."
-      effectiveDate="[EFFECTIVE DATE]"
+      effectiveDate="August 12, 2026"
       title="Returns & refunds."
     >
       <PolicyDraftNotice />
 
       <PolicySection heading="Return window">
         <PolicyParagraph>
-          Unused items in their original condition can be returned within [RETURN WINDOW, e.g. 30]
-          days of delivery. Items must be unworn, unwashed, and free of grip tape residue, with any
-          original tags still attached.
+          Unused items in their original condition can be returned within 30 days of delivery. Items
+          must be unworn, unwashed, and free of grip tape residue, with any original tags still
+          attached.
         </PolicyParagraph>
       </PolicySection>
 
       <PolicySection heading="What cannot be returned">
         <PolicyList>
           <li>Decks that have been gripped, mounted, or ridden</li>
-          <li>Wheels and bearings that have been mounted or used</li>
           <li>Items marked final sale or clearance</li>
           <li>Gift cards</li>
         </PolicyList>
@@ -41,17 +41,16 @@ export default function ReturnsPage() {
 
       <PolicySection heading="How to start a return">
         <PolicyParagraph>
-          Email [SUPPORT EMAIL] with your order number and a short description of the problem. We
-          will reply with return instructions. Please do not ship anything back before contacting us
-          — returns received without prior notice may not be processed.
+          Email {env.SUPPORT_EMAIL} with your order number and a short description of the problem.
+          We will reply with return instructions. Please do not ship anything back before contacting
+          us — returns received without prior notice may not be processed.
         </PolicyParagraph>
       </PolicySection>
 
       <PolicySection heading="Return shipping costs">
         <PolicyParagraph>
-          Return shipping is paid by [WHO PAYS: the customer / us] unless the item arrived damaged
-          or we sent the wrong item, in which case we cover it. Original shipping charges are
-          [REFUNDABLE / NON-REFUNDABLE].
+          Return shipping is paid by the customer unless the item arrived damaged or we sent the
+          wrong item, in which case we cover it. Original shipping charges are non-refundable.
         </PolicyParagraph>
       </PolicySection>
 
@@ -59,7 +58,7 @@ export default function ReturnsPage() {
         <PolicyParagraph>
           Once we receive and inspect the return, we will issue a refund to the original payment
           method. Refunds are processed through Stripe, our payment processor, and typically appear
-          within [REFUND PROCESSING TIME, e.g. 5-10] business days depending on your bank.
+          within 5-10 business days depending on your bank.
         </PolicyParagraph>
         <PolicyParagraph>
           We can only refund to the payment method used for the original purchase.
@@ -68,9 +67,9 @@ export default function ReturnsPage() {
 
       <PolicySection heading="Damaged, defective, or incorrect items">
         <PolicyParagraph>
-          If your order arrives damaged or incorrect, email [SUPPORT EMAIL] within [DAMAGE CLAIM
-          WINDOW, e.g. 7] days of delivery with your order number and photos of the item and
-          packaging. We will replace it or refund it at no cost to you.
+          If your order arrives damaged or incorrect, email {env.SUPPORT_EMAIL} within 7 days of
+          delivery with your order number and photos of the item and packaging. We will replace it
+          or refund it at no cost to you.
         </PolicyParagraph>
         <PolicyParagraph>
           Manufacturing defects are assessed case by case. Normal wear from skating — including
@@ -80,8 +79,8 @@ export default function ReturnsPage() {
 
       <PolicySection heading="Exchanges">
         <PolicyParagraph>
-          [EXCHANGE POLICY: e.g. We do not process direct exchanges. Return the original item for a
-          refund and place a new order for the size or colour you want.]
+          We do not process direct exchanges. Return the original item for a refund and place a new
+          order for the size or colour you want.
         </PolicyParagraph>
       </PolicySection>
     </PolicyPage>

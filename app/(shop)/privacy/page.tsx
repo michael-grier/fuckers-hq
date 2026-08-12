@@ -7,6 +7,7 @@ import {
   PolicyParagraph,
   PolicySection,
 } from "@/components/shop/policy-page";
+import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -17,15 +18,15 @@ export default function PrivacyPage() {
   return (
     <PolicyPage
       description="What we collect, why we collect it, and who we share it with."
-      effectiveDate="[EFFECTIVE DATE]"
+      effectiveDate="August 12, 2026"
       title="Privacy policy."
     >
       <PolicyDraftNotice />
 
       <PolicySection heading="Who we are">
         <PolicyParagraph>
-          This store is operated by [LEGAL NAME OF OPERATOR] ("we", "us") based in [CITY, PROVINCE,
-          COUNTRY]. For any privacy question, contact [SUPPORT EMAIL].
+          This store is operated by Tristan Hawkins ("we", "us") based in Calgary, Alberta, Canada.
+          For any privacy question, contact {env.SUPPORT_EMAIL}.
         </PolicyParagraph>
       </PolicySection>
 
@@ -101,7 +102,7 @@ export default function PrivacyPage() {
           </li>
         </PolicyList>
         <PolicyParagraph>
-          Some of these providers process data outside [COUNTRY], including in the United States. By
+          Some of these providers process data outside Canada, including in the United States. By
           placing an order you consent to that transfer.
         </PolicyParagraph>
       </PolicySection>
@@ -116,17 +117,16 @@ export default function PrivacyPage() {
 
       <PolicySection heading="How long we keep it">
         <PolicyParagraph>
-          Order records — including email and shipping address — are kept for [RETENTION PERIOD,
-          e.g. 7 years] because tax and accounting rules require us to retain sales records. Error
-          monitoring data is kept for [ERROR DATA RETENTION, e.g. 90 days].
+          Order records — including email and shipping address — are kept for 7 years because tax
+          and accounting rules require us to retain sales records. Error monitoring data is kept for
+          90 days.
         </PolicyParagraph>
       </PolicySection>
 
       <PolicySection heading="Your rights">
         <PolicyParagraph>
           You can ask us what personal information we hold about you, ask for corrections, or ask us
-          to delete it. Email [SUPPORT EMAIL] and we will respond within [RESPONSE WINDOW, e.g. 30]
-          days.
+          to delete it. Email {env.SUPPORT_EMAIL} and we will respond within 30 days.
         </PolicyParagraph>
         <PolicyParagraph>
           Note that we cannot delete order records we are legally required to retain, and deleting
@@ -136,8 +136,8 @@ export default function PrivacyPage() {
 
       <PolicySection heading="Children">
         <PolicyParagraph>
-          This store is not directed at children under [MINIMUM AGE, e.g. 13], and we do not
-          knowingly collect their personal information.
+          This store is not directed at children under 13, and we do not knowingly collect their
+          personal information.
         </PolicyParagraph>
       </PolicySection>
 
