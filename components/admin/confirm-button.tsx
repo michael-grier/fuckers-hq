@@ -49,15 +49,29 @@ export function ConfirmButton({
   const messageId = useId();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
-  // Set only on explicit dismissal; the auto-revert timeout must not yank focus from wherever
-  // the operator has moved on to.
+  const stripRef = useRef<HTMLDivElement>(null);
+  // Set only on explicit dismissal with focus still inside the strip; neither the auto-revert
+  // timeout nor a remote Escape may yank focus from wherever the operator has moved on to.
   const shouldRestoreTriggerFocus = useRef(false);
 
   useEffect(() => {
     if (isArmed) {
       confirmRef.current?.focus();
       const timeout = setTimeout(() => setIsArmed(false), ARM_TIMEOUT_MS);
-      return () => clearTimeout(timeout);
+      // Document-level so Escape still disarms after focus has moved off the armed buttons.
+      const onDocumentKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Escape") {
+          shouldRestoreTriggerFocus.current = Boolean(
+            stripRef.current?.contains(document.activeElement),
+          );
+          setIsArmed(false);
+        }
+      };
+      document.addEventListener("keydown", onDocumentKeyDown);
+      return () => {
+        clearTimeout(timeout);
+        document.removeEventListener("keydown", onDocumentKeyDown);
+      };
     }
 
     if (shouldRestoreTriggerFocus.current) {
@@ -69,14 +83,6 @@ export function ConfirmButton({
   function dismiss() {
     shouldRestoreTriggerFocus.current = true;
     setIsArmed(false);
-  }
-
-  // Attached to both armed buttons rather than their container: focus always sits on one of
-  // them while armed, and buttons are interactive elements so key handlers belong there.
-  function dismissOnEscape(event: React.KeyboardEvent) {
-    if (event.key === "Escape") {
-      dismiss();
-    }
   }
 
   if (!isArmed) {
@@ -102,6 +108,7 @@ export function ConfirmButton({
         destructive ? "border-destructive/50 bg-destructive/5" : "border-input bg-secondary",
         className,
       )}
+      ref={stripRef}
     >
       <p
         className={cn("font-medium text-sm", destructive ? "text-destructive" : "text-foreground")}
@@ -117,7 +124,6 @@ export function ConfirmButton({
             setIsArmed(false);
             onConfirm();
           }}
-          onKeyDown={dismissOnEscape}
           ref={confirmRef}
           size="sm"
           type="button"
@@ -125,14 +131,7 @@ export function ConfirmButton({
         >
           {confirmLabel}
         </Button>
-        <Button
-          disabled={disabled}
-          onClick={dismiss}
-          onKeyDown={dismissOnEscape}
-          size="sm"
-          type="button"
-          variant="outline"
-        >
+        <Button disabled={disabled} onClick={dismiss} size="sm" type="button" variant="outline">
           Cancel
         </Button>
       </div>
