@@ -14,7 +14,7 @@
  * route x breakpoint lands there, and browser console/page errors are printed.
  */
 import { mkdirSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { type Browser, chromium } from "playwright";
 
 const VIEWPORTS = [
@@ -30,7 +30,7 @@ const FALLBACK_PORT = 4310;
 const SERVER_READY_TIMEOUT_MS = 90_000;
 const NAV_TIMEOUT_MS = 60_000; // first hit compiles the route in dev
 
-function parseArgs(argv: string[]) {
+export function parseArgs(argv: string[]) {
   const routes: string[] = [];
   let base = "http://localhost:3000";
   let out = ".visual-check";
@@ -38,21 +38,21 @@ function parseArgs(argv: string[]) {
     const arg = argv[i];
     if (arg === "--base") base = argv[++i] ?? base;
     else if (arg === "--out") out = argv[++i] ?? out;
-    else if (arg.startsWith("-")) {
-      console.error(`Unknown flag: ${arg}`);
-      process.exit(2);
-    } else routes.push(arg.startsWith("/") ? arg : `/${arg}`);
+    else if (arg.startsWith("-")) throw new Error(`Unknown flag: ${arg}`);
+    else routes.push(arg.startsWith("/") ? arg : `/${arg}`);
   }
   return { routes: routes.length ? routes : ["/"], base, out };
 }
 
-async function isUp(url: string): Promise<boolean> {
-  try {
-    await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(2000) });
-    return true;
-  } catch {
-    return false;
+// The output directory is recursively deleted every run, so confine it to a
+// strict subdirectory of cwd: `--out .`, `--out /`, or a path outside the
+// repository would otherwise delete a tree that was never ours to manage.
+export function resolveOutDir(out: string, cwd: string): string {
+  const resolved = resolve(cwd, out);
+  if (resolved === resolve(cwd) || !resolved.startsWith(resolve(cwd) + sep)) {
+    throw new Error(`--out must be a subdirectory of ${cwd}, got: ${resolved}`);
   }
+  return resolved;
 }
 
 // Filesystem-safe name for a route, e.g. "/admin/orders?page=2" -> "admin-orders-page-2".
@@ -64,99 +64,141 @@ function slugify(route: string): string {
   return slug || "home";
 }
 
-const { routes, base, out } = parseArgs(process.argv.slice(2));
-
-let baseUrl = base;
-let devServer: ReturnType<typeof Bun.spawn> | undefined;
-
-if (!(await isUp(baseUrl))) {
-  baseUrl = `http://localhost:${FALLBACK_PORT}`;
-  console.log(`No server at ${base}; starting dev server on :${FALLBACK_PORT} ...`);
-  devServer = Bun.spawn(["bun", "run", "dev", "--port", String(FALLBACK_PORT)], {
-    stdout: "ignore",
-    stderr: "ignore",
-  });
-  const deadline = Date.now() + SERVER_READY_TIMEOUT_MS;
-  while (!(await isUp(baseUrl))) {
-    if (Date.now() > deadline || devServer.exitCode !== null) {
-      devServer.kill();
-      console.error("Dev server failed to become ready.");
-      process.exit(1);
-    }
-    await Bun.sleep(500);
-  }
-}
-
-rmSync(out, { recursive: true, force: true });
-mkdirSync(out, { recursive: true });
-
-let browser: Browser;
-try {
-  browser = await chromium.launch();
-} catch (err) {
-  console.error(String(err));
-  console.error("If Chromium is missing, run: bun x playwright install chromium");
-  devServer?.kill();
-  process.exit(1);
-}
-
-let failures = 0;
-const shots: string[] = [];
-
-for (const viewport of VIEWPORTS) {
-  const context = await browser.newContext({
-    viewport: { width: viewport.width, height: viewport.height },
-    // Freeze CSS animations/transitions so screenshots are stable and
-    // mid-animation frames aren't misjudged as layout bugs.
-    reducedMotion: "reduce",
-  });
+// Distinct routes can normalize to the same slug ("/a/b" and "/a-b"), which
+// would silently overwrite one route's screenshots with the other's. Suffix
+// collisions with a counter so every route keeps its own files.
+export function planSlugs(routes: string[]): Map<string, string> {
+  const used = new Map<string, number>();
+  const plan = new Map<string, string>();
   for (const route of routes) {
-    const page = await context.newPage();
-    const consoleErrors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") consoleErrors.push(msg.text());
-    });
-    page.on("pageerror", (err) => consoleErrors.push(err.message));
-    const label = `${route} @ ${viewport.name} (${viewport.width}x${viewport.height})`;
-    try {
-      const response = await page.goto(new URL(route, baseUrl).href, {
-        waitUntil: "load",
-        timeout: NAV_TIMEOUT_MS,
-      });
-      // Hide the Next.js dev-tools indicator so it isn't misjudged as UI.
-      await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
-      // Wait for webfonts plus a short settle so text metrics and
-      // client-hydrated content are in their final layout.
-      await page.evaluate(() => document.fonts.ready);
-      await page.waitForTimeout(300);
-      const file = join(out, `${slugify(route)}.${viewport.name}.png`);
-      await page.screenshot({ path: file, fullPage: true });
-      shots.push(file);
-      const status = response?.status() ?? 0;
-      // Server errors fail the run; redirects (e.g. auth) are captured as-is
-      // and left for the viewer to judge.
-      if (status >= 500) {
-        failures++;
-        console.error(`FAIL ${label}: HTTP ${status} (screenshot saved: ${file})`);
-      } else {
-        console.log(`ok   ${label} -> ${file}`);
-      }
-    } catch (err) {
-      failures++;
-      console.error(`FAIL ${label}: ${err instanceof Error ? err.message : err}`);
-    }
-    for (const text of new Set(consoleErrors)) {
-      console.error(`     console error [${label}]: ${text}`);
-    }
-    await page.close();
+    const slug = slugify(route);
+    const count = used.get(slug) ?? 0;
+    used.set(slug, count + 1);
+    plan.set(route, count === 0 ? slug : `${slug}-${count + 1}`);
   }
-  await context.close();
+  return plan;
 }
 
-await browser.close();
-devServer?.kill();
+async function isUp(url: string): Promise<boolean> {
+  try {
+    await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(2000) });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-console.log(
-  `\n${shots.length} screenshot(s) in ${out}/${failures ? `, ${failures} failure(s)` : ""}`,
-);
-process.exit(failures ? 1 : 0);
+async function main(): Promise<number> {
+  const { routes, base, out } = parseArgs(process.argv.slice(2));
+  const outDir = resolveOutDir(out, process.cwd());
+  const slugs = planSlugs(routes);
+
+  let baseUrl = base;
+  let devServer: ReturnType<typeof Bun.spawn> | undefined;
+
+  // Everything below runs inside try/finally so a failure at any point still
+  // shuts down the dev server we spawned and the browser we launched.
+  try {
+    if (!(await isUp(baseUrl))) {
+      baseUrl = `http://localhost:${FALLBACK_PORT}`;
+      console.log(`No server at ${base}; starting dev server on :${FALLBACK_PORT} ...`);
+      devServer = Bun.spawn(["bun", "run", "dev", "--port", String(FALLBACK_PORT)], {
+        stdout: "ignore",
+        stderr: "ignore",
+      });
+      const deadline = Date.now() + SERVER_READY_TIMEOUT_MS;
+      while (!(await isUp(baseUrl))) {
+        if (Date.now() > deadline || devServer.exitCode !== null) {
+          console.error("Dev server failed to become ready.");
+          return 1;
+        }
+        await Bun.sleep(500);
+      }
+    }
+
+    rmSync(outDir, { recursive: true, force: true });
+    mkdirSync(outDir, { recursive: true });
+
+    let browser: Browser;
+    try {
+      browser = await chromium.launch();
+    } catch (err) {
+      console.error(String(err));
+      console.error("If Chromium is missing, run: bun x playwright install chromium");
+      return 1;
+    }
+
+    let failures = 0;
+    const shots: string[] = [];
+
+    try {
+      for (const viewport of VIEWPORTS) {
+        const context = await browser.newContext({
+          viewport: { width: viewport.width, height: viewport.height },
+          // Freeze CSS animations/transitions so screenshots are stable and
+          // mid-animation frames aren't misjudged as layout bugs.
+          reducedMotion: "reduce",
+        });
+        for (const route of routes) {
+          const page = await context.newPage();
+          const consoleErrors: string[] = [];
+          page.on("console", (msg) => {
+            if (msg.type() === "error") consoleErrors.push(msg.text());
+          });
+          page.on("pageerror", (err) => consoleErrors.push(err.message));
+          const label = `${route} @ ${viewport.name} (${viewport.width}x${viewport.height})`;
+          try {
+            const response = await page.goto(new URL(route, baseUrl).href, {
+              waitUntil: "load",
+              timeout: NAV_TIMEOUT_MS,
+            });
+            // Hide the Next.js dev-tools indicator so it isn't misjudged as UI.
+            await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+            // Wait for webfonts plus a short settle so text metrics and
+            // client-hydrated content are in their final layout.
+            await page.evaluate(() => document.fonts.ready);
+            await page.waitForTimeout(300);
+            const file = join(outDir, `${slugs.get(route)}.${viewport.name}.png`);
+            await page.screenshot({ path: file, fullPage: true });
+            shots.push(file);
+            const status = response?.status() ?? 0;
+            // Server errors fail the run; redirects (e.g. auth) are captured as-is
+            // and left for the viewer to judge.
+            if (status >= 500) {
+              failures++;
+              console.error(`FAIL ${label}: HTTP ${status} (screenshot saved: ${file})`);
+            } else {
+              console.log(`ok   ${label} -> ${file}`);
+            }
+          } catch (err) {
+            failures++;
+            console.error(`FAIL ${label}: ${err instanceof Error ? err.message : err}`);
+          }
+          for (const text of new Set(consoleErrors)) {
+            console.error(`     console error [${label}]: ${text}`);
+          }
+          await page.close();
+        }
+        await context.close();
+      }
+    } finally {
+      await browser.close();
+    }
+
+    console.log(
+      `\n${shots.length} screenshot(s) in ${out}/${failures ? `, ${failures} failure(s)` : ""}`,
+    );
+    return failures ? 1 : 0;
+  } finally {
+    devServer?.kill();
+  }
+}
+
+if (import.meta.main) {
+  try {
+    process.exit(await main());
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : err);
+    process.exit(2);
+  }
+}
