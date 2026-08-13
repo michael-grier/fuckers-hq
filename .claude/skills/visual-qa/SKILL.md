@@ -57,4 +57,6 @@ passed after a run whose screenshots you viewed showed no issues.
 ## Report
 
 In your summary, state which routes and breakpoints you inspected and what you concluded, so the
-user knows visual verification happened and does not need to smoke test manually.
+user knows visual verification happened and does not need to smoke test manually. Then delete the
+screenshots (`rm -rf .visual-check`) — they have served their purpose, and the next run regenerates
+them from scratch anyway.
