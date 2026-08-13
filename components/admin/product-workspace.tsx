@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { type FieldPath, useFieldArray, useForm } from "react-hook-form";
 
+import { ConfirmButton } from "@/components/admin/confirm-button";
 import {
   adminSelectClassName,
   adminTextareaClassName,
@@ -143,10 +144,6 @@ export function ProductWorkspace({
   }
 
   async function onArchive() {
-    if (!window.confirm("Archive this product and remove it from the storefront?")) {
-      return;
-    }
-
     setActionError(null);
     setSuccessMessage(null);
     setIsArchiving(true);
@@ -170,10 +167,6 @@ export function ProductWorkspace({
   }
 
   async function onDelete() {
-    if (!window.confirm("Permanently delete this product? This cannot be undone.")) {
-      return;
-    }
-
     setActionError(null);
     setSuccessMessage(null);
     setIsDeleting(true);
@@ -205,10 +198,6 @@ export function ProductWorkspace({
     // A row that was never saved only exists in the form.
     if (!row.variantId) {
       variantRows.remove(index);
-      return;
-    }
-
-    if (!window.confirm(`Delete ${row.name || row.sku}? This cannot be undone.`)) {
       return;
     }
 
@@ -416,7 +405,10 @@ export function ProductWorkspace({
               </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* relative: sr-only labels inside the table are absolutely positioned, and without
+                a positioned ancestor they escape this scroll container and widen the page on
+                small screens. */}
+            <div className="relative overflow-x-auto">
               <table className="w-full text-left text-sm">
                 <caption className="sr-only">Variants of this product</caption>
                 <thead className="border-b bg-muted/50">
@@ -539,15 +531,31 @@ export function ProductWorkspace({
                           <AvailabilityCell inventory={row?.inventory} reservedQty={reservedQty} />
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <Button
-                            disabled={busy || (Boolean(row?.variantId) && savedStatus === "active")}
-                            onClick={() => onDeleteVariant(index)}
-                            size="sm"
-                            type="button"
-                            variant="ghost"
-                          >
-                            {deletingVariantId === row?.variantId ? "Deleting…" : "Delete"}
-                          </Button>
+                          {row?.variantId ? (
+                            <ConfirmButton
+                              confirmLabel="Yes, delete"
+                              confirmMessage={`Delete ${row.name || row.sku || "this variant"}?`}
+                              destructive
+                              disabled={busy || savedStatus === "active"}
+                              onConfirm={() => void onDeleteVariant(index)}
+                              size="sm"
+                              variant="ghost"
+                            >
+                              {deletingVariantId === row.variantId ? "Deleting…" : "Delete"}
+                            </ConfirmButton>
+                          ) : (
+                            // Unsaved rows exist only in the form, so removing one needs no
+                            // confirmation step.
+                            <Button
+                              disabled={busy}
+                              onClick={() => onDeleteVariant(index)}
+                              size="sm"
+                              type="button"
+                              variant="ghost"
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -662,15 +670,16 @@ export function ProductWorkspace({
             <div className="space-y-3 p-4">
               {savedStatus !== "archived" ? (
                 <>
-                  <Button
+                  <ConfirmButton
                     className="w-full"
+                    confirmLabel="Yes, archive"
+                    confirmMessage="Remove from the storefront?"
                     disabled={busy || isDirty}
-                    onClick={onArchive}
-                    type="button"
+                    onConfirm={() => void onArchive()}
                     variant="destructive"
                   >
                     {isArchiving ? "Archiving…" : "Archive product"}
-                  </Button>
+                  </ConfirmButton>
                   <p className="text-muted-foreground text-xs">
                     {isDirty
                       ? "Save your changes before archiving."
@@ -678,15 +687,16 @@ export function ProductWorkspace({
                   </p>
                 </>
               ) : null}
-              <Button
+              <ConfirmButton
                 className="w-full"
+                confirmLabel="Yes, delete"
+                confirmMessage="This cannot be undone."
                 disabled={busy || isDirty || savedStatus === "active"}
-                onClick={onDelete}
-                type="button"
+                onConfirm={() => void onDelete()}
                 variant="destructive"
               >
                 {isDeleting ? "Deleting…" : "Delete product"}
-              </Button>
+              </ConfirmButton>
               <p className="text-muted-foreground text-xs">
                 {savedStatus === "active"
                   ? "Set the product to draft or archived before deleting it."

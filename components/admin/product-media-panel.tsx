@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 
+import { ConfirmButton } from "@/components/admin/confirm-button";
 import { FormField } from "@/components/admin/form-field";
 import { MoveButtons } from "@/components/admin/move-buttons";
 import { ReorderableList } from "@/components/admin/reorderable-list";
@@ -415,10 +416,6 @@ function ProductImageCard({
   }
 
   async function onDelete() {
-    if (!window.confirm("Delete this product image? This cannot be undone.")) {
-      return;
-    }
-
     setActionError(null);
     setSuccessMessage(null);
     setIsDeleting(true);
@@ -491,16 +488,17 @@ function ProductImageCard({
             itemLabel={describeImage(image, index)}
             onMove={onMove}
           />
-          <div className="flex gap-2">
-            <Button
+          <div className="flex flex-wrap justify-end gap-2">
+            <ConfirmButton
+              confirmLabel="Yes, delete"
+              confirmMessage="This cannot be undone."
               disabled={busy}
-              onClick={onDelete}
+              onConfirm={() => void onDelete()}
               size="sm"
-              type="button"
               variant="destructive"
             >
               {isDeleting ? "Deleting…" : "Delete"}
-            </Button>
+            </ConfirmButton>
             <Button disabled={busy || !form.formState.isDirty} size="sm" type="submit">
               {form.formState.isSubmitting ? "Saving…" : "Save"}
             </Button>
