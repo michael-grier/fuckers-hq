@@ -6,7 +6,12 @@ early_access: false
 reviews:
   profile: "chill"
   request_changes_workflow: false
-  high_level_summary: true
+  # The high-level summary is written by editing the pull request description
+  # itself. The description is authored deliberately, so CodeRabbit does not get
+  # to append to it. Note that the `@coderabbitai summary` placeholder re-enables
+  # the summary for a single pull request even while this is false; keep that
+  # string out of descriptions.
+  high_level_summary: false
   poem: false
   in_progress_fortune: false
   enable_prompt_for_ai_agents: true
