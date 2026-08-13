@@ -30,7 +30,3 @@
 ## Known limitations
 
 <!-- Record intentionally deferred work or write "None." -->
-
-## AI review summary
-
-@coderabbitai summary
