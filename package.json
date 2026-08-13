@@ -11,6 +11,7 @@
     "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
+    "visual-check": "bun scripts/visual-check.ts",
     "setup:worktree": "bash scripts/setup-worktree.sh",
     "teardown:worktree": "bun scripts/worktree-db.ts teardown",
     "worktree:prune": "bun scripts/worktree-db.ts prune",
@@ -60,6 +61,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.31.0",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4.1.0",
     "typescript": "^5.9.0"
   }
