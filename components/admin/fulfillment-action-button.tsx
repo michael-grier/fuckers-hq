@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { ConfirmButton } from "@/components/admin/confirm-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -26,8 +27,8 @@ type FulfillmentActionInput = {
 
 type TransitionCopy = {
   action: (input: FulfillmentActionInput) => Promise<{ success: boolean; message?: string }>;
-  /** Confirmation prompt for the one-click steps; the shipping step confirms via its form. */
-  confirm: string | null;
+  /** Inline confirmation for the one-click steps; the shipping step confirms via its form. */
+  confirm: { message: string; label: string } | null;
   idle: string;
   pending: string;
 };
@@ -41,14 +42,19 @@ const transitionCopy: Record<OrderFulfillmentTransition, TransitionCopy> = {
   },
   schedule_delivery: {
     action: scheduleOrderDelivery,
-    confirm:
-      "Schedule this order for delivery? This emails the customer that you'll be in touch to arrange the drop-off.",
+    confirm: {
+      message: "This emails the customer that you'll be in touch to arrange the drop-off.",
+      label: "Yes, schedule",
+    },
     idle: "Schedule delivery",
     pending: "Notifying…",
   },
   delivered: {
     action: markOrderDelivered,
-    confirm: "Mark this order as delivered to the customer?",
+    confirm: {
+      message: "Mark this order as delivered to the customer?",
+      label: "Yes, delivered",
+    },
     idle: "Mark as delivered",
     pending: "Updating…",
   },
@@ -112,10 +118,6 @@ export function FulfillmentActionButton({
   }
 
   async function onConfirmTransition() {
-    if (copy.confirm && !window.confirm(copy.confirm)) {
-      return;
-    }
-
     await submit({ orderId });
   }
 
@@ -231,20 +233,29 @@ export function FulfillmentActionButton({
 
   return (
     <div className="space-y-2">
-      <Button
-        disabled={isSubmitting}
-        onClick={
-          transition === "ship"
-            ? () => setIsShipmentFormOpen(true)
-            : () => void onConfirmTransition()
-        }
-        ref={triggerRef}
-        size={size}
-        type="button"
-        variant={variant}
-      >
-        {isSubmitting ? copy.pending : copy.idle}
-      </Button>
+      {copy.confirm ? (
+        <ConfirmButton
+          confirmLabel={copy.confirm.label}
+          confirmMessage={copy.confirm.message}
+          disabled={isSubmitting}
+          onConfirm={() => void onConfirmTransition()}
+          size={size}
+          variant={variant}
+        >
+          {isSubmitting ? copy.pending : copy.idle}
+        </ConfirmButton>
+      ) : (
+        <Button
+          disabled={isSubmitting}
+          onClick={() => setIsShipmentFormOpen(true)}
+          ref={triggerRef}
+          size={size}
+          type="button"
+          variant={variant}
+        >
+          {isSubmitting ? copy.pending : copy.idle}
+        </Button>
+      )}
       {errorMessage ? (
         <p className="max-w-xs text-destructive text-sm" role="alert">
           {errorMessage}

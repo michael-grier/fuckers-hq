@@ -3,21 +3,24 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { ConfirmButton } from "@/components/admin/confirm-button";
 import { retryOrderEmail } from "@/lib/actions/orders";
 import type { OrderEmailKind } from "@/lib/db/schema";
 
-const emailCopy: Record<OrderEmailKind, { confirm: string; idle: string }> = {
+const emailCopy: Record<OrderEmailKind, { confirm: string; confirmLabel: string; idle: string }> = {
   confirmation: {
     confirm: "Retry this order confirmation email?",
+    confirmLabel: "Yes, retry",
     idle: "Retry confirmation email",
   },
   delivery_scheduled: {
     confirm: "Resend the delivery email to this customer?",
+    confirmLabel: "Yes, resend",
     idle: "Resend delivery email",
   },
   shipped: {
     confirm: "Resend the shipping notification to this customer?",
+    confirmLabel: "Yes, resend",
     idle: "Resend shipping email",
   },
 };
@@ -35,10 +38,6 @@ export function RetryOrderEmailButton({
   const copy = emailCopy[kind];
 
   async function onRetry() {
-    if (!window.confirm(copy.confirm)) {
-      return;
-    }
-
     setErrorMessage(null);
     setIsSubmitting(true);
 
@@ -60,9 +59,15 @@ export function RetryOrderEmailButton({
 
   return (
     <div className="space-y-2">
-      <Button disabled={isSubmitting} onClick={onRetry} type="button" variant="outline">
+      <ConfirmButton
+        confirmLabel={copy.confirmLabel}
+        confirmMessage={copy.confirm}
+        disabled={isSubmitting}
+        onConfirm={() => void onRetry()}
+        variant="outline"
+      >
         {isSubmitting ? "Retrying…" : copy.idle}
-      </Button>
+      </ConfirmButton>
       {errorMessage ? (
         <p className="max-w-sm text-destructive text-sm" role="alert">
           {errorMessage}
