@@ -116,6 +116,7 @@ function ProductCarousel({ name, images }: ProductGalleryProps) {
       <div className="flex justify-center gap-2">
         {images.map((image, index) => (
           <button
+            aria-current={index === current ? "true" : undefined}
             aria-label={`Go to image ${index + 1}`}
             className={cn(
               "h-2.5 rounded-full transition-all",

@@ -37,5 +37,10 @@ describe("ProductGallery", () => {
     expect(screen.getByRole("button", { name: "Previous slide" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Next slide" })).toBeTruthy();
     expect(screen.getAllByRole("button", { name: /Go to image \d/ }).length).toBe(3);
+
+    // The active dot must be exposed to assistive tech, not just styled.
+    const dots = screen.getAllByRole("button", { name: /Go to image \d/ });
+    expect(dots[0]?.getAttribute("aria-current")).toBe("true");
+    expect(dots[1]?.getAttribute("aria-current")).toBeNull();
   });
 });
