@@ -527,8 +527,11 @@ async function teardown(ifMerged: boolean): Promise<void> {
     throw new Error("Refusing to run teardown in the main checkout.");
   }
   if (ifMerged) {
-    // Judge merged-ness against the real remote, never stale local refs.
-    git("fetch", "origin", "main");
+    // Judge merged-ness against the real remote, never stale local refs. The explicit forced
+    // refspec updates refs/remotes/origin/main even under a restrictive fetch refmap (e.g. a
+    // single-branch clone) or a rewritten remote history, where a plain `fetch origin main`
+    // would only touch FETCH_HEAD and leave the guards reading a stale ref.
+    git("fetch", "origin", "+main:refs/remotes/origin/main");
     const branch = git("rev-parse", "--abbrev-ref", "HEAD");
     if (branch === "HEAD") {
       console.log("Detached HEAD; not tearing down.");
@@ -653,7 +656,8 @@ async function prune(confirmed: boolean): Promise<void> {
   }
 
   // Merged-ness is judged against the remote main so stale local state cannot cause a delete.
-  git("fetch", "origin", "main");
+  // Forced refspec for the same reason as in teardown: refresh refs/remotes/origin/main itself.
+  git("fetch", "origin", "+main:refs/remotes/origin/main");
 
   const worktrees = parseWorktreeList(git("worktree", "list", "--porcelain"))
     .filter((entry) => entry.path !== mainRoot)
