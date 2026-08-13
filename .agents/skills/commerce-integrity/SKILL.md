@@ -23,9 +23,9 @@ Treat commerce changes as failure-sensitive distributed workflows. Preserve corr
 - Make every webhook transition idempotent and safe under duplicate, delayed, retried, and out-of-order events. Do not rely only on an in-memory check.
 - Preserve immutable order history. Capture the line-item values used for Checkout before mutable catalog records can change.
 - Never discard a verified paid event because fulfillment inventory is unavailable. Persist a traceable paid exception state or provide a deterministic compensating path.
-- Keep order persistence and its required inventory transition atomic. Model reservations, releases, restocks, and refunds as explicit state transitions when the task introduces them.
+- Keep paid-order persistence, its required inventory transition, line-item snapshots, and the initial confirmation-delivery record atomic in a single transaction. Model reservations, releases, restocks, and refunds as explicit state transitions when the task introduces them.
 - Prevent fulfillment when local payment state is refunded, disputed, or otherwise ineligible.
-- Keep email and other downstream delivery after the order commit. Record retryable delivery state when reliable delivery is in scope; never roll back a paid order because email failed.
+- Keep email and other downstream delivery attempts after the order commit, never inside the transaction. The initial delivery record is committed with the order, so a delivery failure always leaves durable state to retry from; never roll back a paid order because email failed.
 - Require server-side authorization independently of Clerk authentication for every admin read and write.
 - Avoid customer data, payment details, secrets, and raw payloads in logs, errors, tests, and monitoring metadata.
 
@@ -68,8 +68,8 @@ Add regression coverage for the failure mode being changed. Prefer tests that pr
 After focused checks pass, run:
 
 ```bash
-bun test
 bun run lint
+bun test
 bun run typecheck
 bun run build
 ```
@@ -80,7 +80,8 @@ If credentials or external services prevent a check, state exactly what was not 
 
 Summarize:
 
-1. The commerce invariant changed or protected.
-2. The idempotency, transaction, authorization, and failure behavior.
-3. Automated and sandbox checks performed.
-4. Unverified external behavior, migration requirements, and residual risks.
+1. What changed and why it changed.
+2. The commerce invariant changed or protected.
+3. The idempotency, transaction, authorization, and failure behavior.
+4. Automated and sandbox checks performed.
+5. Unverified external behavior, migration requirements, and residual risks.
