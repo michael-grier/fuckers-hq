@@ -13,13 +13,18 @@
  * shared, read-only `.env.local`.
  *
  * `teardown` deletes that Neon branch and removes the generated files. Run it before
- * removing a worktree so Neon branches don't accumulate.
+ * removing a worktree so Neon branches don't accumulate. With `--if-merged` (issue #121) it
+ * becomes safe to run unconditionally from inside the worktree: it fetches origin/main and
+ * no-ops unless the checked-out branch is merged and the worktree is settled (no uncommitted
+ * changes, no commits origin/main lacks).
  *
  * `prune` (issue #105) runs from the main checkout and cleans up what manual teardown
  * misses: it lists worktrees whose git branch is merged into origin/main plus Neon branches
- * no worktree references at all, and deletes both kinds when re-run with `--yes`. It only
- * removes the Neon branch and generated env files — the worktree and git branch stay, so a
- * settled T3 Code thread keeps working and `setup` can recreate the database later.
+ * no worktree references at all, and deletes both kinds when re-run with `--yes`. Merged
+ * worktrees that are not settled are skipped with the reason printed — a merged branch a
+ * developer is still working in must keep its database (issue #121). Prune only removes the
+ * Neon branch and generated env files — the worktree and git branch stay, so a settled
+ * T3 Code thread keeps working and `setup` can recreate the database later.
  *
  * Requires NEON_API_KEY and NEON_PROJECT_ID (see .env.example). When they are absent,
  * `setup` warns and leaves today's shared-database behaviour in place instead of failing.
@@ -497,10 +502,47 @@ async function removeWorktreeDatabase(worktreeRoot: string, getApi: () => NeonAp
   }
 }
 
-async function teardown(): Promise<void> {
+/**
+ * Why a worktree is still in use and must keep its database, or null when it is settled.
+ * Uncommitted changes or commits origin/main does not contain mean follow-up work is
+ * happening in place even though the branch is merged, so teardown and prune both skip it.
+ */
+function worktreeUnsettledReason(worktreeRoot: string): string | null {
+  if (git("-C", worktreeRoot, "status", "--porcelain") !== "") {
+    return "uncommitted changes";
+  }
+  if (git("-C", worktreeRoot, "rev-list", "--count", "HEAD", "--not", "origin/main") !== "0") {
+    return "commits not in origin/main";
+  }
+  return null;
+}
+
+/**
+ * With `ifMerged`, the guards make this safe to run unconditionally after a PR merges: a
+ * guard that fails is a no-op exit 0, not an error, so agent workflows can always call it.
+ */
+async function teardown(ifMerged: boolean): Promise<void> {
   const { worktreeRoot, isLinkedWorktree } = worktreeContext();
   if (!isLinkedWorktree) {
     throw new Error("Refusing to run teardown in the main checkout.");
+  }
+  if (ifMerged) {
+    // Judge merged-ness against the real remote, never stale local refs.
+    git("fetch", "origin", "main");
+    const branch = git("rev-parse", "--abbrev-ref", "HEAD");
+    if (branch === "HEAD") {
+      console.log("Detached HEAD; not tearing down.");
+      return;
+    }
+    if (!isMergedIntoMain(branch)) {
+      console.log(`Branch "${branch}" is not merged into origin/main; nothing done.`);
+      return;
+    }
+    const reason = worktreeUnsettledReason(worktreeRoot);
+    if (reason !== null) {
+      console.log(`Worktree still in use (${reason}); nothing done.`);
+      return;
+    }
   }
   await removeWorktreeDatabase(worktreeRoot, () => requireApi("bun run teardown:worktree"));
 }
@@ -515,6 +557,8 @@ export interface PruneWorktree {
   hasGeneratedOverrides: boolean;
   /** Whether the checked-out branch is already contained in origin/main. */
   merged: boolean;
+  /** Why the worktree is still in use (see worktreeUnsettledReason), or null when settled. */
+  unsettledReason: string | null;
 }
 
 /** Worktree paths and checked-out branch names from `git worktree list --porcelain`.
@@ -539,26 +583,34 @@ export function parseWorktreeList(porcelain: string): { path: string; branch: st
 /**
  * Splits cleanup work into the two kinds `prune` handles: worktrees whose branch is merged
  * (their database and override files can go) and Neon branches nothing references (a worktree
- * was deleted without teardown). A branch referenced by any worktree — merged or not — is
- * never an orphan, and default, protected, and explicitly excluded branches (the shared dev
- * branch) are never candidates — a merged worktree whose override somehow records an excluded
- * id is skipped rather than torn down, so the dev branch cannot be deleted through either path.
+ * was deleted without teardown). Merged worktrees that are unsettled (issue #121) come back
+ * as `skippedWorktrees` for reporting instead — still in use, never deleted. A branch
+ * referenced by any worktree — merged or not — is never an orphan, and default, protected,
+ * and explicitly excluded branches (the shared dev branch) are never candidates — a merged
+ * worktree whose override somehow records an excluded id is skipped rather than torn down,
+ * so the dev branch cannot be deleted through either path.
  */
 export function classifyPrune(input: {
   neonBranches: NeonBranch[];
   worktrees: PruneWorktree[];
   excludedBranchIds: Set<string>;
-}): { mergedWorktrees: PruneWorktree[]; orphanBranches: NeonBranch[] } {
+}): {
+  mergedWorktrees: PruneWorktree[];
+  skippedWorktrees: PruneWorktree[];
+  orphanBranches: NeonBranch[];
+} {
   const referenced = new Set(
     input.worktrees.map((worktree) => worktree.neonBranchId).filter((id) => id !== null),
   );
+  const candidates = input.worktrees.filter(
+    (worktree) =>
+      worktree.merged &&
+      worktree.hasGeneratedOverrides &&
+      (worktree.neonBranchId === null || !input.excludedBranchIds.has(worktree.neonBranchId)),
+  );
   return {
-    mergedWorktrees: input.worktrees.filter(
-      (worktree) =>
-        worktree.merged &&
-        worktree.hasGeneratedOverrides &&
-        (worktree.neonBranchId === null || !input.excludedBranchIds.has(worktree.neonBranchId)),
-    ),
+    mergedWorktrees: candidates.filter((worktree) => worktree.unsettledReason === null),
+    skippedWorktrees: candidates.filter((worktree) => worktree.unsettledReason !== null),
     orphanBranches: input.neonBranches.filter(
       (branch) =>
         !branch.default &&
@@ -607,21 +659,30 @@ async function prune(confirmed: boolean): Promise<void> {
     .filter((entry) => entry.path !== mainRoot)
     .map((entry) => {
       const { generated } = readOverrideFiles(entry.path);
+      const merged = entry.branch !== null && isMergedIntoMain(entry.branch);
       return {
         path: entry.path,
         branch: entry.branch,
         neonBranchId: generated.find((file) => file.neonBranchId !== null)?.neonBranchId ?? null,
         hasGeneratedOverrides: generated.length > 0,
-        merged: entry.branch !== null && isMergedIntoMain(entry.branch),
+        merged,
+        // Only merged worktrees can become teardown candidates, so only they need the check.
+        unsettledReason: merged ? worktreeUnsettledReason(entry.path) : null,
       };
     });
 
-  const { mergedWorktrees, orphanBranches } = classifyPrune({
+  const { mergedWorktrees, skippedWorktrees, orphanBranches } = classifyPrune({
     neonBranches: await api.listBranches(),
     worktrees,
     excludedBranchIds: new Set([parentId]),
   });
 
+  for (const worktree of skippedWorktrees) {
+    console.log(
+      `Still in use (${worktree.unsettledReason}): ${worktree.path} ("${worktree.branch}") — ` +
+        "keeping its database.",
+    );
+  }
   if (mergedWorktrees.length === 0 && orphanBranches.length === 0) {
     console.log("Nothing to prune: no merged worktree databases and no orphaned Neon branches.");
     return;
@@ -655,11 +716,13 @@ if (import.meta.main) {
     if (command === "setup") {
       await setup();
     } else if (command === "teardown") {
-      await teardown();
+      await teardown(process.argv.includes("--if-merged"));
     } else if (command === "prune") {
       await prune(process.argv.includes("--yes"));
     } else {
-      console.error("Usage: bun scripts/worktree-db.ts <setup|teardown|prune [--yes]>");
+      console.error(
+        "Usage: bun scripts/worktree-db.ts <setup|teardown [--if-merged]|prune [--yes]>",
+      );
       process.exit(1);
     }
   } catch (error) {
