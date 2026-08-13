@@ -288,8 +288,10 @@ Add the production app origin before deployment. See Cloudflare's documentation 
 ## Sentry Error Monitoring
 
 Create a Sentry Next.js project and set `SENTRY_DSN` plus `NEXT_PUBLIC_SENTRY_DSN` to the same
-project DSN. The public DSN is an ingest address, not an authentication secret. Error monitoring is
-disabled when the corresponding DSN is absent and in the test environment.
+project DSN. The public DSN is an ingest address, not an authentication secret. Error monitoring
+runs only in production builds, and only when the corresponding DSN is set: development and test
+runs never report, so local activity stays out of the production project. Verifying the wiring
+locally means temporarily relaxing that gate in `lib/observability/sentry-enabled.ts`.
 
 The initial configuration collects errors only: tracing, session replay, Sentry logs, and default
 PII collection are disabled. Server code should use `captureServerException()` with stable area and
