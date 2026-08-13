@@ -18,12 +18,16 @@ dependencies or perform broad refactors without explaining why they are necessar
   database named after the git branch: it writes generated `.env.development.local` and
   `.env.production.local` overrides and runs migrations against the new branch. Without those
   credentials the worktree shares the main checkout's database, so migration state is global across
-  worktrees. Run `bun run teardown:worktree` before removing a worktree so its Neon branch is
-  deleted rather than accumulating. Because T3 Code removes worktrees without running teardown,
-  `bun run worktree:prune` (main checkout only) lists worktree databases whose git branch is
-  merged into `origin/main` plus Neon branches no worktree references, and deletes both when
-  re-run with `--yes`. Prune never touches the worktree or its git branch, only the Neon branch
-  and generated env overrides.
+  worktrees. After this worktree's pull request is confirmed merged, run
+  `bun run teardown:worktree --if-merged` here so the Neon branch is deleted rather than
+  accumulating — the flag makes it safe to run any time, because it no-ops unless the branch is
+  merged into `origin/main` and the worktree is settled (no uncommitted changes, no commits
+  `origin/main` lacks). Plain `bun run teardown:worktree` tears down unconditionally; use it only
+  when deliberately discarding an unmerged worktree's database. Because T3 Code removes worktrees
+  without running teardown, `bun run worktree:prune` (main checkout only) lists worktree databases
+  whose git branch is merged into `origin/main` plus Neon branches no worktree references, and
+  deletes both when re-run with `--yes`. Prune skips merged worktrees that are not settled, and
+  never touches the worktree or its git branch, only the Neon branch and generated env overrides.
 - Never create, edit, or overwrite `.env` or `.env*.local` by hand. Worktrees share one physical
   `.env.local` by symlink, so writing to it from any worktree rewrites the credentials every other
   worktree reads. `setup:worktree` makes that file read-only; treat a `Permission denied` on it as

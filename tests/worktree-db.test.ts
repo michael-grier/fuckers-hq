@@ -118,6 +118,7 @@ describe("classifyPrune", () => {
     neonBranchId: null,
     hasGeneratedOverrides: false,
     merged: false,
+    unsettledReason: null,
     ...overrides,
   });
 
@@ -173,6 +174,26 @@ describe("classifyPrune", () => {
       excludedBranchIds: new Set(["br-dev"]),
     });
     expect(result.mergedWorktrees).toEqual([]);
+    expect(result.orphanBranches).toEqual([]);
+  });
+
+  test("an unsettled merged worktree is skipped, and its branch is not an orphan", () => {
+    // The issue #121 incident: a merged branch the developer is still working in must keep
+    // its database. It surfaces as skipped for reporting, never as a teardown candidate.
+    const stillInUse = worktree({
+      path: "/repo/wt-still-in-use",
+      neonBranchId: "br-still-in-use",
+      hasGeneratedOverrides: true,
+      merged: true,
+      unsettledReason: "uncommitted changes",
+    });
+    const result = classifyPrune({
+      neonBranches: [neonBranch("br-still-in-use")],
+      worktrees: [stillInUse],
+      excludedBranchIds: new Set(),
+    });
+    expect(result.mergedWorktrees).toEqual([]);
+    expect(result.skippedWorktrees).toEqual([stillInUse]);
     expect(result.orphanBranches).toEqual([]);
   });
 
