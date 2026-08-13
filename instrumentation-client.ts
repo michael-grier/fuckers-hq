@@ -6,7 +6,7 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 
 Sentry.init({
   dsn,
-  enabled: isSentryEnabled(dsn),
+  enabled: isSentryEnabled(dsn, process.env.NODE_ENV),
   sendDefaultPii: false,
   tracesSampleRate: 0,
 });
