@@ -65,8 +65,9 @@ reviews:
         - Refunds and disputes must affect fulfillment eligibility correctly.
         - Email delivery happens after the order commit, is retryable and idempotent,
           and must never roll back a paid order.
-        Require focused tests for retries, competing inventory, invalid signatures,
-        catalog mutation, lifecycle events, and downstream delivery failures.
+        Check whether the change affects any invariant or failure mode listed
+        above. Ask for focused regression coverage for each affected behavior.
+        Do not demand unrelated tests.
 
     - path: "{lib/auth/**,lib/actions/**,lib/admin/**,app/admin/**,app/api/admin/**,middleware.ts}"
       instructions: |
