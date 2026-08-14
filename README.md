@@ -264,6 +264,11 @@ Create an R2 bucket and an Object Read & Write API token scoped to that bucket. 
 URL or custom-domain base URL, not its S3 API endpoint. Restart the app after changing environment
 values.
 
+Each environment with its own database needs its own bucket: local development (the shared dev
+database and its worktree branches) and the production deployment must not share one. The nightly
+orphaned-image reaper deletes any object its own database does not reference, so a shared bucket
+lets production's reaper delete images uploaded through dev (issue #128).
+
 Browser uploads use a short-lived presigned `PUT` URL and go directly to R2. Configure the bucket's
 CORS policy to allow the storefront origin, the `PUT` method, and the `Content-Type` header. For
 local development, a minimal policy is:

@@ -25,6 +25,11 @@ export type ReapOrphanedProductImagesResult = {
  * Idempotent and safe to rerun: a failed delete is reported and left for the
  * next run.
  *
+ * Assumes the bucket belongs exclusively to this environment's database: any
+ * object the database does not reference is treated as garbage. An environment
+ * with its own database must therefore use its own bucket (see .env.example),
+ * or this reaper deletes the other environment's referenced objects.
+ *
  * Aborts without deleting anything if a referenced URL cannot be mapped back
  * to an object key. All stored URLs are built from the configured public base
  * URL, so an unmappable one means the base URL drifted since upload — and
