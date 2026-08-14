@@ -8,11 +8,11 @@
   "crons": [
     {
       "path": "/api/cron/order-confirmations",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/inventory-reservations",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 */6 * * *"
     },
     {
       "path": "/api/cron/orphaned-images",
