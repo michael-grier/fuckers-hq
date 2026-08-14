@@ -6,7 +6,7 @@ export default function Loading() {
       <div className="grid w-full gap-6 md:grid-cols-4">
         {skeletonItems.map((item) => (
           <div className="space-y-3" key={item}>
-            <div className="aspect-square animate-pulse rounded-lg bg-muted" />
+            <div className="aspect-[4/5] animate-pulse rounded-lg bg-muted" />
             <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
             <div className="h-4 w-1/2 animate-pulse rounded bg-muted" />
           </div>

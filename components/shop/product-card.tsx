@@ -22,11 +22,13 @@ export function ProductCard({ product }: ProductCardProps) {
   return (
     <article className="group min-w-0">
       <Link className="block space-y-3" href={href}>
-        <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+        {/* 4:5 matches the featured grid and product gallery, so photos prepared
+            at that ratio render uncropped and unletterboxed on every surface. */}
+        <div className="relative aspect-[4/5] overflow-hidden rounded-lg bg-muted">
           {primaryImage ? (
             <Image
               alt={primaryImage.alt ?? product.name}
-              className="h-full w-full object-contain object-center"
+              className="h-full w-full object-cover object-center"
               fill
               sizes="(min-width: 1280px) 25vw, (min-width: 768px) 33vw, 50vw"
               src={primaryImage.url}
