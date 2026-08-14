@@ -302,7 +302,9 @@ export function ProductWorkspace({
 
                 <FormField error={errors.slug?.message} id="slug" label="Slug">
                   <div className="flex">
-                    <span className="inline-flex h-10 items-center rounded-l-md border border-input border-r bg-muted px-3 text-muted-foreground text-sm">
+                    {/* shrink-0 keeps the prefix at its natural width: as a flex item it
+                        would otherwise compress and wrap "/products/" onto two lines. */}
+                    <span className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-l-md border border-input border-r bg-muted px-3 text-muted-foreground text-sm">
                       /products/
                     </span>
                     <Input
