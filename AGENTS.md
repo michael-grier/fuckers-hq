@@ -94,6 +94,16 @@ bun run typecheck
 bun run build
 ```
 
+For any user-visible change, verify visually instead of asking for a manual smoke test: run
+`bun run visual-check <routes...>` (see `.claude/skills/visual-qa/SKILL.md` for the full
+workflow). It reuses a dev server on :3000 or boots one, captures full-page screenshots of each
+route at mobile/tablet/laptop/desktop widths into gitignored `.visual-check/`, and prints browser
+console errors. View the screenshots and judge layout, alignment, spacing, hierarchy, and
+responsive behavior at each width; fix and re-run until clean, then report what was inspected and
+delete `.visual-check/`.
+Clerk-protected routes capture as the sign-in redirect — judge those through an authenticated
+interactive browser session instead.
+
 Add focused regression coverage for behavior changes and failure modes — a test that would have
 caught the bug, not a suite of smoke tests around it. Do not apply migrations or use external
 production services as part of automated verification.
