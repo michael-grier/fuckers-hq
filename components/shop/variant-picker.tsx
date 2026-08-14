@@ -27,7 +27,7 @@ export function VariantPicker({ product }: VariantPickerProps) {
   const isUnavailable = !selectedVariant || selectedVariant.availableQty <= 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       <div className="space-y-3">
         <p className="font-semibold text-sm">Variant</p>
         <div className="flex flex-wrap gap-2">
@@ -60,7 +60,9 @@ export function VariantPicker({ product }: VariantPickerProps) {
           </div>
         </div>
       ) : null}
-      <div className="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center">
+      {/* Quantity and add-to-cart share one row at every size; stacking them on
+          phones pushed the button below the fold. */}
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-4">
         <QuantityControl max={maxQuantity} onChange={setQuantity} value={quantity} />
         {selectedVariant ? (
           <AddToCartButton

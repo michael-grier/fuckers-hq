@@ -51,16 +51,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
   }
 
   // min-height accounts for the fixed-header spacer so content centers in the visible viewport.
+  // Sub-lg sizes use a tighter type/spacing scale so the gallery, title, price, and
+  // add-to-cart all fit above the fold in the single-column layout.
   return (
-    <main className="mx-auto grid min-h-[calc(100svh-var(--header-height))] max-w-7xl items-center gap-10 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr]">
+    <main className="mx-auto grid min-h-[calc(100svh-var(--header-height))] max-w-7xl items-center gap-6 px-6 py-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-10 lg:py-10">
       <ProductGallery images={product.images} name={product.name} />
-      <section className="space-y-8">
-        <div className="space-y-4">
+      <section className="space-y-5 lg:space-y-8">
+        <div className="space-y-3 lg:space-y-4">
           <Badge variant="outline">{getProductCategoryLabel(product.category)}</Badge>
-          <div className="space-y-3">
-            <h1 className="font-grotesk font-semibold text-5xl tracking-tight">{product.name}</h1>
+          <div className="space-y-2 lg:space-y-3">
+            <h1 className="font-grotesk font-semibold text-3xl tracking-tight lg:text-5xl">
+              {product.name}
+            </h1>
             {product.description ? (
-              <p className="text-lg text-muted-foreground">{product.description}</p>
+              <p className="text-base text-muted-foreground lg:text-lg">{product.description}</p>
             ) : null}
           </div>
         </div>

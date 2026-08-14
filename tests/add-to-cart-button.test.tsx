@@ -51,10 +51,10 @@ test("renders Add to cart as an enabled, clickable button", () => {
   expect(markup).not.toContain(' disabled=""');
 });
 
-test("keeps the quantity control and Add to cart button within separate desktop columns", () => {
+test("keeps the quantity control and Add to cart button within separate columns at every size", () => {
   const markup = renderToStaticMarkup(<VariantPicker product={product} />);
 
   expect(markup).toContain(
-    'class="flex flex-col gap-4 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center"',
+    'class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-4"',
   );
 });
