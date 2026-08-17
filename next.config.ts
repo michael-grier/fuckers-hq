@@ -2,6 +2,12 @@ import { withSentryConfig } from "@sentry/nextjs";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Required for readable browser stack traces in Sentry. The SDK only enables this itself on
+  // Turbopack builds, so a webpack build emits no client source maps and uploads only the handful
+  // Next.js produces regardless — leaving Sentry unable to symbolicate most client errors.
+  // The maps are deleted after upload (`sourcemaps.deleteSourcemapsAfterUpload` defaults to true),
+  // so enabling this does not publish them.
+  productionBrowserSourceMaps: true,
   poweredByHeader: false,
   async headers() {
     return [
