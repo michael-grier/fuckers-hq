@@ -5,9 +5,12 @@ const nextConfig: NextConfig = {
   // Required for readable browser stack traces in Sentry. The SDK only enables this itself on
   // Turbopack builds, so a webpack build emits no client source maps and uploads only the handful
   // Next.js produces regardless — leaving Sentry unable to symbolicate most client errors.
-  // The maps are deleted after upload (`sourcemaps.deleteSourcemapsAfterUpload` defaults to true),
-  // so enabling this does not publish them.
-  productionBrowserSourceMaps: true,
+  //
+  // Gated on the same variable as `sourcemaps.disable` below, because Next.js serves generated
+  // `.map` files publicly and only Sentry's post-upload deletion removes them. Enabling this
+  // unconditionally would publish readable source from every build that cannot upload — preview
+  // deployments and local builds, which have no token.
+  productionBrowserSourceMaps: Boolean(process.env.SENTRY_AUTH_TOKEN),
   poweredByHeader: false,
   async headers() {
     return [
