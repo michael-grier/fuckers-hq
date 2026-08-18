@@ -78,8 +78,14 @@ test.describe("product page @smoke", () => {
     failOnPageError(page);
     await page.goto("/products/street-deck-825");
     await expect(page.getByRole("heading", { name: "Street Deck 8.25", level: 1 })).toBeVisible();
-    await expect(page.getByRole("button", { name: '8.25"' })).toBeVisible();
-    await expect(page.getByRole("button", { name: '8.5"' })).toBeVisible();
+    // The first in-stock variant is preselected; switching variants must update the price.
+    await expect(page.getByText("$89.00")).toBeVisible();
+    await expect(async () => {
+      await page.getByRole("button", { name: '8.5"' }).click();
+      await expect(page.getByText("$92.00")).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+    await page.getByRole("button", { name: '8.25"' }).click();
+    await expect(page.getByText("$89.00")).toBeVisible();
     await expect(page.getByRole("button", { name: "Add to cart" })).toBeEnabled();
   });
 

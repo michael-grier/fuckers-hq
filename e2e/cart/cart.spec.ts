@@ -58,12 +58,13 @@ test.describe("cart @smoke", () => {
     await expect(page.getByRole("button", { name: /^Cart/ })).toContainText("0");
   });
 
-  test("the cart page shows the persisted item", async ({ page }) => {
+  test("view cart navigates to the cart page with the persisted item", async ({ page }) => {
     await addStreetDeckToCart(page);
-    // The sheet offers a View cart link; the click-through itself is covered by the cart sidebar
-    // component tests, so this spec asserts the link and loads /cart directly for determinism.
-    await expect(page.getByRole("dialog").getByRole("link", { name: "View cart" })).toBeVisible();
-    await page.goto("/cart");
+    // No lost-event retry here: the add-to-cart click already proved the page is hydrated, and
+    // the sheet closes on this click, so the link only exists for one attempt. The navigation
+    // itself can sit behind an on-demand dev-server compile of /cart, hence the patient timeout.
+    await page.getByRole("dialog").getByRole("link", { name: "View cart" }).click();
+    await expect(page).toHaveURL(/\/cart$/);
     await expect(page.getByRole("heading", { name: /Street Deck 8\.25/ })).toBeVisible();
   });
 });

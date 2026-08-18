@@ -33,52 +33,55 @@ const e2eProducts = [
 const db = getDb();
 
 try {
-  for (const product of e2eProducts) {
-    const [savedProduct] = await db
-      .insert(products)
-      .values({
-        slug: product.slug,
-        name: product.name,
-        description: product.description,
-        category: product.category,
-        subcategory: product.subcategory,
-        status: product.status,
-        updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: products.slug,
-        set: {
+  // One transaction so an interrupted run cannot leave a fixture product without its variants.
+  await db.transaction(async (tx) => {
+    for (const product of e2eProducts) {
+      const [savedProduct] = await tx
+        .insert(products)
+        .values({
+          slug: product.slug,
           name: product.name,
           description: product.description,
           category: product.category,
           subcategory: product.subcategory,
           status: product.status,
           updatedAt: new Date(),
-        },
-      })
-      .returning();
-
-    for (const variant of product.variants) {
-      await db
-        .insert(productVariants)
-        .values({
-          productId: savedProduct.id,
-          name: variant.name,
-          sku: variant.sku,
-          priceCents: variant.priceCents,
-          inventoryQty: variant.inventoryQty,
         })
         .onConflictDoUpdate({
-          target: productVariants.sku,
+          target: products.slug,
           set: {
+            name: product.name,
+            description: product.description,
+            category: product.category,
+            subcategory: product.subcategory,
+            status: product.status,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const variant of product.variants) {
+        await tx
+          .insert(productVariants)
+          .values({
             productId: savedProduct.id,
             name: variant.name,
+            sku: variant.sku,
             priceCents: variant.priceCents,
             inventoryQty: variant.inventoryQty,
-          },
-        });
+          })
+          .onConflictDoUpdate({
+            target: productVariants.sku,
+            set: {
+              productId: savedProduct.id,
+              name: variant.name,
+              priceCents: variant.priceCents,
+              inventoryQty: variant.inventoryQty,
+            },
+          });
+      }
     }
-  }
+  });
 
   console.log(`Seeded ${e2eProducts.length} e2e fixture products.`);
 } finally {

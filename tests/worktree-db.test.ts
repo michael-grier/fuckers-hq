@@ -72,6 +72,8 @@ describe("generated override files", () => {
     expect(parseEnvFile(content).DATABASE_URL).toBe(
       "postgresql://u:p@ep-a-1-pooler.us-west-2.aws.neon.tech/db?sslmode=require",
     );
+    // The e2e suite refuses to seed unless the worktree database opted in.
+    expect(parseEnvFile(content).E2E_DATABASE_URL).toBe(parseEnvFile(content).DATABASE_URL);
   });
 
   test("refuses to treat a hand-written file as generated", () => {
