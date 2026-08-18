@@ -1,6 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
+
+// Next.js marks 404s noindex by default; the root layout's `robots` override would otherwise
+// replace that and make every missing URL indexable once ALLOW_INDEXING is on.
+export const metadata: Metadata = {
+  title: "Page not found",
+  robots: { index: false, follow: false },
+};
 
 export default function NotFound() {
   return (

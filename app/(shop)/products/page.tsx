@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { SearchParams } from "nuqs/server";
 
 import { CatalogFilters } from "@/components/shop/catalog-filters";
@@ -7,6 +8,14 @@ import { ProductGrid } from "@/components/shop/product-grid";
 import { getCatalogHeading } from "@/lib/catalog/categories";
 import { getCatalogPage } from "@/lib/catalog/queries";
 import { catalogSearchParamsCache } from "@/lib/catalog/search-params";
+
+export const metadata: Metadata = {
+  title: "Shop",
+  description: "Decks, apparel, and accessories from Fuckers Skateboards.",
+  // Filters, sorting, and pagination are query parameters on this same route; without a canonical
+  // every combination is a separate indexable URL of the same catalogue.
+  alternates: { canonical: "/products" },
+};
 
 export const revalidate = 300;
 
