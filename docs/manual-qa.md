@@ -5,8 +5,9 @@ in a Stripe sandbox and use a development or disposable Neon branch. Never paste
 notes, screenshots, issues, or commits.
 
 This document is also the source spec for the automated e2e suite (issue #6): each section maps to
-browser coverage except the checks that cannot be automated — dashboard reviews, WAF mode changes,
-and the fault-injection cases that need a local breakpoint — which stay manual.
+automated coverage using browser, webhook, database, cron, or storage checks as applicable. The
+checks that cannot be automated — dashboard reviews, WAF mode changes, and the fault-injection
+cases that need a local breakpoint — stay manual.
 
 ## QA Record
 
@@ -310,8 +311,10 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 ## 9. Order Email Delivery Recovery
 
 Confirmation, `delivery_scheduled`, and `shipped` emails all flow through the same durable outbox;
-a delivery failure defers the email to the retry cron and never rolls back the paid order or the
-fulfillment transition that queued it. Perform this check only with a test recipient and sandbox
+a delivery failure never rolls back the paid order or the fulfillment transition that queued it.
+Non-terminal failures defer the email to the retry cron; after the attempt limit the delivery
+becomes `Needs attention`, which the cron no longer picks up and only the admin retry action can
+deliver. Perform this check only with a test recipient and sandbox
 order. Do not use production customer data or live Resend credentials.
 
 - [ ] Temporarily use an invalid test Resend credential and create a paid Stripe sandbox order.
@@ -331,9 +334,9 @@ order. Do not use production customer data or live Resend credentials.
 - [ ] Deleting an image removes its database record and attempts R2 cleanup.
 - [ ] A request to the orphaned-image cron route without `Authorization: Bearer <CRON_SECRET>`
       returns `401`.
-- [ ] Against this environment's own R2 bucket, the authenticated orphaned-image reaper deletes
-      only objects no product image references and reports what it removed; referenced images
-      remain served.
+- [ ] Against a dedicated non-production R2 bucket containing only test objects, the authenticated
+      orphaned-image reaper deletes only objects no product image references and reports what it
+      removed; referenced images remain served. Never run this check against a production bucket.
 
 ## 11. Security And Observability
 
