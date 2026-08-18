@@ -7,7 +7,9 @@
       "!.next",
       "!bun.lock",
       "!.claude/settings.local.json",
-      "!public"
+      "!public",
+      "!.e2e-artifacts",
+      "!.visual-check"
     ]
   },
   "formatter": {

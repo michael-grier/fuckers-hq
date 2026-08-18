@@ -108,6 +108,9 @@ export function renderOverrideEnv(input: {
     "# Regenerate: bun run setup:worktree. Remove and delete the branch: bun run teardown:worktree.",
     `NEON_BRANCH_ID=${input.neonBranchId}`,
     `DATABASE_URL=${input.databaseUrl}`,
+    // A worktree's Neon branch is disposable by construction, so it opts into e2e seeding
+    // (e2e/setup/global-setup.ts requires E2E_DATABASE_URL to match DATABASE_URL).
+    `E2E_DATABASE_URL=${input.databaseUrl}`,
     "",
   ].join("\n");
 }
