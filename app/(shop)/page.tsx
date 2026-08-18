@@ -1,9 +1,13 @@
 import { ArrowRight } from "lucide-react";
-import type { Route } from "next";
+import type { Metadata, Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
 
 import { type ProductCategory, productCategories } from "@/lib/catalog/categories";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 // Landing page uses a self-contained "dusk" palette (charcoal ink surfaces,
 // fire-gold accent from the flame logo) instead of the global theme tokens.

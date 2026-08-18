@@ -64,6 +64,9 @@ const envSchema = z.object({
   SHIPPING_ALLOWED_COUNTRIES: optionalString.default("CA"),
   SHIPPING_STANDARD_RATE_CENTS: optionalIntegerString,
   SHIPPING_FREE_THRESHOLD_CENTS: optionalIntegerString,
+  // Search indexing is opt-in. A deploy that can take no payment, or a preview of unfinished copy,
+  // must not be indexable by default — an accidental index is far more work to undo than to prevent.
+  ALLOW_INDEXING: defaultFalseBooleanString,
   // Local delivery stays off unless it is explicitly enabled and its service area is named, so a
   // half-configured deploy cannot offer delivery without saying where it applies.
   DELIVERY_ENABLED: defaultFalseBooleanString,

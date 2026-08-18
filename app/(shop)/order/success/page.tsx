@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import { ClearCartOnSuccess } from "@/components/cart/clear-cart-on-success";
 import { Button } from "@/components/ui/button";
 import { isCompletedPaidCheckout } from "@/lib/checkout/completion";
 import { getStripe } from "@/lib/stripe";
+
+// Reachable only with a Stripe session id, and never worth indexing.
+export const metadata: Metadata = {
+  title: "Order confirmed",
+  robots: { index: false, follow: false },
+};
 
 type OrderSuccessPageProps = {
   searchParams: Promise<{

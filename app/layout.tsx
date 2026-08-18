@@ -31,6 +31,10 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
   },
+  // Applies to every route unless a page overrides it. Defaults to noindex so an environment that
+  // has not deliberately opted in — preview deployments, and production before it can take a
+  // payment — cannot be indexed.
+  robots: env.ALLOW_INDEXING ? { index: true, follow: true } : { index: false, follow: false },
 };
 
 export default function RootLayout({

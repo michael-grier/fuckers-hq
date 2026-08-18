@@ -165,6 +165,23 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
   };
 }
 
+/**
+ * Slugs and modification times for every active product, for the sitemap. Kept separate from
+ * `getCatalogPage` because the sitemap wants the whole catalogue rather than one paginated,
+ * filtered, sorted page of it.
+ */
+export async function getActiveProductSlugs(): Promise<{ slug: string; updatedAt: Date }[]> {
+  if (!canQueryDatabase()) {
+    return [];
+  }
+
+  return getDb().query.products.findMany({
+    columns: { slug: true, updatedAt: true },
+    where: (products, { eq }) => eq(products.status, "active"),
+    orderBy: (products) => [asc(products.slug)],
+  });
+}
+
 export async function getFeaturedProducts(limit = 3): Promise<CatalogProduct[]> {
   if (!canQueryDatabase()) {
     return [];
