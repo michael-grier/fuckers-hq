@@ -1,2 +1,5 @@
 [test]
+# Scoped to tests/ so `bun test` never picks up the Playwright specs in e2e/, which only run
+# under `bun run test:e2e`.
+root = "./tests"
 preload = ["./tests/setup/happy-dom.ts"]

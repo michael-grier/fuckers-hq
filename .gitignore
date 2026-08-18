@@ -27,3 +27,6 @@ coverage
 
 # visual-check screenshots
 .visual-check
+
+# e2e traces, screenshots, and reports
+.e2e-artifacts
