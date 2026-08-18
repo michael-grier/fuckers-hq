@@ -4,6 +4,11 @@ Use this checklist for a release candidate after the automated suite passes. Run
 in a Stripe sandbox and use a development or disposable Neon branch. Never paste secrets into QA
 notes, screenshots, issues, or commits.
 
+This document is also the source spec for the automated e2e suite (issue #6): each section maps to
+automated coverage using browser, webhook, database, cron, or storage checks as applicable. The
+checks that cannot be automated — dashboard reviews, WAF mode changes, and the fault-injection
+cases that need a local breakpoint — stay manual.
+
 ## QA Record
 
 - Date:
@@ -42,6 +47,8 @@ against a development or disposable database branch.
 
 - [ ] The listener's signing secret matches `STRIPE_WEBHOOK_SECRET` in `.env.local`.
 - [ ] The configured Clerk user is present in `ADMIN_USER_IDS`.
+- [ ] To QA local delivery, `DELIVERY_ENABLED=true` and `DELIVERY_AREA_NAME` are set; the
+      fulfillment picker and delivery checkout are hidden otherwise.
 
 The failure-boundary checks below require a local-only breakpoint or temporary reviewed throw.
 Never commit fault-injection code. Use a fresh reservation for each case, target database changes by
@@ -81,6 +88,10 @@ transition.
 - [ ] View cart closes the sidebar and navigates to the full `/cart` page.
 - [ ] At phone widths the cart occupies the viewport width; at tablet and desktop widths it is
       capped and leaves the overlay visible.
+- [ ] With delivery configured, the fulfillment picker offers Ship it and Local delivery in both
+      the cart sidebar and `/cart`, shows the delivery area details, and the choice persists with
+      the cart across reloads.
+- [ ] With delivery unconfigured, the picker does not render and checkout uses shipping.
 - [ ] Reloading the page preserves the cart.
 - [ ] Cancelling hosted Checkout returns to `/cart` without clearing purchase intent.
 - [ ] Completing a paid Checkout clears the cart on the success page.
@@ -94,6 +105,9 @@ transition.
 - [ ] A standard-rate order shows the configured fixed shipping amount.
 - [ ] An order at the free-shipping threshold shows free shipping.
 - [ ] Only configured shipping countries are selectable.
+- [ ] A local-delivery checkout shows free delivery naming the configured area instead of shipping
+      rates, and still collects the customer's address.
+- [ ] Requesting the delivery method while delivery is not configured is rejected server-side.
 - [ ] Tax behavior matches `STRIPE_TAX_ENABLED` and the Stripe sandbox configuration.
 - [ ] Starting Checkout increases the selected variant's reserved quantity and reduces its
       available quantity without changing on-hand inventory.
@@ -125,9 +139,24 @@ Restore the product price and inventory after these checks.
       correct available quantity.
 - [ ] The confirmation email arrives once and contains the same persisted snapshots and totals.
 - [ ] The order detail shows the confirmation delivery as `Sent` with one attempt.
-- [ ] Marking the order shipped changes its status to `fulfilled`.
+
+Fulfillment for a shipping order:
+
+- [ ] Marking the order shipped changes its status to `fulfilled`, records the optional carrier
+      and tracking number together (a half-filled pair is rejected), and delivers exactly one
+      `shipped` email.
 - [ ] Reloading confirms the fulfilled status and no longer offers the shipped action; automated
       tests cover an idempotent repeated action.
+
+Fulfillment for a local-delivery order (requires the delivery configuration from section 2):
+
+- [ ] The paid order appears in the `/admin/deliveries` queue, oldest first, alongside the
+      configured delivery area.
+- [ ] Scheduling the delivery moves the order to `delivery_scheduled` and delivers exactly one
+      `delivery_scheduled` email.
+- [ ] Marking it delivered moves the order to `fulfilled` without sending another email.
+- [ ] Each step offers only the single valid next transition; a shipping order is never offered
+      delivery steps and vice versa.
 
 Use a fresh sandbox order to verify catalog mutation after Checkout creation:
 
@@ -275,13 +304,19 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] Only an allowlisted administrator can invoke the confirmation-email retry action.
 - [ ] Retrying a failed sandbox delivery increments its attempt count; a successful retry changes
       the delivery to `Sent`, while another retry does not send a duplicate.
+- [ ] An order persisted as an inventory exception shows the resolve action; a successful retry
+      allocates stock exactly once, and a repeat resolve attempt is rejected without changing
+      inventory.
 
-## 9. Confirmation Delivery Recovery
+## 9. Order Email Delivery Recovery
 
-Perform this check only with a test recipient and sandbox order. Do not use production customer
-data or live Resend credentials.
+Confirmation, `delivery_scheduled`, and `shipped` emails all flow through the same durable outbox;
+a delivery failure never rolls back the paid order or the fulfillment transition that queued it.
+Non-terminal failures defer the email to the retry cron; after the attempt limit the delivery
+becomes `Needs attention`, which the cron no longer picks up and only the admin retry action can
+deliver. Perform this check only with a test recipient and sandbox
+order. Do not use production customer data or live Resend credentials.
 
-- [ ] Apply the outbox migration to a disposable database branch before running the new app code.
 - [ ] Temporarily use an invalid test Resend credential and create a paid Stripe sandbox order.
 - [ ] The paid order and its items remain persisted while the delivery becomes `Retry scheduled`.
 - [ ] Restore the valid test credential and invoke the authenticated cron route or use the admin
@@ -297,6 +332,11 @@ data or live Resend credentials.
 - [ ] The preview, admin image card, catalog card, and product gallery display the uploaded image.
 - [ ] Alt text and position changes persist and storefront ordering is correct.
 - [ ] Deleting an image removes its database record and attempts R2 cleanup.
+- [ ] A request to the orphaned-image cron route without `Authorization: Bearer <CRON_SECRET>`
+      returns `401`.
+- [ ] Against a dedicated non-production R2 bucket containing only test objects, the authenticated
+      orphaned-image reaper deletes only objects no product image references and reports what it
+      removed; referenced images remain served. Never run this check against a production bucket.
 
 ## 11. Security And Observability
 
