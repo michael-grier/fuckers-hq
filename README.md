@@ -260,8 +260,8 @@ The `/admin` route requires a Clerk development session and a matching Clerk use
 comma-separated `ADMIN_USER_IDS` allowlist. Configure `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`,
 `CLERK_SECRET_KEY`, and `ADMIN_USER_IDS` in `.env.local`. Middleware requires authentication, and
 the admin server layout independently calls `requireAdmin()` before rendering protected content.
-Read-only admin pages are available at `/admin/products` and `/admin/orders`; their database query
-helpers also call `requireAdmin()` before reading catalog or order data.
+Admin pages are available for products, orders, deliveries, and shipping rates; their database
+queries and mutations also call `requireAdmin()` before reading or changing store data.
 
 ## Cloudflare R2 Product Images
 

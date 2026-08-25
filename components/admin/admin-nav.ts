@@ -1,4 +1,11 @@
-import { LayoutDashboard, type LucideIcon, Package, ReceiptText, Truck } from "lucide-react";
+import {
+  CircleDollarSign,
+  LayoutDashboard,
+  type LucideIcon,
+  Package,
+  ReceiptText,
+  Truck,
+} from "lucide-react";
 import type { Route } from "next";
 
 export type AdminNavLink = {
@@ -28,6 +35,16 @@ export const adminNavGroups: ReadonlyArray<AdminNavGroup> = [
     links: [
       { href: "/admin/orders" as Route, label: "Orders", icon: ReceiptText },
       { href: "/admin/deliveries" as Route, label: "Deliveries", icon: Truck },
+    ],
+  },
+  {
+    label: "Store",
+    links: [
+      {
+        href: "/admin/shipping-rates" as Route,
+        label: "Shipping rates",
+        icon: CircleDollarSign,
+      },
     ],
   },
 ];
