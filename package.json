@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:e2e": "playwright test",
+    "test:e2e:live": "E2E_STRIPE_LIVE=1 playwright test --project=live",
     "visual-check": "bun scripts/visual-check.ts",
     "setup:worktree": "bash scripts/setup-worktree.sh",
     "teardown:worktree": "bun scripts/worktree-db.ts teardown",

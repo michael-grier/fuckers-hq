@@ -1,0 +1,5 @@
+// Playwright specs must wait on conditions, not on the clock: a duration that passes locally
+// is a flake in CI. Use expect(...).toBeVisible/toHaveURL, or expect(async () => ...).toPass.
+`$page.waitForTimeout($duration)` where {
+  register_diagnostic(span=$page, message="waitForTimeout is a flake generator. Wait on a condition (expect().toBeVisible / toHaveURL / toPass) instead.")
+}

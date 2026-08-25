@@ -104,6 +104,11 @@ delete `.visual-check/`.
 Clerk-protected routes capture as the sign-in redirect — judge those through an authenticated
 interactive browser session instead.
 
+For flows the browser suite covers — storefront, cart, checkout, webhooks, orders, admin — run
+the matching e2e tier as well: `bun run test:e2e` (see `.claude/skills/e2e-check/SKILL.md` for
+tier selection and how to read failures). The opt-in live tier (`bun run test:e2e:live`) talks
+to external services and runs only on explicit request.
+
 Add focused regression coverage for behavior changes and failure modes — a test that would have
 caught the bug, not a suite of smoke tests around it. Do not apply migrations or use external
 production services as part of automated verification.

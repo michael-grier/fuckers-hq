@@ -6,6 +6,7 @@ import {
   getSessionTokens,
   postWebhook,
   readCartVariantId,
+  resilientPost,
   startCheckoutFromCart,
 } from "../helpers/stripe";
 
@@ -87,7 +88,7 @@ test.describe("checkout boundary @commerce", () => {
   test("the checkout schema rejects client-supplied prices outright", async ({ page }) => {
     await addToCartFromPdp(page, "e2e-budget-bearings");
     const variantId = await readCartVariantId(page);
-    const response = await page.request.post("/api/checkout", {
+    const response = await resilientPost(page.request, "/api/checkout", {
       data: {
         requestId: crypto.randomUUID(),
         items: [{ variantId, quantity: 1, priceCents: 1 }],
@@ -100,8 +101,8 @@ test.describe("checkout boundary @commerce", () => {
     await addToCartFromPdp(page, "e2e-budget-bearings");
     const variantId = await readCartVariantId(page);
     const body = { requestId: crypto.randomUUID(), items: [{ variantId, quantity: 1 }] };
-    const first = await page.request.post("/api/checkout", { data: body });
-    const second = await page.request.post("/api/checkout", { data: body });
+    const first = await resilientPost(page.request, "/api/checkout", { data: body });
+    const second = await resilientPost(page.request, "/api/checkout", { data: body });
     expect(first.status()).toBe(200);
     expect(second.status()).toBe(200);
     const url = (await first.json()).url as string;
@@ -291,7 +292,7 @@ test.describe("fulfillment @commerce", () => {
 
     await addToCartFromPdp(page, "e2e-budget-bearings");
     const variantId = await readCartVariantId(page);
-    const response = await page.request.post("/api/checkout", {
+    const response = await resilientPost(page.request, "/api/checkout", {
       data: {
         requestId: crypto.randomUUID(),
         items: [{ variantId, quantity: 1 }],

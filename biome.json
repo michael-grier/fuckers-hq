@@ -13,6 +13,16 @@
       "!e2e/.clerk"
     ]
   },
+  "plugins": [
+    {
+      "path": "./e2e/lint/no-wait-for-timeout.grit",
+      "includes": ["**/e2e/**"]
+    },
+    {
+      "path": "./e2e/lint/no-absolute-goto.grit",
+      "includes": ["**/e2e/**/*.spec.ts"]
+    }
+  ],
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
