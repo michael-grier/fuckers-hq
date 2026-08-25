@@ -9,7 +9,8 @@
       "!.claude/settings.local.json",
       "!public",
       "!.e2e-artifacts",
-      "!.visual-check"
+      "!.visual-check",
+      "!e2e/.clerk"
     ]
   },
   "formatter": {

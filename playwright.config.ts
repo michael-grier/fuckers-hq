@@ -21,7 +21,22 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    // Signs in the dedicated e2e admin via @clerk/testing and caches the session, so only this
+    // one project ever talks to Clerk's sign-in machinery.
+    { name: "clerk-setup", testMatch: /setup\/clerk\.setup\.ts/ },
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+      testIgnore: ["**/admin/**", "**/setup/**"],
+    },
+    {
+      name: "admin",
+      testMatch: "**/admin/**",
+      dependencies: ["clerk-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.clerk/admin.json" },
+    },
+  ],
   webServer: {
     command: "bun run dev",
     url: baseURL,

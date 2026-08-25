@@ -30,3 +30,6 @@ coverage
 
 # e2e traces, screenshots, and reports
 .e2e-artifacts
+
+# e2e cached Clerk admin session
+e2e/.clerk
