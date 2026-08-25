@@ -28,6 +28,7 @@ type ShippingRateEditorProps = {
   rates: ReadonlyArray<ShippingRateEditorRow>;
 };
 
+/** Converts nullable persisted cents into the complete dollar-string form shape. */
 function toDefaultValues(rates: ReadonlyArray<ShippingRateEditorRow>): AdminShippingRatesFormInput {
   const values: AdminShippingRatesFormInput = { deck: "", softgood: "", flat: "" };
 
@@ -48,6 +49,7 @@ export function ShippingRateEditor({ rates }: ShippingRateEditorProps) {
     resolver: zodResolver(adminShippingRatesFormSchema),
   });
 
+  /** Maps server-side validation errors back onto their matching rate inputs. */
   function showActionFailure(result: ActionFailure) {
     for (const [path, messages] of Object.entries(result.fieldErrors ?? {})) {
       const message = messages?.[0];
@@ -63,6 +65,7 @@ export function ShippingRateEditor({ rates }: ShippingRateEditorProps) {
     setActionError(result.message);
   }
 
+  /** Saves the complete rate set and refreshes usage counts after the transaction commits. */
   async function onSubmit(values: AdminShippingRatesFormInput) {
     setActionError(null);
     setSuccessMessage(null);

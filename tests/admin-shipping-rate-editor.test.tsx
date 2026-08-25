@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import type { ActionResult } from "@/lib/actions/result";
+
 mock.module("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {}, push: () => {}, replace: () => {} }),
   notFound: () => {
@@ -14,11 +16,18 @@ mock.module("next/navigation", () => ({
 }));
 
 const savedPayloads: Array<Record<string, unknown>> = [];
+let actionResult: ActionResult = { success: true, data: undefined };
+let actionError: Error | null = null;
 
 mock.module("@/lib/actions/shipping-rates", () => ({
   updateShippingRates: async (input: Record<string, unknown>) => {
     savedPayloads.push(input);
-    return { success: true, data: undefined };
+
+    if (actionError) {
+      throw actionError;
+    }
+
+    return actionResult;
   },
 }));
 
@@ -50,6 +59,8 @@ const rates = [
 
 beforeEach(() => {
   savedPayloads.length = 0;
+  actionResult = { success: true, data: undefined };
+  actionError = null;
 });
 
 afterEach(cleanup);
@@ -96,5 +107,40 @@ describe("admin shipping rate editor", () => {
       ).toBeDefined();
     });
     expect(savedPayloads).toHaveLength(0);
+  });
+
+  test("shows field feedback returned by the server action", async () => {
+    actionResult = {
+      success: false,
+      message: "Please correct the highlighted fields.",
+      fieldErrors: { deck: ["That deck rate is not available."] },
+    };
+    render(<ShippingRateEditor rates={rates} />);
+
+    const deckRate = screen.getByLabelText("Deck rate in Canadian dollars");
+    fireEvent.change(deckRate, { target: { value: "24.50" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toBe("Please correct the highlighted fields.");
+    });
+    expect(screen.getByText("That deck rate is not available.")).toBeDefined();
+    expect(deckRate.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  test("shows a retryable error when the server action throws", async () => {
+    actionError = new Error("Database unavailable");
+    render(<ShippingRateEditor rates={rates} />);
+
+    fireEvent.change(screen.getByLabelText("Deck rate in Canadian dollars"), {
+      target: { value: "24.50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toBe(
+        "The shipping rates could not be saved. Try again shortly.",
+      );
+    });
   });
 });
