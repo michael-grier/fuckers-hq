@@ -2,7 +2,15 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 mock.module("next/navigation", () => ({
-  useRouter: () => ({ refresh: () => {} }),
+  useRouter: () => ({ refresh: () => {}, push: () => {}, replace: () => {} }),
+  notFound: () => {
+    throw new Error("notFound");
+  },
+  redirect: () => {
+    throw new Error("redirect");
+  },
+  usePathname: () => "/admin/orders",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const submittedShipments: Array<Record<string, unknown>> = [];

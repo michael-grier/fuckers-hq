@@ -100,6 +100,13 @@ describe("order fulfillment transitions", () => {
         trackingNumber: "CX473124829CA",
       }),
     ).toMatchObject({ trackingNumber: "CX473124829CA" });
+    expect(
+      markOrderShippedSchema.parse({
+        orderId,
+        trackingCarrier: "canada_post",
+        trackingNumber: "1234-5678-9123-4567",
+      }),
+    ).toMatchObject({ trackingNumber: "1234-5678-9123-4567" });
 
     for (const trackingNumber of ["1234 5678", "CX47312482CA", "CX473124828CA"]) {
       const result = markOrderShippedSchema.safeParse({
