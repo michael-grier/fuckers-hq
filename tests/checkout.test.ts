@@ -16,7 +16,11 @@ import {
   createPendingCheckoutLineSnapshots,
   resolveCheckoutLines,
 } from "@/lib/checkout/items";
-import { buildShippingOptions, parseAllowedShippingCountries } from "@/lib/checkout/shipping";
+import {
+  buildShippingOptions,
+  parseAllowedShippingCountries,
+  resolveShippingRate,
+} from "@/lib/checkout/shipping";
 import { checkoutSchema } from "@/lib/validators/cart";
 
 const variantId = "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6";
@@ -25,6 +29,8 @@ const activeVariant: CheckoutVariantRecord = {
   id: variantId,
   productName: "Database Deck",
   productStatus: "active",
+  shippingProfile: "deck",
+  shippingRateCents: 2200,
   variantName: '8.25"',
   priceCents: 8900,
   inventoryQty: 3,
@@ -38,12 +44,13 @@ const reservationLineItems = [
     unitPriceCents: 8900,
     quantity: 2,
     currency: "cad",
+    shippingProfile: "deck" as const,
+    shippingRateCents: 2200,
   },
 ];
 const settings = {
   appUrl: "http://localhost:3000",
   allowedCountries: ["CA", "US"] as const,
-  standardShippingRateCents: 1500,
   freeShippingThresholdCents: 10000,
   taxEnabled: true,
   deliveryArea: null,
@@ -162,16 +169,38 @@ describe("checkout item resolution", () => {
 });
 
 describe("checkout shipping", () => {
+  const deck = { shippingProfile: "deck" as const, shippingRateCents: 2200 };
+  const softgood = { shippingProfile: "softgood" as const, shippingRateCents: 1200 };
+  const sticker = { shippingProfile: "flat" as const, shippingRateCents: 300 };
+
+  test.each([
+    ["deck-only cart", [deck], 2200],
+    ["softgood-only cart", [softgood], 1200],
+    ["sticker-only cart", [sticker], 300],
+    ["mixed deck and softgood cart", [deck, softgood], 2200],
+    ["mixed sticker and deck cart", [sticker, deck], 2200],
+    ["mixed sticker and softgood cart", [sticker, softgood], 1200],
+    ["empty cart", [], 0],
+  ] as const)("resolves the %s", (_name, cartItems, expectedRateCents) => {
+    expect(resolveShippingRate(cartItems)).toBe(expectedRateCents);
+  });
+
+  test("refuses a cart whose immutable rate snapshot is missing", () => {
+    expect(() => resolveShippingRate([{ shippingProfile: "deck" }])).toThrow(
+      "Shipping is not configured",
+    );
+  });
+
   test("selects standard and free rates around the configured threshold", () => {
     expect(
       buildShippingOptions(9999, {
-        standardRateCents: 1500,
+        rateCents: 1500,
         freeThresholdCents: 10000,
       })[0].shipping_rate_data?.fixed_amount?.amount,
     ).toBe(1500);
     expect(
       buildShippingOptions(10000, {
-        standardRateCents: 1500,
+        rateCents: 1500,
         freeThresholdCents: 10000,
       })[0].shipping_rate_data?.fixed_amount?.amount,
     ).toBe(0);
@@ -181,7 +210,7 @@ describe("checkout shipping", () => {
     // Guards the flat-rate store: an absent threshold must not read as 0, which would make every
     // order — including a $0 subtotal — ship free.
     for (const subtotalCents of [0, 9999, 1_000_000]) {
-      const [option] = buildShippingOptions(subtotalCents, { standardRateCents: 2000 });
+      const [option] = buildShippingOptions(subtotalCents, { rateCents: 2000 });
 
       expect(option.shipping_rate_data?.fixed_amount?.amount).toBe(2000);
       expect(option.shipping_rate_data?.display_name).toBe("Standard shipping");
@@ -434,11 +463,12 @@ describe("local delivery checkout", () => {
   test("keeps shipping collection and rates for a shipping order", () => {
     const params = buildStripeSessionParams(
       { ...deliveryReservation, fulfillmentMethod: "shipping" },
-      deliverySettings,
+      { ...deliverySettings, freeShippingThresholdCents: 20000 },
     );
 
     expect(params.shipping_address_collection?.allowed_countries).toEqual(["CA", "US"]);
     expect(params.shipping_options).toHaveLength(1);
+    expect(params.shipping_options?.[0]?.shipping_rate_data?.fixed_amount?.amount).toBe(2200);
     expect(params.metadata?.fulfillmentMethod).toBe("shipping");
   });
 

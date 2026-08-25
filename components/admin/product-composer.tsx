@@ -25,6 +25,7 @@ import {
   isProductCategory,
   productCategories,
 } from "@/lib/catalog/categories";
+import { shippingProfiles } from "@/lib/catalog/shipping-profiles";
 import {
   allowedProductImageTypes,
   MAX_PRODUCT_IMAGE_BYTES,
@@ -78,6 +79,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
       description: "",
       category: "",
       subcategory: "",
+      shippingProfile: "",
       variants: [emptyVariantRow],
     },
     resolver: zodResolver(adminProductComposerFormSchema),
@@ -89,6 +91,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
   const watchedSlug = form.watch("slug");
   const watchedCategory = form.watch("category");
   const watchedSubcategory = form.watch("subcategory");
+  const watchedShippingProfile = form.watch("shippingProfile");
   const watchedVariants = form.watch("variants");
   const subcategoryOptions = isProductCategory(watchedCategory)
     ? getProductSubcategoryOptions(watchedCategory)
@@ -268,6 +271,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
     slug: watchedSlug,
     category: watchedCategory,
     subcategory: watchedSubcategory,
+    shippingProfile: watchedShippingProfile,
     variants: watchedVariants ?? [],
     imageCount: stagedImages.length,
   });
@@ -381,6 +385,34 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                   {!errors.subcategory ? (
                     <p className="mt-1 text-muted-foreground text-xs" id="subcategory-help">
                       Changing the category clears the subcategory so the pair always matches.
+                    </p>
+                  ) : null}
+                </FormField>
+
+                <FormField
+                  error={errors.shippingProfile?.message}
+                  id="shippingProfile"
+                  label="Shipping profile"
+                >
+                  <select
+                    aria-describedby={
+                      errors.shippingProfile ? "shippingProfile-error" : "shippingProfile-help"
+                    }
+                    aria-invalid={Boolean(errors.shippingProfile)}
+                    className={adminSelectClassName}
+                    id="shippingProfile"
+                    {...form.register("shippingProfile")}
+                  >
+                    <option value="">Select a shipping profile</option>
+                    {shippingProfiles.map((profile) => (
+                      <option key={profile.value} value={profile.value}>
+                        {profile.label}
+                      </option>
+                    ))}
+                  </select>
+                  {!errors.shippingProfile ? (
+                    <p className="mt-1 text-muted-foreground text-xs" id="shippingProfile-help">
+                      Checkout uses the most expensive profile in the cart.
                     </p>
                   ) : null}
                 </FormField>
@@ -781,6 +813,7 @@ function buildChecklist({
   slug,
   category,
   subcategory,
+  shippingProfile,
   variants,
   imageCount,
 }: {
@@ -788,6 +821,7 @@ function buildChecklist({
   slug: string;
   category: string;
   subcategory: string;
+  shippingProfile: string;
   variants: ReadonlyArray<{ name: string; sku: string; price: string; inventory: string }>;
   imageCount: number;
 }) {
@@ -797,8 +831,10 @@ function buildChecklist({
 
   return [
     { label: "Name and slug", done: Boolean(name.trim() && slug.trim()) },
-    // Both halves, because a category without its subcategory still cannot be saved.
-    { label: "Category and subcategory chosen", done: category !== "" && subcategory !== "" },
+    {
+      label: "Category, subcategory, and shipping profile chosen",
+      done: category !== "" && subcategory !== "" && shippingProfile !== "",
+    },
     {
       label:
         completeVariants === 1

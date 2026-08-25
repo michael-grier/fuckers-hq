@@ -101,7 +101,7 @@ webhook signing secret in production.
 **Decisions required:**
 
 - Which countries they ship to. `SHIPPING_ALLOWED_COUNTRIES` defaults to `CA`, matching the shipping policy page. Widening it means updating that page in the same change.
-- Flat shipping rate in cents (`SHIPPING_STANDARD_RATE_CENTS`).
+- Profile-specific shipping rates in the database (`shipping_rates`).
 - Free-shipping threshold, if any, in cents (`SHIPPING_FREE_THRESHOLD_CENTS`).
 - Who physically packs and ships orders.
 - Processing time before dispatch, and realistic delivery estimates per region. These feed the

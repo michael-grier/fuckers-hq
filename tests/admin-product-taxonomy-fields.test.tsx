@@ -42,6 +42,7 @@ function renderWorkspace() {
         description: "",
         category: "hardgoods",
         subcategory: "decks",
+        shippingProfile: "deck",
         status: "active",
         variants: [],
       }}
@@ -55,6 +56,7 @@ function renderWorkspace() {
   return {
     category: screen.getByLabelText("Category") as HTMLSelectElement,
     subcategory: screen.getByLabelText("Subcategory") as HTMLSelectElement,
+    shippingProfile: screen.getByLabelText("Shipping profile") as HTMLSelectElement,
     save: () => fireEvent.click(screen.getByRole("button", { name: /save changes/i })),
   };
 }
@@ -65,6 +67,12 @@ function optionValues(select: HTMLSelectElement): string[] {
 }
 
 describe("admin product taxonomy fields", () => {
+  test("offers every checkout shipping profile", () => {
+    const { shippingProfile } = renderWorkspace();
+
+    expect(optionValues(shippingProfile)).toEqual(["deck", "softgood", "flat"]);
+  });
+
   test("offers only the selected category's subcategories", () => {
     const { category, subcategory } = renderWorkspace();
 
@@ -118,6 +126,9 @@ describe("admin product taxonomy fields", () => {
     });
 
     expect(savedPayloads[0]).toMatchObject({ category: "softgoods", subcategory: "hoodies" });
+    expect(
+      (screen.getByRole("button", { name: "Archive product" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
   });
 
   test("disables the subcategory select until a category is chosen", () => {

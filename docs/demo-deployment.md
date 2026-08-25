@@ -44,8 +44,8 @@ runbook and the GitHub Actions secrets the workflow requires.
 - Keep `STRIPE_TAX_ENABLED=false` unless Stripe Tax is configured and deliberately part of the
   demo.
 - Choose nonnegative integer-cent shipping values and confirm the allowed countries. Example demo
-  values are `SHIPPING_ALLOWED_COUNTRIES=CA,US`, `SHIPPING_STANDARD_RATE_CENTS=1500`, and
-  `SHIPPING_FREE_THRESHOLD_CENTS=10000`.
+  values are `SHIPPING_ALLOWED_COUNTRIES=CA,US` and `SHIPPING_FREE_THRESHOLD_CENTS=10000`.
+  Migration 0013 seeds the profile-specific rates in the demo database.
 - The deployed webhook is configured after the stable Vercel production URL exists.
 - Local delivery is offered only when `DELIVERY_ENABLED=true` and `DELIVERY_AREA_NAME` is set.
   Delivery sessions collect a Canada-only delivery address and carry no shipping rate, so Stripe
@@ -156,7 +156,6 @@ source maps are enabled.
 | `SENTRY_AUTH_TOKEN` | Sentry source-map upload token | Yes |
 | `NEXT_PUBLIC_APP_URL` | Stable production origin, no trailing slash | No |
 | `SHIPPING_ALLOWED_COUNTRIES` | Comma-separated ISO alpha-2 codes, e.g. `CA,US` | No |
-| `SHIPPING_STANDARD_RATE_CENTS` | Nonnegative integer cents | No |
 | `SHIPPING_FREE_THRESHOLD_CENTS` | Nonnegative integer cents | No |
 | `DELIVERY_ENABLED` | `true` to offer local delivery at checkout; defaults to `false` | No |
 | `DELIVERY_AREA_NAME` | Service area shown at checkout, e.g. `Rocky View County, Alberta` | No |

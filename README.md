@@ -64,9 +64,10 @@ Full detail lives in the [architecture document](docs/architecture.md) and the o
    bun run dev
    ```
 
-   Creating a hosted Checkout Session also requires a Stripe test secret plus the shipping rate,
-   free-shipping threshold, allowed countries, and app URL values documented in `.env.example`.
-   Keep `STRIPE_TAX_ENABLED=false` until Stripe Tax is configured, then enable it for production.
+   Creating a hosted Checkout Session also requires a Stripe test secret plus the free-shipping
+   threshold, allowed countries, and app URL values documented in `.env.example`. Migration 0013
+   seeds the profile-specific shipping rates in Postgres. Keep `STRIPE_TAX_ENABLED=false` until
+   Stripe Tax is configured, then enable it for production.
 
 5. Run checks:
 
@@ -167,6 +168,11 @@ recreating the three check constraints that referenced the old status text. Enum
 rewrite stored rows in place, so any staged pickup orders become scheduled deliveries. To roll
 back, deploy the previous application first, then reverse the renames with a reviewed follow-up
 migration.
+
+Migration `0013_shipping-profiles.sql` assigns every product a shipping profile and seeds the
+runtime-editable `shipping_rates` table. Review the
+[backfill, deployment, and rollback notes](docs/migrations/0013-shipping-profiles.md) before applying
+it.
 
 ## Stripe Webhooks
 

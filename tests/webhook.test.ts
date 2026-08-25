@@ -511,6 +511,8 @@ describe("paid order snapshots and inventory", () => {
       id: variantId,
       productName: "Database Deck",
       productStatus: "active" as const,
+      shippingProfile: "deck" as const,
+      shippingRateCents: 2200,
       variantName: '8.25"',
       priceCents: 8900,
       inventoryQty: 3,

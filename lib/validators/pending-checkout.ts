@@ -2,6 +2,7 @@ import { createInsertSchema, createSelectSchema, createUpdateSchema } from "driz
 import { z } from "zod";
 
 import { MAX_CART_LINE_QUANTITY, MAX_CART_LINES } from "@/lib/cart/constants";
+import { shippingProfileValues } from "@/lib/catalog/shipping-profiles";
 import { pendingCheckouts } from "@/lib/db/schema";
 import { cartSchema, pendingCheckoutTokenSchema } from "@/lib/validators/cart";
 
@@ -16,8 +17,16 @@ export const pendingCheckoutLineSnapshotSchema = z
       .string()
       .length(3)
       .regex(/^[a-z]{3}$/),
+    // Optional so a verified payment for a Checkout Session created before migration 0013 can
+    // still become an order. New reservations always write these immutable shipping fields.
+    shippingProfile: z.enum(shippingProfileValues).optional(),
+    shippingRateCents: z.number().int().nonnegative().optional(),
   })
-  .strict();
+  .strict()
+  .refine(
+    (line) => (line.shippingProfile === undefined) === (line.shippingRateCents === undefined),
+    "Shipping profile and rate snapshots must be stored together.",
+  );
 
 export const pendingCheckoutLineSnapshotsSchema = z
   .array(pendingCheckoutLineSnapshotSchema)

@@ -22,6 +22,7 @@ import {
   pendingCheckouts,
   products,
   productVariants,
+  shippingRates,
 } from "@/lib/db/schema";
 import { parsePendingCheckoutLineSnapshots } from "@/lib/orders/create-paid-order";
 import { type CartLine, cartSchema } from "@/lib/validators/cart";
@@ -77,12 +78,17 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
         const combinedItems = combineCartLines(checkout.items).sort((left, right) =>
           left.variantId.localeCompare(right.variantId),
         );
+        const configuredRates = await tx.select().from(shippingRates);
+        const rateByProfile = new Map(
+          configuredRates.map((rate) => [rate.profile, rate.rateCents]),
+        );
         const variantIds = combinedItems.map((item) => item.variantId);
         const variants = await tx
           .select({
             id: productVariants.id,
             productName: products.name,
             productStatus: products.status,
+            shippingProfile: products.shippingProfile,
             variantName: productVariants.name,
             priceCents: productVariants.priceCents,
             inventoryQty: productVariants.inventoryQty,
@@ -93,7 +99,16 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
           .where(inArray(productVariants.id, variantIds))
           .orderBy(asc(productVariants.id))
           .for("update");
-        const resolvedLines = resolveCheckoutLines(combinedItems, variants);
+        const variantsWithRates = variants.map((variant) => {
+          const shippingRateCents = rateByProfile.get(variant.shippingProfile);
+
+          if (shippingRateCents === undefined) {
+            throw new CheckoutError("Shipping rates are not fully configured.", 500);
+          }
+
+          return { ...variant, shippingRateCents };
+        });
+        const resolvedLines = resolveCheckoutLines(combinedItems, variantsWithRates);
         const lineItems = createPendingCheckoutLineSnapshots(resolvedLines);
         const [pendingCheckout] = await tx
           .insert(pendingCheckouts)

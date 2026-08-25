@@ -28,7 +28,6 @@ export async function POST(request: Request): Promise<Response> {
         {
           appUrl: requireEnv("NEXT_PUBLIC_APP_URL"),
           allowedCountries: parseAllowedShippingCountries(env.SHIPPING_ALLOWED_COUNTRIES),
-          standardShippingRateCents: requireEnv("SHIPPING_STANDARD_RATE_CENTS"),
           // Optional: unset means flat-rate shipping with no free-shipping tier.
           freeShippingThresholdCents: env.SHIPPING_FREE_THRESHOLD_CENTS,
           taxEnabled: env.STRIPE_TAX_ENABLED,

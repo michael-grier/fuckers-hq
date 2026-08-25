@@ -10,6 +10,7 @@ const seedProducts = [
     description: "A balanced popsicle deck for street sessions and everyday park skating.",
     category: "hardgoods",
     subcategory: "decks",
+    shippingProfile: "deck" as const,
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/f4f4f5/18181b/png?text=Street+Deck",
@@ -26,6 +27,7 @@ const seedProducts = [
     description: "A midweight coach jacket with snap closure and a relaxed skate fit.",
     category: "softgoods",
     subcategory: "jackets",
+    shippingProfile: "softgood" as const,
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/e7e5e4/18181b/png?text=Coach+Jacket",
@@ -43,6 +45,7 @@ const seedProducts = [
     description: "Fast, durable bearings for clean roll speed and easy maintenance.",
     category: "hardgoods",
     subcategory: "bearings",
+    shippingProfile: "softgood" as const,
     status: "active" as const,
     image: {
       url: "https://placehold.co/1200x1200/fafafa/18181b/png?text=Bearings",
@@ -66,6 +69,7 @@ try {
         description: product.description,
         category: product.category,
         subcategory: product.subcategory,
+        shippingProfile: product.shippingProfile,
         status: product.status,
         updatedAt: new Date(),
       })
@@ -76,6 +80,7 @@ try {
           description: product.description,
           category: product.category,
           subcategory: product.subcategory,
+          shippingProfile: product.shippingProfile,
           status: product.status,
           updatedAt: new Date(),
         },

@@ -68,6 +68,7 @@ export default async function AdminProductPage({ params }: AdminProductPageProps
           description: product.description ?? "",
           category: product.category,
           subcategory: product.subcategory,
+          shippingProfile: product.shippingProfile,
           status: product.status,
           variants: product.variants.map((variant) => ({
             variantId: variant.id,
