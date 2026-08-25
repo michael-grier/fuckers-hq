@@ -27,9 +27,10 @@ setup("sign in the e2e admin and save session state", async ({ page }) => {
   await clerk.signIn({ page, emailAddress: email });
 
   // Reaching the dashboard proves both authentication and the ADMIN_USER_IDS allowlist entry;
-  // requireAdmin 404s any signed-in user that is not allowlisted.
+  // requireAdmin 404s any signed-in user that is not allowlisted, and the 404 page has its own
+  // h1, so the assertion must name the admin-only Dashboard heading.
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dashboard", level: 1 })).toBeVisible();
 
   await page.context().storageState({ path: ADMIN_STORAGE_STATE });
 });
