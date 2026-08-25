@@ -28,12 +28,21 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: ["**/admin/**", "**/setup/**"],
+      testIgnore: ["**/admin/**", "**/commerce/**", "**/setup/**"],
     },
     {
       name: "admin",
       testMatch: "**/admin/**",
       dependencies: ["clerk-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.clerk/admin.json" },
+    },
+    {
+      // Not fully parallel: these specs assert shared inventory state through the admin UI,
+      // so interleaved reservations would make the numbers ambiguous.
+      name: "commerce",
+      testMatch: "**/commerce/**",
+      dependencies: ["clerk-setup"],
+      fullyParallel: false,
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.clerk/admin.json" },
     },
   ],
