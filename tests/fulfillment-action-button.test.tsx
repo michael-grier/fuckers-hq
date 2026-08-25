@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import type { PeekableOrder } from "@/components/admin/order-peek";
+
 mock.module("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {}, push: () => {}, replace: () => {} }),
   notFound: () => {
@@ -21,10 +23,13 @@ mock.module("@/lib/actions/orders", () => ({
     return { success: true, data: undefined } as const;
   },
   markOrderDelivered: async () => ({ success: true, data: undefined }) as const,
+  retryOrderEmail: async () => ({ success: true, data: undefined }) as const,
+  retryOrderInventoryAllocation: async () => ({ success: true, data: undefined }) as const,
   scheduleOrderDelivery: async () => ({ success: true, data: undefined }) as const,
 }));
 
 const { FulfillmentActionButton } = await import("@/components/admin/fulfillment-action-button");
+const { OrderPeek } = await import("@/components/admin/order-peek");
 
 beforeEach(() => {
   submittedShipments.length = 0;
@@ -86,5 +91,59 @@ describe("shipment tracking form", () => {
         },
       ]);
     });
+  });
+});
+
+describe("order preview shipment layout", () => {
+  test("keeps the open shipment form on its own row above the full-order link", () => {
+    const order = {
+      id: "823071ff-f180-43ed-82df-af334ccfe35a",
+      orderNumber: "FHQ-TEST-ORDER",
+      email: "rider@example.com",
+      status: "paid",
+      inventoryStatus: "allocated",
+      fulfillmentMethod: "shipping",
+      deliveryScheduledAt: null,
+      shippedAt: null,
+      trackingCarrier: null,
+      trackingNumber: null,
+      stripeSessionId: "cs_test_order",
+      stripePaymentIntentId: "pi_test_order",
+      refundStatus: "none",
+      refundedCents: 0,
+      disputeStatus: "none",
+      subtotalCents: 4900,
+      taxCents: 0,
+      shippingCents: 0,
+      totalCents: 4900,
+      currency: "cad",
+      shippingAddress: null,
+      createdAt: new Date("2026-08-25T12:00:00.000Z"),
+      items: [
+        {
+          id: "16bb8932-22f8-43cf-9dfe-482677f3f952",
+          orderId: "823071ff-f180-43ed-82df-af334ccfe35a",
+          variantId: null,
+          productNameSnapshot: "Test deck",
+          variantNameSnapshot: "8.25",
+          unitPriceCentsSnapshot: 4900,
+          quantity: 1,
+        },
+      ],
+      confirmationDelivery: null,
+      deliveryScheduledDelivery: null,
+      shippedDelivery: null,
+    } satisfies PeekableOrder;
+
+    render(<OrderPeek order={order} />);
+    fireEvent.click(screen.getByRole("button", { name: "Mark as shipped" }));
+
+    const formParent = screen.getByLabelText("Carrier").closest("form")?.parentElement;
+
+    expect(formParent?.classList.contains("[&>form]:w-full")).toBe(true);
+    expect(formParent?.classList.contains("[&>form]:shrink-0")).toBe(true);
+    expect(formParent?.querySelector('a[href*="/admin/orders/"]')?.textContent).toContain(
+      "Open full order",
+    );
   });
 });
