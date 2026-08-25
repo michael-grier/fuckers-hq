@@ -54,19 +54,34 @@ test.describe("checkout boundary @commerce", () => {
     await page.getByRole("button", { name: /^Cart/ }).click();
 
     const sessionId = await startCheckoutFromCart(page);
-    // The session was priced from the database snapshot, not the tampered cart.
-    const { default: Stripe } = await import("stripe");
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "");
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    expect(session.amount_subtotal).toBe(8_900);
+    const tokens = await getSessionTokens(sessionId);
+    try {
+      // The session was priced from the database snapshot, not the tampered cart.
+      const { default: Stripe } = await import("stripe");
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "");
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      expect(session.amount_subtotal).toBe(8_900);
 
-    // Starting checkout reserved the unit without touching on-hand stock.
-    await openWorkspace(page, "Street Deck 8.25");
-    const deck = await variantRow(page, "DECK-STREET-825");
-    // Reservations from earlier runs may still be inside their TTL, so assert presence, not
-    // count; the invariant is that on-hand stock never moves at reservation time.
-    await expect(deck.row.getByText(/reserved/)).toBeVisible();
-    await expect(deck.onHand).toHaveValue("12");
+      // Starting checkout reserved the unit without touching on-hand stock.
+      await openWorkspace(page, "Street Deck 8.25");
+      const deck = await variantRow(page, "DECK-STREET-825");
+      // A crashed earlier run can leave a hold inside its TTL, so assert presence, not count;
+      // the invariant is that on-hand stock never moves at reservation time.
+      await expect(deck.row.getByText(/reserved/)).toBeVisible();
+      await expect(deck.onHand).toHaveValue("12");
+    } finally {
+      // Release the hold so repeated runs cannot bleed the seeded stock dry: nothing else
+      // expires reservations locally (no Stripe forwarding, no reconciliation cron).
+      await postWebhook(
+        page.request,
+        buildSignedCheckoutEvent("checkout.session.expired", {
+          sessionId,
+          tokens,
+          subtotalCents: 8_900,
+          email: `e2e-tamper-${runId}@example.com`,
+        }),
+      );
+    }
   });
 
   test("the checkout schema rejects client-supplied prices outright", async ({ page }) => {
@@ -89,7 +104,22 @@ test.describe("checkout boundary @commerce", () => {
     const second = await page.request.post("/api/checkout", { data: body });
     expect(first.status()).toBe(200);
     expect(second.status()).toBe(200);
-    expect((await second.json()).url).toBe((await first.json()).url);
+    const url = (await first.json()).url as string;
+    expect((await second.json()).url).toBe(url);
+
+    // Release the converged reservation (see the tampering spec for why cleanup matters).
+    const sessionId = url.match(/cs_test_[A-Za-z0-9]+/)?.[0];
+    if (!sessionId) throw new Error(`checkout URL had no session id: ${url}`);
+    const tokens = await getSessionTokens(sessionId);
+    await postWebhook(
+      page.request,
+      buildSignedCheckoutEvent("checkout.session.expired", {
+        sessionId,
+        tokens,
+        subtotalCents: 500,
+        email: `e2e-requestid-${runId}@example.com`,
+      }),
+    );
   });
 });
 
