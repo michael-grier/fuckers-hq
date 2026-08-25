@@ -3,8 +3,9 @@ import "server-only";
 import { and, asc, count, eq, inArray, ne } from "drizzle-orm";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { shippingProfiles } from "@/lib/catalog/shipping-profiles";
 import { getDb } from "@/lib/db/client";
-import { orders, products } from "@/lib/db/schema";
+import { orders, products, shippingRates } from "@/lib/db/schema";
 import { adminEntityIdSchema } from "@/lib/validators/admin";
 
 export async function getAdminDashboardSummary() {
@@ -171,6 +172,28 @@ export async function getAdminProducts() {
 }
 
 export type AdminProduct = Awaited<ReturnType<typeof getAdminProducts>>[number];
+
+/** Returns every canonical profile, even if its seeded rate row needs to be repaired. */
+export async function getAdminShippingRates() {
+  await requireAdmin();
+
+  const db = getDb();
+  const [rateRows, productCountRows] = await Promise.all([
+    db.select().from(shippingRates),
+    db
+      .select({ profile: products.shippingProfile, count: count() })
+      .from(products)
+      .groupBy(products.shippingProfile),
+  ]);
+  const ratesByProfile = new Map(rateRows.map((rate) => [rate.profile, rate.rateCents]));
+  const productCountsByProfile = new Map(productCountRows.map((row) => [row.profile, row.count]));
+
+  return shippingProfiles.map((profile) => ({
+    ...profile,
+    rateCents: ratesByProfile.get(profile.value) ?? null,
+    productCount: productCountsByProfile.get(profile.value) ?? 0,
+  }));
+}
 
 export async function getAdminProductById(input: unknown) {
   await requireAdmin();
