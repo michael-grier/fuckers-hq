@@ -144,9 +144,9 @@ describe("admin product form contract", () => {
       status: "draft",
     };
 
-    expect(adminProductFormSchema.safeParse({ ...base, shippingProfile: "deck" }).success).toBe(
-      true,
-    );
+    for (const shippingProfile of ["deck", "softgood", "flat"]) {
+      expect(adminProductFormSchema.safeParse({ ...base, shippingProfile }).success).toBe(true);
+    }
     expect(adminProductFormSchema.safeParse({ ...base, shippingProfile: "letter" }).success).toBe(
       false,
     );

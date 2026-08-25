@@ -178,6 +178,7 @@ describe("checkout shipping", () => {
     ["softgood-only cart", [softgood], 1200],
     ["sticker-only cart", [sticker], 300],
     ["mixed deck and softgood cart", [deck, softgood], 2200],
+    ["mixed sticker and deck cart", [sticker, deck], 2200],
     ["mixed sticker and softgood cart", [sticker, softgood], 1200],
     ["empty cart", [], 0],
   ] as const)("resolves the %s", (_name, cartItems, expectedRateCents) => {
