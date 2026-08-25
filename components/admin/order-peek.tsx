@@ -44,7 +44,8 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
     // region absorbs the slack; in the mobile sheet it flows normally.
     <div className="flex flex-col divide-y lg:h-full">
       <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Keep the open shipping form on its own row so validation text cannot shift the link. */}
+        <div className="flex flex-wrap items-center gap-2 [&>form]:w-full">
           <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
           <FulfillmentMethodBadge method={order.fulfillmentMethod} />
           <OrderInventoryStatusBadge status={order.inventoryStatus} />
