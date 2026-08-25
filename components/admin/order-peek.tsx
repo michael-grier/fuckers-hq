@@ -60,7 +60,8 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           </time>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Keep the open shipping form on its own row so validation text cannot shift the link. */}
+        <div className="flex flex-wrap items-center gap-2 [&>form]:w-full [&>form]:shrink-0">
           {order.inventoryStatus === "allocated" && canFulfill && nextTransition ? (
             <FulfillmentActionButton orderId={order.id} size="sm" transition={nextTransition} />
           ) : null}

@@ -145,6 +145,8 @@ Fulfillment for a shipping order:
 - [ ] Marking the order shipped changes its status to `fulfilled`, records the optional carrier
       and tracking number together (a half-filled pair is rejected), and delivers exactly one
       `shipped` email.
+- [ ] Canada Post tracking accepts a 16-digit domestic PIN or checksum-valid 13-character S10
+      number, rejects a typo beside the field, and never submits the invalid shipment.
 - [ ] Reloading confirms the fulfilled status and no longer offers the shipped action; automated
       tests cover an idempotent repeated action.
 

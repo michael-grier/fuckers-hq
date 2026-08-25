@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { orderEmailKindValues } from "@/lib/db/schema";
-import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
+import {
+  getShippingCarrierTrackingNumberError,
+  newShipmentCarrierValues,
+} from "@/lib/orders/shipping-carriers";
 
 export const adminEntityIdSchema = z.string().uuid();
 
@@ -33,7 +36,7 @@ const blankToUndefined = (value: unknown) => {
 export const markOrderShippedSchema = z
   .object({
     orderId: adminEntityIdSchema,
-    trackingCarrier: z.preprocess(blankToUndefined, z.enum(shippingCarrierValues).optional()),
+    trackingCarrier: z.preprocess(blankToUndefined, z.enum(newShipmentCarrierValues).optional()),
     trackingNumber: z.preprocess(
       blankToUndefined,
       z
@@ -52,7 +55,21 @@ export const markOrderShippedSchema = z
       message: "Choose a carrier and enter its tracking number, or leave both blank.",
       path: ["trackingNumber"],
     },
-  );
+  )
+  .superRefine((value, context) => {
+    if (!value.trackingCarrier || !value.trackingNumber) {
+      return;
+    }
+
+    const formatError = getShippingCarrierTrackingNumberError(
+      value.trackingCarrier,
+      value.trackingNumber,
+    );
+
+    if (formatError) {
+      context.addIssue({ code: "custom", message: formatError, path: ["trackingNumber"] });
+    }
+  });
 
 export const retryOrderEmailSchema = z
   .object({

@@ -110,12 +110,10 @@ webhook signing secret in production.
 ### Tracking emails are already built
 
 Admins record a carrier and tracking number when marking an order shipped, and the customer is
-emailed automatically. Supported carriers are fixed in `lib/orders/shipping-carriers.ts`: Canada
-Post, UPS, FedEx, Purolator, USPS, DHL, and `other`. Each maps to a public tracking URL, except
-`other`, which renders the number as plain text rather than a dead link.
-
-**Decision required:** which carrier the brand actually uses. Adding a carrier outside that list is
-a code change plus a Postgres enum migration, not configuration.
+emailed automatically. New shipments use Canada Post and reject tracking numbers that are not a
+16-digit domestic PIN or a checksum-valid 13-character S10 identifier. Historical carrier values
+remain readable on older orders. Adding another carrier requires a format validator and tracking
+URL; a new enum value also requires a Postgres migration.
 
 ### Local delivery is built but disabled
 
