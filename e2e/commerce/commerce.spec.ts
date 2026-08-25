@@ -264,9 +264,20 @@ test.describe("fulfillment @commerce", () => {
     await page.getByRole("link", { name: "Open full order" }).click();
 
     await page.getByRole("button", { name: "Mark as shipped" }).click();
-    // Carrier defaults to "No tracking number", which is a valid hand-off.
+    await page.getByLabel("Carrier").selectOption("canada_post");
+    await page.getByLabel("Tracking number").fill("CX473124828CA");
+    await page.getByRole("button", { name: "Ship and notify" }).click();
+    await expect(
+      page.getByText(
+        "Enter a 16-digit Canada Post tracking number or a 13-character number with 2 letters, 9 digits, and CA.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByLabel("Tracking number")).toHaveAttribute("aria-invalid", "true");
+
+    await page.getByLabel("Tracking number").fill("CX473124829CA");
     await page.getByRole("button", { name: "Ship and notify" }).click();
     await expect(page.getByText("Shipped", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("CX473124829CA")).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeHidden();
   });
 

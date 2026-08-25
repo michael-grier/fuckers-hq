@@ -66,9 +66,13 @@ describe("order fulfillment transitions", () => {
       markOrderShippedSchema.parse({
         orderId,
         trackingCarrier: "canada_post",
-        trackingNumber: "  1234  5678 ",
+        trackingNumber: "  1234  5678  9123  4567 ",
       }),
-    ).toEqual({ orderId, trackingCarrier: "canada_post", trackingNumber: "1234 5678" });
+    ).toEqual({
+      orderId,
+      trackingCarrier: "canada_post",
+      trackingNumber: "1234 5678 9123 4567",
+    });
 
     // Blank strings are how the admin form reports "no tracking"; they must not fail validation.
     expect(
@@ -80,8 +84,38 @@ describe("order fulfillment transitions", () => {
     ).toThrow();
     expect(() => markOrderShippedSchema.parse({ orderId, trackingNumber: "1Z999" })).toThrow();
     expect(() =>
-      markOrderShippedSchema.parse({ orderId, trackingCarrier: "pigeon", trackingNumber: "1Z999" }),
+      markOrderShippedSchema.parse({
+        orderId,
+        trackingCarrier: "ups",
+        trackingNumber: "1Z999AA10123456784",
+      }),
     ).toThrow();
+  });
+
+  test("accepts Canada Post formats and checks international S10 digits", () => {
+    expect(
+      markOrderShippedSchema.parse({
+        orderId,
+        trackingCarrier: "canada_post",
+        trackingNumber: "CX473124829CA",
+      }),
+    ).toMatchObject({ trackingNumber: "CX473124829CA" });
+
+    for (const trackingNumber of ["1234 5678", "CX47312482CA", "CX473124828CA"]) {
+      const result = markOrderShippedSchema.safeParse({
+        orderId,
+        trackingCarrier: "canada_post",
+        trackingNumber,
+      });
+
+      expect(result.success).toBe(false);
+
+      if (!result.success) {
+        expect(result.error.flatten().fieldErrors.trackingNumber).toContain(
+          "Enter a 16-digit Canada Post tracking number or a 13-character number with 2 letters, 9 digits, and CA.",
+        );
+      }
+    }
   });
 
   test("refuses a tracking number that could carry markup or a link into the email", () => {
@@ -92,7 +126,7 @@ describe("order fulfillment transitions", () => {
       "1Z999?redirect=x",
     ]) {
       expect(() =>
-        markOrderShippedSchema.parse({ orderId, trackingCarrier: "ups", trackingNumber }),
+        markOrderShippedSchema.parse({ orderId, trackingCarrier: "canada_post", trackingNumber }),
       ).toThrow();
     }
   });
@@ -109,7 +143,10 @@ describe("order fulfillment transitions", () => {
   });
 
   test("records the shipment against a ship transition only", async () => {
-    const shipment = { carrier: "canada_post", trackingNumber: "1234 5678" } as const;
+    const shipment = {
+      carrier: "canada_post",
+      trackingNumber: "1234 5678 9123 4567",
+    } as const;
     const shippingRepository = makeRepository();
     const deliveryRepository = makeRepository();
     const now = new Date("2026-08-04T12:00:00.000Z");

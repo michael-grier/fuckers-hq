@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
-
 import { ConfirmButton } from "@/components/admin/confirm-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,22 +10,24 @@ import {
   markOrderDelivered,
   scheduleOrderDelivery,
 } from "@/lib/actions/orders";
+import type { ActionResult } from "@/lib/actions/result";
 import type { OrderFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import {
   carrierHasTrackingLink,
   getShippingCarrierLabel,
-  type ShippingCarrier,
-  shippingCarrierValues,
+  getShippingCarrierTrackingNumberError,
+  type NewShipmentCarrier,
+  newShipmentCarrierValues,
 } from "@/lib/orders/shipping-carriers";
 
 type FulfillmentActionInput = {
   orderId: string;
-  trackingCarrier?: ShippingCarrier;
+  trackingCarrier?: NewShipmentCarrier;
   trackingNumber?: string;
 };
 
 type TransitionCopy = {
-  action: (input: FulfillmentActionInput) => Promise<{ success: boolean; message?: string }>;
+  action: (input: FulfillmentActionInput) => Promise<ActionResult>;
   /** Inline confirmation for the one-click steps; the shipping step confirms via its form. */
   confirm: { message: string; label: string } | null;
   idle: string;
@@ -78,10 +79,14 @@ export function FulfillmentActionButton({
   const router = useRouter();
   const carrierFieldId = useId();
   const trackingFieldId = useId();
+  const trackingErrorId = useId();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [trackingErrorMessage, setTrackingErrorMessage] = useState<string | null>(null);
   const [isShipmentFormOpen, setIsShipmentFormOpen] = useState(false);
-  const [carrier, setCarrier] = useState<ShippingCarrier | typeof noCarrierValue>(noCarrierValue);
+  const [carrier, setCarrier] = useState<NewShipmentCarrier | typeof noCarrierValue>(
+    noCarrierValue,
+  );
   const [trackingNumber, setTrackingNumber] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
   // Set only when the form is dismissed without shipping, so focus is restored to the control the
@@ -98,13 +103,20 @@ export function FulfillmentActionButton({
 
   async function submit(input: FulfillmentActionInput) {
     setErrorMessage(null);
+    setTrackingErrorMessage(null);
     setIsSubmitting(true);
 
     try {
       const result = await copy.action(input);
 
       if (!result.success) {
-        setErrorMessage(result.message ?? "The update could not be completed.");
+        const trackingError = result.fieldErrors?.trackingNumber?.[0];
+
+        if (trackingError) {
+          setTrackingErrorMessage(trackingError);
+        } else {
+          setErrorMessage(result.message);
+        }
         return;
       }
 
@@ -128,26 +140,40 @@ export function FulfillmentActionButton({
 
     // Mirrors the server rule so the operator sees the problem without a round trip.
     if (carrier !== noCarrierValue && enteredTrackingNumber === "") {
-      setErrorMessage("Enter the tracking number, or choose “No tracking number”.");
+      setTrackingErrorMessage('Enter the tracking number, or choose "No tracking number".');
       return;
     }
 
-    await submit(
-      carrier === noCarrierValue
-        ? { orderId }
-        : { orderId, trackingCarrier: carrier, trackingNumber: enteredTrackingNumber },
-    );
+    if (carrier !== noCarrierValue) {
+      const formatError = getShippingCarrierTrackingNumberError(carrier, enteredTrackingNumber);
+
+      if (formatError) {
+        setTrackingErrorMessage(formatError);
+        return;
+      }
+    }
+
+    setTrackingErrorMessage(null);
+
+    if (carrier === noCarrierValue) {
+      await submit({ orderId });
+      return;
+    }
+
+    await submit({ orderId, trackingCarrier: carrier, trackingNumber: enteredTrackingNumber });
   }
 
   function closeShipmentForm() {
     setErrorMessage(null);
+    setTrackingErrorMessage(null);
     shouldRestoreTriggerFocus.current = true;
     setIsShipmentFormOpen(false);
   }
 
   function onChangeCarrier(value: string) {
-    const nextCarrier = value as ShippingCarrier | typeof noCarrierValue;
+    const nextCarrier = value as NewShipmentCarrier | typeof noCarrierValue;
     setCarrier(nextCarrier);
+    setTrackingErrorMessage(null);
 
     // A tracking number cannot be submitted without a carrier, so clear it rather than leave a
     // value the operator can no longer see the effect of.
@@ -183,7 +209,7 @@ export function FulfillmentActionButton({
             value={carrier}
           >
             <option value={noCarrierValue}>No tracking number</option>
-            {shippingCarrierValues.map((value) => (
+            {newShipmentCarrierValues.map((value) => (
               <option key={value} value={value}>
                 {getShippingCarrierLabel(value)}
               </option>
@@ -196,13 +222,23 @@ export function FulfillmentActionButton({
             Tracking number
           </label>
           <Input
+            aria-describedby={trackingErrorMessage ? trackingErrorId : undefined}
+            aria-invalid={trackingErrorMessage ? true : undefined}
             autoComplete="off"
             disabled={isSubmitting || carrier === noCarrierValue}
             id={trackingFieldId}
             maxLength={64}
-            onChange={(event) => setTrackingNumber(event.target.value)}
+            onChange={(event) => {
+              setTrackingNumber(event.target.value);
+              setTrackingErrorMessage(null);
+            }}
             value={trackingNumber}
           />
+          {trackingErrorMessage ? (
+            <p className="text-destructive text-sm" id={trackingErrorId} role="alert">
+              {trackingErrorMessage}
+            </p>
+          ) : null}
         </div>
 
         <p className="text-muted-foreground text-xs">{shipmentHint}</p>

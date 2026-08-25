@@ -16,6 +16,43 @@ export const shippingCarrierValues = [
 
 export type ShippingCarrier = (typeof shippingCarrierValues)[number];
 
+/** Carriers that may be selected for a new shipment; the full enum remains for historical rows. */
+export const newShipmentCarrierValues = [
+  "canada_post",
+] as const satisfies readonly ShippingCarrier[];
+
+export type NewShipmentCarrier = (typeof newShipmentCarrierValues)[number];
+
+export const canadaPostTrackingNumberError =
+  "Enter a 16-digit Canada Post tracking number or a 13-character number with 2 letters, 9 digits, and CA.";
+
+const s10Weights = [8, 6, 4, 2, 3, 5, 9, 7] as const;
+
+/** Validates the check digit in the nine-digit numeric section of an international S10 number. */
+function hasValidS10CheckDigit(serialNumber: string, checkDigit: string): boolean {
+  const weightedSum = [...serialNumber].reduce(
+    (sum, digit, index) => sum + Number(digit) * s10Weights[index],
+    0,
+  );
+  const difference = 11 - (weightedSum % 11);
+  const expectedCheckDigit = difference === 10 ? 0 : difference === 11 ? 5 : difference;
+
+  return Number(checkDigit) === expectedCheckDigit;
+}
+
+/** Accepts Canada Post's 16-digit domestic PIN or checksum-valid 13-character S10 identifier. */
+function isCanadaPostTrackingNumber(trackingNumber: string): boolean {
+  const compactNumber = trackingNumber.replace(/[ -]/g, "").toUpperCase();
+
+  if (/^\d{16}$/.test(compactNumber)) {
+    return true;
+  }
+
+  const s10Match = compactNumber.match(/^[A-Z]{2}(\d{8})(\d)CA$/);
+
+  return s10Match ? hasValidS10CheckDigit(s10Match[1], s10Match[2]) : false;
+}
+
 type ShippingCarrierDefinition = {
   label: string;
   /**
@@ -23,6 +60,7 @@ type ShippingCarrierDefinition = {
    * URL. A null builder makes the email render the number as plain text instead of a dead link.
    */
   buildTrackingUrl: ((trackingNumber: string) => string) | null;
+  validateTrackingNumber?: (trackingNumber: string) => boolean;
 };
 
 const shippingCarriers: Record<ShippingCarrier, ShippingCarrierDefinition> = {
@@ -30,6 +68,7 @@ const shippingCarriers: Record<ShippingCarrier, ShippingCarrierDefinition> = {
     label: "Canada Post",
     buildTrackingUrl: (trackingNumber) =>
       `https://www.canadapost-postescanada.ca/track-reperage/en#/resultList?searchFor=${encodeURIComponent(trackingNumber)}`,
+    validateTrackingNumber: isCanadaPostTrackingNumber,
   },
   ups: {
     label: "UPS",
@@ -71,6 +110,16 @@ export function getShippingCarrierTrackingUrl(
   trackingNumber: string,
 ): string | null {
   return shippingCarriers[carrier].buildTrackingUrl?.(trackingNumber) ?? null;
+}
+
+/** Returns the carrier-specific format error for a new tracking number, if any. */
+export function getShippingCarrierTrackingNumberError(
+  carrier: NewShipmentCarrier,
+  trackingNumber: string,
+): string | null {
+  return shippingCarriers[carrier].validateTrackingNumber?.(trackingNumber)
+    ? null
+    : canadaPostTrackingNumberError;
 }
 
 /**

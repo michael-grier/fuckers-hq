@@ -66,8 +66,8 @@ const shippedView: OrderShippedView = {
   shippingAddressLines: ["Test Skater", "123 Test Street", "Calgary, AB T1T 1T1", "CA"],
   tracking: {
     carrierName: "Canada Post",
-    trackingNumber: "1234 5678",
-    trackingUrl: getShippingCarrierTrackingUrl("canada_post", "1234 5678"),
+    trackingNumber: "1234 5678 9123 4567",
+    trackingUrl: getShippingCarrierTrackingUrl("canada_post", "1234 5678 9123 4567"),
   },
 };
 
@@ -415,7 +415,7 @@ describe("shipped template", () => {
 
     expect(html).toContain("FHQ-20260713-ABC12345");
     expect(html).toContain("Canada Post");
-    expect(html).toContain("1234 5678");
+    expect(html).toContain("1234 5678 9123 4567");
     expect(html).toContain("Track this shipment");
     expect(html).toContain("canadapost-postescanada.ca");
     expect(html).toContain("123 Test Street");
@@ -437,7 +437,7 @@ describe("shipped template", () => {
     expect(html).toContain("Your order is on its way.");
     expect(html).toContain("does not have a tracking number");
     expect(html).not.toContain("Track this shipment");
-    expect(html).not.toContain("1234 5678");
+    expect(html).not.toContain("1234 5678 9123 4567");
   });
 
   test("renders an unlinkable carrier's number as plain text", async () => {
@@ -466,7 +466,9 @@ describe("carrier tracking links", () => {
     expect(getShippingCarrierTrackingUrl("ups", "1Z999AA10123456784")).toBe(
       "https://www.ups.com/track?tracknum=1Z999AA10123456784",
     );
-    expect(getShippingCarrierTrackingUrl("canada_post", "1234 5678")).toContain("1234%205678");
+    expect(getShippingCarrierTrackingUrl("canada_post", "1234 5678 9123 4567")).toContain(
+      "1234%205678%209123%204567",
+    );
     // "Other" exists so an operator can still record a number from a carrier with no link form.
     expect(getShippingCarrierTrackingUrl("other", "ABC123")).toBeNull();
 

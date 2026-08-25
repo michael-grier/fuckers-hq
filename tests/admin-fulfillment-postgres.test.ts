@@ -128,7 +128,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     await expect(
       repository.applyFulfillmentTransition(shippingOrderId, "ship", shippedAt, {
         carrier: "canada_post",
-        trackingNumber: "1234 5678",
+        trackingNumber: "1234 5678 9123 4567",
       }),
     ).resolves.toBe(true);
 
@@ -139,7 +139,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     expect(order).toMatchObject({
       status: "fulfilled",
       trackingCarrier: "canada_post",
-      trackingNumber: "1234 5678",
+      trackingNumber: "1234 5678 9123 4567",
     });
     expect(order?.shippedAt?.toISOString()).toBe(shippedAt.toISOString());
 
@@ -177,7 +177,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
 
     await repository.applyFulfillmentTransition(shippingOrderId, "ship", shippedAt, {
       carrier: "canada_post",
-      trackingNumber: "1234 5678",
+      trackingNumber: "1234 5678 9123 4567",
     });
     await expect(
       repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), {
@@ -193,7 +193,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     // The status guard rejected the second write, so the original shipment stands unchanged.
     expect(order).toMatchObject({
       trackingCarrier: "canada_post",
-      trackingNumber: "1234 5678",
+      trackingNumber: "1234 5678 9123 4567",
     });
     expect(order?.shippedAt?.toISOString()).toBe(shippedAt.toISOString());
     expect(await findDeliveries(shippingOrderId)).toHaveLength(1);
