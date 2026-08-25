@@ -43,6 +43,7 @@ describe.skipIf(!testDatabaseUrl)("guarded product deletion with real Postgres",
         description text,
         category text not null,
         subcategory text not null,
+        shipping_profile text not null,
         status text not null,
         created_at timestamp with time zone not null default now(),
         updated_at timestamp with time zone not null default now()
@@ -122,6 +123,7 @@ describe.skipIf(!testDatabaseUrl)("guarded product deletion with real Postgres",
       name: "Database Deck",
       category: "hardgoods",
       subcategory: "decks",
+      shippingProfile: "deck",
       status: "draft",
     });
     await database.insert(productVariants).values({

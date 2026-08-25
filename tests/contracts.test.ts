@@ -213,6 +213,7 @@ describe("product validators", () => {
         description: null,
         category: "hardgoods",
         subcategory: "decks",
+        shippingProfile: "deck",
         status: "active",
       }),
     ).toMatchObject({
@@ -220,6 +221,7 @@ describe("product validators", () => {
       name: "Street Deck",
       category: "hardgoods",
       subcategory: "decks",
+      shippingProfile: "deck",
       status: "active",
     });
   });

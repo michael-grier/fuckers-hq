@@ -5,7 +5,11 @@ import {
   buildStripeLineItemsFromSnapshots,
   getCheckoutSnapshotSubtotalCents,
 } from "@/lib/checkout/items";
-import { type AllowedShippingCountry, buildShippingOptions } from "@/lib/checkout/shipping";
+import {
+  type AllowedShippingCountry,
+  buildShippingOptions,
+  resolveShippingRate,
+} from "@/lib/checkout/shipping";
 import type { FulfillmentMethod, JsonRecord, PendingCheckoutLineSnapshot } from "@/lib/db/schema";
 import type { CartLine } from "@/lib/validators/cart";
 import { checkoutSchema, pendingCheckoutMetadataSchema } from "@/lib/validators/cart";
@@ -54,7 +58,6 @@ export type CheckoutSessionClient = {
 export type HostedCheckoutSettings = {
   appUrl: string;
   allowedCountries: AllowedShippingCountry[];
-  standardShippingRateCents: number;
   /** Omitted when the store charges a flat rate with no free-shipping tier. */
   freeShippingThresholdCents?: number;
   taxEnabled: boolean;
@@ -92,7 +95,10 @@ export async function createHostedCheckout(
     expiresAt: new Date(now.getTime() + pendingCheckoutLifetimeMs),
     nextReconcileAt: new Date(now.getTime() + provisioningReconcileDelayMs),
   });
-  const proposedParams = buildStripeSessionParams(reservation, settings);
+  // A retry of a pre-profile reservation can still reuse its immutable, persisted Stripe request.
+  const proposedParams = reservation.stripeSessionParams
+    ? parsePersistedStripeSessionParams(reservation.stripeSessionParams, reservation)
+    : buildStripeSessionParams(reservation, settings);
   const sessionParams = await dependencies.repository.prepareStripeSession(
     reservation.reservationToken,
     proposedParams,
@@ -163,7 +169,7 @@ export function buildStripeSessionParams(
           shipping_options: buildShippingOptions(
             getCheckoutSnapshotSubtotalCents(reservation.lineItems),
             {
-              standardRateCents: settings.standardShippingRateCents,
+              rateCents: resolveShippingRate(reservation.lineItems),
               freeThresholdCents: settings.freeShippingThresholdCents,
             },
           ),

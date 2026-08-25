@@ -25,6 +25,7 @@ import {
   isProductCategory,
   productCategories,
 } from "@/lib/catalog/categories";
+import { shippingProfiles } from "@/lib/catalog/shipping-profiles";
 import {
   type AdminProductWorkspaceFormInput,
   adminProductWorkspaceFormSchema,
@@ -135,6 +136,7 @@ export function ProductWorkspace({
       description: values.description,
       category: values.category,
       subcategory: values.subcategory,
+      shippingProfile: values.shippingProfile,
       status: values.status,
       variants: result.data.variants.map(toFormRow),
     });
@@ -373,6 +375,33 @@ export function ProductWorkspace({
                   {!errors.subcategory ? (
                     <p className="mt-1 text-muted-foreground text-xs" id="subcategory-help">
                       Changing the category clears the subcategory so the pair always matches.
+                    </p>
+                  ) : null}
+                </FormField>
+
+                <FormField
+                  error={errors.shippingProfile?.message}
+                  id="shippingProfile"
+                  label="Shipping profile"
+                >
+                  <select
+                    aria-describedby={
+                      errors.shippingProfile ? "shippingProfile-error" : "shippingProfile-help"
+                    }
+                    aria-invalid={Boolean(errors.shippingProfile)}
+                    className={adminSelectClassName}
+                    id="shippingProfile"
+                    {...form.register("shippingProfile")}
+                  >
+                    {shippingProfiles.map((profile) => (
+                      <option key={profile.value} value={profile.value}>
+                        {profile.label}
+                      </option>
+                    ))}
+                  </select>
+                  {!errors.shippingProfile ? (
+                    <p className="mt-1 text-muted-foreground text-xs" id="shippingProfile-help">
+                      Checkout uses the most expensive profile in the cart.
                     </p>
                   ) : null}
                 </FormField>

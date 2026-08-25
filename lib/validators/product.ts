@@ -8,6 +8,7 @@ import {
   productCategoryValues,
   productSubcategoryValues,
 } from "@/lib/catalog/categories";
+import { isShippingProfile, shippingProfileValues } from "@/lib/catalog/shipping-profiles";
 import { productImages, productStatusValues, products, productVariants } from "@/lib/db/schema";
 import { dollarsToCents } from "@/lib/money";
 import { isProductImageObjectKey, productImageObjectKeySchema } from "@/lib/r2/upload-contract";
@@ -145,6 +146,7 @@ export const adminProductFormSchema = z
       .trim()
       .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
     subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
+    shippingProfile: z.enum(shippingProfileValues),
     status: z.enum(productStatusValues),
   })
   .strict()
@@ -229,6 +231,7 @@ const productWorkspaceFields = {
     .trim()
     .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
   subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
+  shippingProfile: z.string().refine(isShippingProfile, "Choose a shipping profile."),
   status: z.enum(productStatusValues),
   variants: z
     .array(adminVariantRowSchema)
@@ -265,6 +268,7 @@ const productComposerFields = {
     .trim()
     .refine(isProductCategory, "Choose Hardgoods, Softgoods, or Accessories."),
   subcategory: z.string().trim().refine(isProductSubcategory, "Choose a subcategory."),
+  shippingProfile: z.string().refine(isShippingProfile, "Choose a shipping profile."),
   variants: z
     .array(adminVariantFormSchema)
     .max(100, "A product cannot hold more than 100 variants."),
@@ -383,6 +387,7 @@ export function toProductMutationValues(input: AdminProductFormValues): ProductI
     description: input.description || null,
     category: z.enum(productCategoryValues).parse(input.category),
     subcategory: z.enum(productSubcategoryValues).parse(input.subcategory),
+    shippingProfile: z.enum(shippingProfileValues).parse(input.shippingProfile),
     status: input.status,
   };
 }

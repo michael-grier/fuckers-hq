@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
 
+import type { ShippingProfile } from "@/lib/catalog/shipping-profiles";
+
 import { CheckoutError } from "./errors";
 
 export type AllowedShippingCountry =
@@ -28,10 +30,35 @@ export function parseAllowedShippingCountries(value: string): AllowedShippingCou
 }
 
 type ShippingSettings = {
-  standardRateCents: number;
+  rateCents: number;
   /** Omitted when the store charges a flat rate with no free-shipping tier. */
   freeThresholdCents?: number;
 };
+
+type ShippingRateCartItem = {
+  shippingProfile?: ShippingProfile;
+  shippingRateCents?: number;
+};
+
+/** Resolves a cart to its most expensive persisted product shipping rate. */
+export function resolveShippingRate(cartItems: readonly ShippingRateCartItem[]): number {
+  let highestRateCents = 0;
+
+  for (const item of cartItems) {
+    if (
+      item.shippingProfile === undefined ||
+      item.shippingRateCents === undefined ||
+      !Number.isSafeInteger(item.shippingRateCents) ||
+      item.shippingRateCents < 0
+    ) {
+      throw new CheckoutError("Shipping is not configured for one or more products.", 500);
+    }
+
+    highestRateCents = Math.max(highestRateCents, item.shippingRateCents);
+  }
+
+  return highestRateCents;
+}
 
 export function buildShippingOptions(
   subtotalCents: number,
@@ -48,7 +75,7 @@ export function buildShippingOptions(
         type: "fixed_amount",
         display_name: qualifiesForFreeShipping ? "Free shipping" : "Standard shipping",
         fixed_amount: {
-          amount: qualifiesForFreeShipping ? 0 : settings.standardRateCents,
+          amount: qualifiesForFreeShipping ? 0 : settings.rateCents,
           currency: "cad",
         },
         tax_behavior: "exclusive",

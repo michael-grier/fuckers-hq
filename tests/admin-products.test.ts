@@ -23,6 +23,7 @@ describe("admin product form contract", () => {
       description: "  ",
       category: " hardgoods ",
       subcategory: " decks ",
+      shippingProfile: "deck",
       status: "draft",
     });
 
@@ -32,6 +33,7 @@ describe("admin product form contract", () => {
       description: null,
       category: "hardgoods",
       subcategory: "decks",
+      shippingProfile: "deck",
       status: "draft",
     });
   });
@@ -44,6 +46,7 @@ describe("admin product form contract", () => {
         description: "",
         category: "hardgoods",
         subcategory: "decks",
+        shippingProfile: "deck",
         status: "active",
       }),
     ).toThrow();
@@ -55,6 +58,7 @@ describe("admin product form contract", () => {
         description: "",
         category: "hardgoods",
         subcategory: "decks",
+        shippingProfile: "deck",
         status: "active",
         clientPrice: 1,
       }),
@@ -76,6 +80,7 @@ describe("admin product form contract", () => {
           description: "",
           category,
           subcategory: subcategoryByCategory[category],
+          shippingProfile: category === "hardgoods" ? "deck" : "softgood",
           status: "draft",
         }).category,
       ).toBe(category);
@@ -89,6 +94,7 @@ describe("admin product form contract", () => {
           description: "",
           category,
           subcategory: "decks",
+          shippingProfile: "deck",
           status: "draft",
         }).success,
       ).toBe(false);
@@ -100,6 +106,7 @@ describe("admin product form contract", () => {
       name: "Pair Test",
       slug: "pair-test",
       description: "",
+      shippingProfile: "deck",
       status: "draft",
     };
 
@@ -125,6 +132,24 @@ describe("admin product form contract", () => {
     if (!mismatch.success) {
       expect(mismatch.error.issues.some((issue) => issue.path.includes("subcategory"))).toBe(true);
     }
+  });
+
+  test("accepts only shipping profiles supported by checkout", () => {
+    const base = {
+      name: "Profile Test",
+      slug: "profile-test",
+      description: "",
+      category: "hardgoods",
+      subcategory: "decks",
+      status: "draft",
+    };
+
+    expect(adminProductFormSchema.safeParse({ ...base, shippingProfile: "deck" }).success).toBe(
+      true,
+    );
+    expect(adminProductFormSchema.safeParse({ ...base, shippingProfile: "letter" }).success).toBe(
+      false,
+    );
   });
 });
 
@@ -187,6 +212,7 @@ const workspacePayload = {
   description: "",
   category: "hardgoods",
   subcategory: "decks",
+  shippingProfile: "deck",
   status: "active",
   variants: [
     {
@@ -263,6 +289,7 @@ describe("admin product composer contract", () => {
     description: "",
     category: "hardgoods",
     subcategory: "decks",
+    shippingProfile: "deck",
     intent: "draft",
     variants: [{ name: '8.0"', sku: "DECK-STREET-80", price: "89.00", inventory: "5" }],
     images: [],

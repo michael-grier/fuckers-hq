@@ -32,6 +32,7 @@ test.describe("admin product lifecycle @admin", () => {
     await page.getByLabel("Slug").fill(productSlug);
     await page.getByLabel("Category", { exact: true }).selectOption("hardgoods");
     await page.getByLabel("Subcategory").selectOption("decks");
+    await page.getByLabel("Shipping profile").selectOption("deck");
     await page.getByLabel("Variant 1 name").fill('8.25"');
     await page.getByLabel("Variant 1 SKU").fill(`E2E-CD-${runId}`);
     await page.getByLabel("Variant 1 price in dollars").fill("79.00");

@@ -85,6 +85,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       name: "Database Deck",
       category: "hardgoods",
       subcategory: "decks",
+      shippingProfile: "deck",
       status: "active",
     });
   });
@@ -569,10 +570,20 @@ const postgresTestSchema = [
     description text,
     category text not null,
     subcategory text not null,
+    shipping_profile text not null,
     status text not null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
   )`,
+  `create table shipping_rates (
+    profile text primary key,
+    rate_cents integer not null check (rate_cents >= 0),
+    updated_at timestamptz not null default now()
+  )`,
+  `insert into shipping_rates (profile, rate_cents) values
+    ('flat', 300),
+    ('softgood', 1200),
+    ('deck', 2200)`,
   `create table product_variants (
     id uuid primary key,
     product_id uuid not null references products(id) on delete cascade,

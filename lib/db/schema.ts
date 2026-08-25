@@ -13,6 +13,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { productCategoryValues, productSubcategories } from "@/lib/catalog/categories";
+import { type ShippingProfile, shippingProfileValues } from "@/lib/catalog/shipping-profiles";
 import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
 
 export const productStatusValues = ["draft", "active", "archived"] as const;
@@ -51,6 +52,7 @@ export const productStatus = pgEnum("product_status", productStatusValues);
 export const orderStatus = pgEnum("order_status", orderStatusValues);
 export const orderInventoryStatus = pgEnum("order_inventory_status", orderInventoryStatusValues);
 export const fulfillmentMethod = pgEnum("fulfillment_method", fulfillmentMethodValues);
+export const shippingProfile = pgEnum("shipping_profile", shippingProfileValues);
 export const shippingCarrier = pgEnum("shipping_carrier", shippingCarrierValues);
 export const orderEmailKind = pgEnum("order_email_kind", orderEmailKindValues);
 export const refundStatus = pgEnum("refund_status", refundStatusValues);
@@ -80,6 +82,10 @@ export type PendingCheckoutLineSnapshot = {
   unitPriceCents: number;
   quantity: number;
   currency: string;
+  // Optional only for paid checkouts created before shipping profiles existed. Every new
+  // reservation writes both fields before it can create a Stripe Session.
+  shippingProfile?: ShippingProfile;
+  shippingRateCents?: number;
 };
 
 export type JsonRecord = Record<string, unknown>;
@@ -113,6 +119,7 @@ export const products = pgTable(
     description: text("description"),
     category: text("category").notNull(),
     subcategory: text("subcategory").notNull(),
+    shippingProfile: shippingProfile("shipping_profile").notNull(),
     status: productStatus("status").notNull().default("draft"),
     ...timestamps,
   },
@@ -122,6 +129,17 @@ export const products = pgTable(
     index("products_category_subcategory_idx").on(table.category, table.subcategory),
     check("products_category_subcategory_pair", sql`${productTaxonomyPairsSql}`),
   ],
+);
+
+/** Runtime-editable checkout rates keyed by the shipping profile assigned to each product. */
+export const shippingRates = pgTable(
+  "shipping_rates",
+  {
+    profile: shippingProfile("profile").primaryKey(),
+    rateCents: integer("rate_cents").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [check("shipping_rates_rate_cents_nonnegative", sql`${table.rateCents} >= 0`)],
 );
 
 export const productVariants = pgTable(

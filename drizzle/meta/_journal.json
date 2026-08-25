@@ -92,6 +92,13 @@
       "when": 1786564684897,
       "tag": "0012_local-delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1787677732090,
+      "tag": "0013_shipping-profiles",
+      "breakpoints": true
     }
   ]
 }

@@ -62,7 +62,6 @@ const envSchema = z.object({
   // Defaults to the countries the shipping policy page names. A default wider than the published
   // policy would let checkout accept an address the page tells the customer it will reject.
   SHIPPING_ALLOWED_COUNTRIES: optionalString.default("CA"),
-  SHIPPING_STANDARD_RATE_CENTS: optionalIntegerString,
   SHIPPING_FREE_THRESHOLD_CENTS: optionalIntegerString,
   // Search indexing is opt-in. A deploy that can take no payment, or a preview of unfinished copy,
   // must not be indexable by default — an accidental index is far more work to undo than to prevent.

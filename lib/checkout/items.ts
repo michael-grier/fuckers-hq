@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 
+import type { ShippingProfile } from "@/lib/catalog/shipping-profiles";
 import type { PendingCheckoutLineSnapshot } from "@/lib/db/schema";
 import type { CartLine } from "@/lib/validators/cart";
 
@@ -11,6 +12,8 @@ export type CheckoutVariantRecord = {
   id: string;
   productName: string;
   productStatus: "draft" | "active" | "archived";
+  shippingProfile: ShippingProfile;
+  shippingRateCents: number;
   variantName: string;
   priceCents: number;
   inventoryQty: number;
@@ -111,6 +114,8 @@ export function createPendingCheckoutLineSnapshots(
     unitPriceCents: line.priceCents,
     quantity: line.quantity,
     currency: checkoutCurrency,
+    shippingProfile: line.shippingProfile,
+    shippingRateCents: line.shippingRateCents,
   }));
 }
 
