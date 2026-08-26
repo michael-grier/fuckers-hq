@@ -97,6 +97,7 @@ describe("admin product taxonomy fields", () => {
       "keychains",
       "buttons",
       "papers",
+      "magnets",
     ]);
   });
 

@@ -71,6 +71,15 @@ test.describe("admin product lifecycle @admin", () => {
     await expect(page).toHaveURL(/\/admin\/products\/new/);
   });
 
+  test("offers Magnets as an accessories subcategory", async ({ page }) => {
+    await page.goto("/admin/products/new");
+    await page.getByLabel("Category", { exact: true }).selectOption("accessories");
+
+    const subcategory = page.getByLabel("Subcategory");
+    await subcategory.selectOption("magnets");
+    await expect(subcategory).toHaveValue("magnets");
+  });
+
   test("uses the unified image picker on existing products", async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 900 });
     await page.goto(`/admin/products?q=${encodeURIComponent("Precision Bearings")}`);

@@ -320,6 +320,7 @@ describe("catalog subcategory contract", () => {
       "keychains",
       "buttons",
       "papers",
+      "magnets",
     ]);
     // Every canonical value appears in exactly one parent group.
     expect(productSubcategories.map(({ value }) => value).sort()).toEqual(
@@ -336,6 +337,8 @@ describe("catalog subcategory contract", () => {
     expect(getProductCategoryForSubcategory("decks")).toBe("hardgoods");
     expect(getProductCategoryForSubcategory("hats")).toBe("softgoods");
     expect(getProductCategoryForSubcategory("buttons")).toBe("accessories");
+    expect(getProductSubcategoryLabel("magnets")).toBe("Magnets");
+    expect(getProductCategoryForSubcategory("magnets")).toBe("accessories");
   });
 
   test("accepts only canonical parent-child pairs", () => {
@@ -344,6 +347,7 @@ describe("catalog subcategory contract", () => {
     expect(isValidProductTaxonomyPair("hardgoods", "decks")).toBe(true);
     expect(isValidProductTaxonomyPair("softgoods", "jackets")).toBe(true);
     expect(isValidProductTaxonomyPair("accessories", "stickers")).toBe(true);
+    expect(isValidProductTaxonomyPair("accessories", "magnets")).toBe(true);
     expect(isValidProductTaxonomyPair("softgoods", "decks")).toBe(false);
     expect(isValidProductTaxonomyPair("hardgoods", "t-shirts")).toBe(false);
     expect(isValidProductTaxonomyPair("apparel", "t-shirts")).toBe(false);

@@ -35,6 +35,7 @@ export const productSubcategoryValues = [
   "keychains",
   "buttons",
   "papers",
+  "magnets",
 ] as const;
 
 export type ProductSubcategory = (typeof productSubcategoryValues)[number];
@@ -59,6 +60,7 @@ export const productSubcategories = [
   { label: "Keychains", value: "keychains", category: "accessories" },
   { label: "Buttons", value: "buttons", category: "accessories" },
   { label: "Papers", value: "papers", category: "accessories" },
+  { label: "Magnets", value: "magnets", category: "accessories" },
 ] as const satisfies ReadonlyArray<{
   label: string;
   value: ProductSubcategory;
