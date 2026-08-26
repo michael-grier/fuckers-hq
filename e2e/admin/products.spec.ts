@@ -7,10 +7,10 @@ const productName = `E2E Composer Deck ${runId}`;
 const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
-  test("keeps the product creation controls padded and on one larger-screen row", async ({
+  test("uses padded mobile rows and one larger-screen row for product creation controls", async ({
     page,
   }) => {
-    for (const width of [375, 768, 1366]) {
+    for (const width of [375, 390, 768, 1366]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/admin/products/new");
 
@@ -40,6 +40,12 @@ test.describe("admin product lifecycle @admin", () => {
         expect(
           barBox.x + barBox.width - Math.max(...controlBoxes.map(({ right }) => right)),
         ).toBeGreaterThanOrEqual(15);
+      }
+
+      if (width < 640) {
+        const [cancelBox, saveDraftBox, publishBox] = controlBoxes;
+        expect(cancelBox?.top).toBe(saveDraftBox?.top);
+        expect(publishBox?.top).toBeGreaterThan(cancelBox?.top ?? Number.POSITIVE_INFINITY);
       }
 
       if (width >= 768) {
