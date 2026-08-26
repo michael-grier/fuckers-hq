@@ -748,21 +748,19 @@ export function ProductWorkspace({
       </p>
 
       {/* ===== Sticky save bar, visible only while something is unsaved ===== */}
-      {isDirty || actionError || successMessage ? (
-        <div className="sticky bottom-4 z-30 mt-4">
+      {isDirty || actionError ? (
+        <section aria-label="Product save controls" className="sticky bottom-4 z-30 mt-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg">
             <div className="flex min-w-0 items-center gap-2 text-sm">
               {actionError ? (
                 <p className="text-red-300" role="alert">
                   {actionError}
                 </p>
-              ) : isDirty ? (
+              ) : (
                 <>
                   <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-accent" />
                   <p className="font-medium">Unsaved changes</p>
                 </>
-              ) : (
-                <p>{successMessage}</p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -791,7 +789,7 @@ export function ProductWorkspace({
               </Button>
             </div>
           </div>
-        </div>
+        </section>
       ) : null}
     </div>
   );

@@ -744,8 +744,11 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
       </div>
 
       {/* ===== Sticky create bar ===== */}
-      <div className="sticky bottom-4 z-30 mt-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg">
+      <div className="sticky bottom-4 z-30 -mx-2 mt-4 sm:mx-0">
+        <section
+          aria-label="Product creation controls"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
+        >
           <p className="min-w-0 text-sm text-white/70">
             {actionError ? (
               <span className="text-red-300" role="alert">
@@ -755,10 +758,12 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               "Nothing is public until you publish."
             )}
           </p>
-          <div className="flex items-center gap-2">
+          {/* Below 380px the three actions use two rows. Wider phones can keep one row
+              once reduced button padding leaves the bar's side gutters intact. */}
+          <div className="grid w-full grid-cols-2 gap-2 min-[380px]:flex min-[380px]:items-center min-[380px]:justify-between min-[380px]:gap-1 sm:w-auto sm:justify-normal sm:gap-2">
             <Button
               asChild
-              className="text-white/80 hover:bg-white/10 hover:text-white"
+              className="w-full px-2 text-white/80 hover:bg-white/10 hover:text-white min-[380px]:w-auto sm:px-3"
               size="sm"
               variant="ghost"
             >
@@ -767,7 +772,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               </Link>
             </Button>
             <Button
-              className="border-white/30 bg-transparent text-white hover:bg-white/10 hover:text-white"
+              className="w-full border-white/30 bg-transparent px-2 text-white hover:bg-white/10 hover:text-white min-[380px]:w-auto sm:px-3"
               disabled={busy}
               onClick={() => submitWithIntent("draft")}
               size="sm"
@@ -777,7 +782,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               {pendingIntent === "draft" ? "Saving…" : "Save as draft"}
             </Button>
             <Button
-              className="rounded-full bg-accent text-accent-foreground hover:bg-accent/90"
+              className="col-span-2 w-full rounded-full bg-accent px-2 text-accent-foreground hover:bg-accent/90 min-[380px]:w-auto sm:col-auto sm:px-3"
               disabled={busy}
               onClick={() => submitWithIntent("publish")}
               size="sm"
@@ -786,7 +791,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               {pendingIntent === "publish" ? "Publishing…" : "Create & publish"}
             </Button>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

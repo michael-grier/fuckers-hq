@@ -135,6 +135,22 @@ describe("admin product taxonomy fields", () => {
     ).toBe(false);
   });
 
+  test("closes the save bar after a successful save", async () => {
+    renderWorkspace();
+
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed Deck" } });
+    expect(screen.getByRole("region", { name: "Product save controls" })).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() => {
+      expect(savedPayloads).toHaveLength(1);
+      expect(screen.queryByRole("region", { name: "Product save controls" })).toBeNull();
+    });
+
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+    expect(screen.getByRole("status").textContent).toBe("Product saved.");
+  });
+
   test("disables the subcategory select until a category is chosen", () => {
     const { category, subcategory } = renderWorkspace();
 
