@@ -99,6 +99,13 @@
       "when": 1787677732090,
       "tag": "0013_shipping-profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1787779232320,
+      "tag": "0014_bumpy_the_stranger",
+      "breakpoints": true
     }
   ]
 }

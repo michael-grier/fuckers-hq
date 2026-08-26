@@ -1,0 +1,2 @@
+ALTER TABLE "products" DROP CONSTRAINT "products_category_subcategory_pair";--> statement-breakpoint
+ALTER TABLE "products" ADD CONSTRAINT "products_category_subcategory_pair" CHECK (("category" = 'hardgoods' AND "subcategory" IN ('decks', 'trucks', 'wheels', 'bearings', 'griptape', 'hardware')) OR ("category" = 'softgoods' AND "subcategory" IN ('t-shirts', 'hoodies', 'jackets', 'pants', 'hats', 'socks')) OR ("category" = 'accessories' AND "subcategory" IN ('stickers', 'patches', 'keychains', 'buttons', 'papers', 'magnets')));
