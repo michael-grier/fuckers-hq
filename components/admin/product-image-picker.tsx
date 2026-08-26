@@ -4,12 +4,14 @@ import { ImagePlus } from "lucide-react";
 import type { RefObject } from "react";
 
 import { allowedProductImageTypes, MAX_PRODUCT_IMAGE_BYTES } from "@/lib/r2/upload-contract";
+import { cn } from "@/lib/utils";
 
 type ProductImagePickerProps = {
   disabled: boolean;
   helpId: string;
   inputRef: RefObject<HTMLInputElement | null>;
   isUploading: boolean;
+  matchGridRow?: boolean;
   onFile: (file: File | undefined) => void | Promise<void>;
 };
 
@@ -23,13 +25,18 @@ export function ProductImagePicker({
   helpId,
   inputRef,
   isUploading,
+  matchGridRow = false,
   onFile,
 }: ProductImagePickerProps) {
   return (
     <>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/paste affordances only; the native file input remains the accessible path. */}
       <div
-        className="relative flex min-h-72 self-stretch flex-col sm:aspect-square sm:min-h-0"
+        className={cn(
+          "relative flex min-h-72 self-stretch flex-col sm:min-h-0",
+          // An aspect ratio can prevent grid stretch, so drop it beside image cards.
+          !matchGridRow && "sm:aspect-square",
+        )}
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault();
