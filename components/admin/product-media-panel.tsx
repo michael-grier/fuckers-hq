@@ -3,12 +3,13 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useOptimistic, useRef, useState, useTransition } from "react";
+import { useOptimistic, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 
 import { ConfirmButton } from "@/components/admin/confirm-button";
 import { FormField } from "@/components/admin/form-field";
 import { MoveButtons } from "@/components/admin/move-buttons";
+import { ProductImagePicker } from "@/components/admin/product-image-picker";
 import { ReorderableList } from "@/components/admin/reorderable-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,15 +22,9 @@ import {
 import type { ActionFailure } from "@/lib/actions/result";
 import { uploadProductImageFile } from "@/lib/admin/product-image-upload";
 import { moveVariantInList, type VariantMoveDirection } from "@/lib/admin/variant-order";
+import { productImageUploadRequestSchema } from "@/lib/r2/upload-contract";
 import {
-  allowedProductImageTypes,
-  MAX_PRODUCT_IMAGE_BYTES,
-  productImageUploadRequestSchema,
-} from "@/lib/r2/upload-contract";
-import {
-  type AdminImageUploadFormInput,
   type AdminProductImageFormInput,
-  adminImageUploadFormSchema,
   adminProductImageFormSchema,
 } from "@/lib/validators/product";
 
@@ -125,7 +120,22 @@ export function ProductMediaPanel({
       </div>
 
       <div className="space-y-4 p-5">
-        <ImageUploader productId={productId} r2Configured={r2Configured} />
+        <ReorderableList className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {optimisticImages.map((image, index) => (
+            <ProductImageCard
+              canMoveDown={index < optimisticImages.length - 1}
+              canMoveUp={index > 0}
+              image={image}
+              index={index}
+              isCover={index === 0}
+              key={image.id}
+              onMove={(direction) => handleMove(image.id, direction)}
+              productId={productId}
+              productName={productName}
+            />
+          ))}
+          <ImageUploader productId={productId} r2Configured={r2Configured} />
+        </ReorderableList>
 
         {moveError ? (
           <p className="text-destructive text-sm" role="alert">
@@ -135,31 +145,6 @@ export function ProductMediaPanel({
         <p aria-live="polite" className="sr-only">
           {moveAnnouncement}
         </p>
-
-        {optimisticImages.length > 0 ? (
-          <ReorderableList className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {optimisticImages.map((image, index) => (
-              <ProductImageCard
-                canMoveDown={index < optimisticImages.length - 1}
-                canMoveUp={index > 0}
-                image={image}
-                index={index}
-                isCover={index === 0}
-                key={image.id}
-                onMove={(direction) => handleMove(image.id, direction)}
-                productId={productId}
-                productName={productName}
-              />
-            ))}
-          </ReorderableList>
-        ) : (
-          <div className="rounded-lg border border-dashed bg-background px-6 py-10 text-center">
-            <p className="font-semibold">No product images yet.</p>
-            <p className="mt-1 text-muted-foreground text-sm">
-              Upload an image to replace the storefront placeholder.
-            </p>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -172,54 +157,23 @@ function describeImage(image: ManagedProductImage, index: number): string {
 function ImageUploader({ productId, r2Configured }: { productId: string; r2Configured: boolean }) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [isDragActive, setIsDragActive] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const form = useForm<AdminImageUploadFormInput>({
-    defaultValues: { alt: "" },
-    resolver: zodResolver(adminImageUploadFormSchema),
-  });
 
-  useEffect(() => {
-    if (!selectedFile) {
-      setPreviewUrl(null);
-      return;
-    }
-
-    const objectUrl = URL.createObjectURL(selectedFile);
-    setPreviewUrl(objectUrl);
-
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [selectedFile]);
-
-  const uploadsDisabled = !r2Configured || form.formState.isSubmitting;
-
-  function acceptDroppedFile(file: File | undefined) {
-    if (!file || uploadsDisabled) {
+  async function addFile(file: File | undefined) {
+    if (!file || !r2Configured || isUploading) {
       return;
     }
 
     setActionError(null);
     setSuccessMessage(null);
-    setSelectedFile(file);
-  }
-
-  async function onSubmit(values: AdminImageUploadFormInput) {
-    setActionError(null);
-    setSuccessMessage(null);
-
-    if (!selectedFile) {
-      setActionError("Choose an image to upload.");
-      return;
-    }
 
     const uploadRequest = productImageUploadRequestSchema.safeParse({
       productId,
-      fileName: selectedFile.name,
-      contentType: selectedFile.type,
-      size: selectedFile.size,
+      fileName: file.name,
+      contentType: file.type,
+      size: file.size,
     });
 
     if (!uploadRequest.success) {
@@ -227,8 +181,10 @@ function ImageUploader({ productId, r2Configured }: { productId: string; r2Confi
       return;
     }
 
+    setIsUploading(true);
+
     try {
-      const uploaded = await uploadProductImageFile(uploadRequest.data, selectedFile);
+      const uploaded = await uploadProductImageFile(uploadRequest.data, file);
 
       if (!uploaded.success) {
         setActionError(uploaded.error);
@@ -238,131 +194,55 @@ function ImageUploader({ productId, r2Configured }: { productId: string; r2Confi
       const result = await createProductImage({
         productId,
         objectKey: uploaded.objectKey,
-        alt: values.alt,
+        alt: "",
       });
 
       if (!result.success) {
-        showFormFailure(result, form.setError, ["alt"]);
         setActionError(result.message);
         return;
       }
 
-      form.reset({ alt: "" });
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
       setSuccessMessage("Image added.");
       router.refresh();
     } catch {
       setActionError("Image upload failed. Check the R2 configuration and try again.");
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   }
 
   return (
-    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag targets and paste
-          listeners have no interactive role; the file input remains the
-          keyboard-accessible path. */}
-      <div
-        className={
-          isDragActive
-            ? "rounded-lg border border-accent border-dashed bg-accent/5 p-4 transition"
-            : "rounded-lg border border-dashed p-4 transition"
-        }
-        onDragLeave={() => setIsDragActive(false)}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setIsDragActive(true);
-        }}
-        onDrop={(event) => {
-          event.preventDefault();
-          setIsDragActive(false);
-          acceptDroppedFile(event.dataTransfer.files?.[0]);
-        }}
-        onPaste={(event) => {
-          acceptDroppedFile(event.clipboardData.files?.[0]);
-        }}
-      >
-        <div className="grid gap-4 sm:grid-cols-[6rem_minmax(0,1fr)]">
-          <div className="relative aspect-square w-full max-w-24 overflow-hidden rounded-md bg-muted">
-            {previewUrl ? (
-              <Image
-                alt=""
-                className="h-full w-full object-contain object-center"
-                fill
-                sizes="96px"
-                src={previewUrl}
-                unoptimized
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center px-2 text-center text-muted-foreground text-xs">
-                Preview
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <div className="grid gap-3 md:grid-cols-2 md:items-start">
-              <div>
-                <label className="mb-2 block font-semibold text-sm" htmlFor="product-image-file">
-                  Image file
-                </label>
-                <Input
-                  accept={allowedProductImageTypes.join(",")}
-                  aria-describedby="product-image-file-help"
-                  disabled={uploadsDisabled}
-                  id="product-image-file"
-                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                  ref={fileInputRef}
-                  type="file"
-                />
-                <p className="mt-1 text-muted-foreground text-xs" id="product-image-file-help">
-                  Drop or paste an image here, or browse. JPEG, PNG, WebP, or AVIF up to{" "}
-                  {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.
-                </p>
-              </div>
-              <FormField
-                error={form.formState.errors.alt?.message}
-                id="new-image-alt"
-                label="Alt text"
-              >
-                <Input
-                  aria-describedby={form.formState.errors.alt ? "new-image-alt-error" : undefined}
-                  aria-invalid={Boolean(form.formState.errors.alt)}
-                  disabled={uploadsDisabled}
-                  id="new-image-alt"
-                  placeholder="Describe the product image"
-                  {...form.register("alt")}
-                />
-              </FormField>
-            </div>
-
-            {!r2Configured ? (
-              <p className="text-amber-800 text-sm" role="status">
-                Configure all R2 environment values and restart the dev server to enable uploads.
-              </p>
-            ) : null}
-            {actionError ? (
-              <p className="text-destructive text-sm" role="alert">
-                {actionError}
-              </p>
-            ) : null}
-            {successMessage ? (
-              <p className="text-sm" role="status">
-                {successMessage}
-              </p>
-            ) : null}
-
-            <div className="flex justify-end">
-              <Button disabled={uploadsDisabled || !selectedFile} size="sm" type="submit">
-                {form.formState.isSubmitting ? "Adding image…" : "Add image"}
-              </Button>
-            </div>
-          </div>
+    <>
+      <ProductImagePicker
+        disabled={!r2Configured || isUploading}
+        helpId="existing-product-image-help"
+        inputRef={fileInputRef}
+        isUploading={isUploading}
+        onFile={addFile}
+      />
+      {!r2Configured || actionError || successMessage ? (
+        <div className="col-span-full space-y-1">
+          {!r2Configured ? (
+            <p className="text-amber-800 text-sm" role="status">
+              Configure all R2 environment values and restart the dev server to enable uploads.
+            </p>
+          ) : null}
+          {actionError ? (
+            <p className="text-destructive text-sm" role="alert">
+              {actionError}
+            </p>
+          ) : null}
+          {successMessage ? (
+            <p className="text-sm" role="status">
+              {successMessage}
+            </p>
+          ) : null}
         </div>
-      </div>
-    </form>
+      ) : null}
+    </>
   );
 }
 

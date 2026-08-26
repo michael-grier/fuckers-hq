@@ -71,6 +71,52 @@ test.describe("admin product lifecycle @admin", () => {
     await expect(page).toHaveURL(/\/admin\/products\/new/);
   });
 
+  test("uses the unified image picker on existing products", async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 900 });
+    await page.goto(`/admin/products?q=${encodeURIComponent("Precision Bearings")}`);
+    // A click before hydration is silently lost, so retry the action-and-outcome pair.
+    await expect(async () => {
+      await page.getByRole("link", { name: "Precision Bearings", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Precision Bearings", level: 1 })).toBeVisible(
+        { timeout: 5_000 },
+      );
+    }).toPass({ timeout: 30_000 });
+
+    const media = page.getByRole("region", { name: "Media" });
+    const pickerInput = media.getByLabel("Choose a product photo");
+    const pickerCard = pickerInput.locator("..");
+    const imageCard = media.locator("[data-reorder-key]").first();
+
+    await expect(pickerInput).toHaveAttribute("type", "file");
+    await expect(media.getByText("Choose photo")).toBeVisible();
+    await expect(media.getByText("Image file", { exact: true })).toHaveCount(0);
+    await expect(media.getByRole("button", { name: "Add image" })).toHaveCount(0);
+
+    for (const width of [768, 1366]) {
+      await page.setViewportSize({ width, height: 900 });
+      const [imageBox, pickerBox] = await Promise.all([
+        imageCard.boundingBox(),
+        pickerCard.boundingBox(),
+      ]);
+
+      expect(imageBox).not.toBeNull();
+      expect(pickerBox).not.toBeNull();
+      // Allow one pixel for fractional grid-track rounding.
+      expect(Math.abs((imageBox?.height ?? 0) - (pickerBox?.height ?? 0))).toBeLessThanOrEqual(1);
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    const [mobileImageBox, mobilePickerBox] = await Promise.all([
+      imageCard.boundingBox(),
+      pickerCard.boundingBox(),
+    ]);
+    expect(mobileImageBox).not.toBeNull();
+    expect(mobilePickerBox).not.toBeNull();
+    expect(mobilePickerBox?.y ?? 0).toBeGreaterThanOrEqual(
+      (mobileImageBox?.y ?? 0) + (mobileImageBox?.height ?? 0),
+    );
+  });
+
   test("create, publish, edit, archive, and delete a product end to end", async ({ page }) => {
     // One long journey on one product: the later steps depend on the earlier ones, and DB
     // constraints (unique slug/SKU) make splitting it into parallel specs racy.

@@ -336,12 +336,6 @@ export const adminVariantMoveSchema = z
   })
   .strict();
 
-export const adminImageUploadFormSchema = z
-  .object({
-    alt: z.string().trim().max(180),
-  })
-  .strict();
-
 export const adminProductImageCreateSchema = z
   .object({
     productId: adminEntityIdSchema,
@@ -415,5 +409,4 @@ export type AdminProductWorkspaceFormInput = z.input<typeof adminProductWorkspac
 export type AdminProductWorkspaceValues = z.output<typeof adminProductWorkspaceSchema>;
 export type AdminProductComposerFormInput = z.input<typeof adminProductComposerFormSchema>;
 export type AdminProductComposerValues = z.output<typeof adminProductComposerSchema>;
-export type AdminImageUploadFormInput = z.infer<typeof adminImageUploadFormSchema>;
 export type AdminProductImageFormInput = z.infer<typeof adminProductImageFormSchema>;

@@ -58,9 +58,15 @@ test.describe("live R2 image upload @stripe-live", () => {
     "R2 is not configured in this environment.",
   );
 
-  test("a browser upload reaches R2 and renders from the public URL", async ({ page }) => {
+  test("new and existing product uploads reach R2 and render from the public URL", async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     const name = `E2E Live Upload ${runId}`;
+    const onePixelPng = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
 
     await page.goto("/admin/products/new");
     await page.getByLabel("Name", { exact: true }).fill(name);
@@ -76,10 +82,7 @@ test.describe("live R2 image upload @stripe-live", () => {
     await page.locator('input[type="file"]').setInputFiles({
       name: "e2e-live.png",
       mimeType: "image/png",
-      buffer: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-        "base64",
-      ),
+      buffer: onePixelPng,
     });
     await expect(page.getByText("1 image uploaded")).toBeVisible({ timeout: 60_000 });
 
@@ -97,7 +100,15 @@ test.describe("live R2 image upload @stripe-live", () => {
       .poll(() => storedImage.evaluate((el) => (el as HTMLImageElement).naturalWidth))
       .toBeGreaterThan(0);
 
-    // Clean up the draft (and its image, via the app's own delete path).
+    // Existing products persist a valid selection immediately, without a second submit action.
+    await page.getByLabel("Choose a product photo").setInputFiles({
+      name: "e2e-live-existing.png",
+      mimeType: "image/png",
+      buffer: onePixelPng,
+    });
+    await expect(page.getByText("2 images", { exact: true })).toBeVisible({ timeout: 60_000 });
+
+    // Clean up the draft and both images through the app's own delete path.
     await page.getByRole("button", { name: "Delete product" }).click();
     await page.getByRole("button", { name: "Yes, delete" }).click();
     await expect(page).toHaveURL(/\/admin\/products$/);

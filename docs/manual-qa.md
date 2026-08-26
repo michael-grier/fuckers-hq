@@ -329,6 +329,10 @@ order. Do not use production customer data or live Resend credentials.
 
 ## 10. Product Images
 
+- [ ] New and existing product pages use the same native image picker; choosing a valid file on an
+      existing product starts the upload immediately, then the new image card exposes its alt text.
+- [ ] On an existing product, the image picker matches adjacent image-card heights at tablet and
+      desktop widths and stacks below them on a phone.
 - [ ] JPEG, PNG, WebP, or AVIF uploads complete directly from the browser to R2.
 - [ ] Unsupported and oversized files are rejected before product-image persistence.
 - [ ] The preview, admin image card, catalog card, and product gallery display the uploaded image.
