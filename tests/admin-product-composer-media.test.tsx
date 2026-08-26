@@ -27,6 +27,7 @@ mock.module("@/lib/actions/images", () => ({
 }));
 
 const { ProductComposer } = await import("@/components/admin/product-composer");
+const { ProductImagePicker } = await import("@/components/admin/product-image-picker");
 const { ProductMediaPanel } = await import("@/components/admin/product-media-panel");
 
 beforeEach(() => {
@@ -92,9 +93,27 @@ describe("existing product image picker", () => {
 
     expect(picker.type).toBe("file");
     expect(picker.className).toContain("opacity-0");
+    expect(picker.parentElement?.className).toContain("sm:aspect-square");
     expect(screen.getByText("Choose photo")).toBeDefined();
     expect(screen.queryByText("Image file")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add image" })).toBeNull();
+  });
+
+  test("drops the square aspect ratio beside an image card", () => {
+    render(
+      <ProductImagePicker
+        disabled={false}
+        helpId="matched-picker-help"
+        inputRef={{ current: null }}
+        isUploading={false}
+        matchGridRow
+        onFile={() => {}}
+      />,
+    );
+    const picker = screen.getByLabelText("Choose a product photo") as HTMLInputElement;
+
+    expect(picker.parentElement?.className).not.toContain("sm:aspect-square");
+    expect(picker.parentElement?.className).toContain("self-stretch");
   });
 
   test("routes a native picker selection through image validation", async () => {
