@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, Circle, ImagePlus, Plus, Trash2 } from "lucide-react";
+import { Check, Circle, Plus, Trash2 } from "lucide-react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -14,6 +14,7 @@ import {
   adminTextareaClassName,
   FormField,
 } from "@/components/admin/form-field";
+import { ProductImagePicker } from "@/components/admin/product-image-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createProductFromComposer } from "@/lib/actions/product-workspace";
@@ -26,11 +27,7 @@ import {
   productCategories,
 } from "@/lib/catalog/categories";
 import { shippingProfiles } from "@/lib/catalog/shipping-profiles";
-import {
-  allowedProductImageTypes,
-  MAX_PRODUCT_IMAGE_BYTES,
-  productImageUploadRequestSchema,
-} from "@/lib/r2/upload-contract";
+import { productImageUploadRequestSchema } from "@/lib/r2/upload-contract";
 import {
   type AdminProductComposerFormInput,
   adminProductComposerFormSchema,
@@ -505,46 +502,13 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                   </figure>
                 ))}
 
-                {/* The native input covers the tile so mobile browsers handle the
-                    picker directly. The wrapper keeps drag and paste support for
-                    devices that provide those interactions. */}
-                {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/paste
-                    affordances only; the file input remains the accessible path. */}
-                <div
-                  className="relative flex min-h-72 flex-col sm:aspect-square sm:min-h-0"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    void stageFile(event.dataTransfer.files?.[0]);
-                  }}
-                  onPaste={(event) => void stageFile(event.clipboardData.files?.[0])}
-                >
-                  <input
-                    accept={allowedProductImageTypes.join(",")}
-                    aria-describedby="new-product-image-help"
-                    aria-label="Choose a product photo"
-                    className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                    disabled={!r2Configured || busy}
-                    onChange={(event) => void stageFile(event.target.files?.[0])}
-                    ref={fileInputRef}
-                    type="file"
-                  />
-                  <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background px-4 text-center text-muted-foreground transition peer-hover:border-accent peer-hover:text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-50 peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50">
-                    <ImagePlus aria-hidden="true" className="size-6" />
-                    <span className="font-semibold text-base">
-                      {isUploading ? "Uploading…" : "Add a product photo"}
-                    </span>
-                    <span className="text-xs" id="new-product-image-help">
-                      JPEG, PNG, WebP, or AVIF up to {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.
-                    </span>
-                    <span className="mt-3 inline-flex h-11 items-center rounded-md bg-accent px-5 font-semibold text-accent-foreground text-sm">
-                      Choose photo
-                    </span>
-                    <span className="mt-1 hidden text-xs sm:block">
-                      You can also drop or paste an image here.
-                    </span>
-                  </div>
-                </div>
+                <ProductImagePicker
+                  disabled={!r2Configured || busy}
+                  helpId="new-product-image-help"
+                  inputRef={fileInputRef}
+                  isUploading={isUploading}
+                  onFile={stageFile}
+                />
               </div>
 
               {!r2Configured ? (
