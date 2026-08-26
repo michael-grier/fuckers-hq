@@ -66,6 +66,7 @@ test.describe("live R2 image upload @stripe-live", () => {
     await page.getByLabel("Name", { exact: true }).fill(name);
     await page.getByLabel("Category", { exact: true }).selectOption("hardgoods");
     await page.getByLabel("Subcategory").selectOption("decks");
+    await page.getByLabel("Shipping profile").selectOption("deck");
     await page.getByLabel("Variant 1 name").fill("One");
     await page.getByLabel("Variant 1 SKU").fill(`E2E-LIVE-${runId}`);
     await page.getByLabel("Variant 1 price in dollars").fill("10.00");
