@@ -139,13 +139,15 @@ describe("admin product taxonomy fields", () => {
     renderWorkspace();
 
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed Deck" } });
+    expect(screen.getByRole("region", { name: "Product save controls" })).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(savedPayloads).toHaveLength(1);
-      expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Product save controls" })).toBeNull();
     });
 
+    expect(screen.queryByRole("button", { name: "Save changes" })).toBeNull();
     expect(screen.getByRole("status").textContent).toBe("Product saved.");
   });
 

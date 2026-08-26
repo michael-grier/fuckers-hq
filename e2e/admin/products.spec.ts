@@ -8,33 +8,37 @@ const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
   test("keeps the product creation controls inside the mobile save bar", async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/admin/products/new");
+    for (const width of [375, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.goto("/admin/products/new");
 
-    const saveBar = page.getByText("Nothing is public until you publish.").locator("..");
-    const controls = saveBar.getByRole("link", { name: "Cancel" }).or(saveBar.getByRole("button"));
+      const saveBar = page.getByRole("region", { name: "Product creation controls" });
+      const controls = saveBar
+        .getByRole("link", { name: "Cancel" })
+        .or(saveBar.getByRole("button"));
 
-    const [barBox, controlBoxes] = await Promise.all([
-      saveBar.boundingBox(),
-      controls.evaluateAll((elements) =>
-        elements.map((element) => {
-          const { left, right } = element.getBoundingClientRect();
-          return { left, right };
-        }),
-      ),
-    ]);
+      const [barBox, controlBoxes] = await Promise.all([
+        saveBar.boundingBox(),
+        controls.evaluateAll((elements) =>
+          elements.map((element) => {
+            const { left, right } = element.getBoundingClientRect();
+            return { left, right };
+          }),
+        ),
+      ]);
 
-    expect(barBox).not.toBeNull();
-    expect(controlBoxes).toHaveLength(3);
+      expect(barBox).not.toBeNull();
+      expect(controlBoxes).toHaveLength(3);
 
-    if (barBox) {
-      // The bar uses 16px horizontal padding; allow one pixel for border rounding.
-      expect(Math.min(...controlBoxes.map(({ left }) => left)) - barBox.x).toBeGreaterThanOrEqual(
-        15,
-      );
-      expect(
-        barBox.x + barBox.width - Math.max(...controlBoxes.map(({ right }) => right)),
-      ).toBeGreaterThanOrEqual(15);
+      if (barBox) {
+        // The bar uses 16px horizontal padding; allow one pixel for border rounding.
+        expect(Math.min(...controlBoxes.map(({ left }) => left)) - barBox.x).toBeGreaterThanOrEqual(
+          15,
+        );
+        expect(
+          barBox.x + barBox.width - Math.max(...controlBoxes.map(({ right }) => right)),
+        ).toBeGreaterThanOrEqual(15);
+      }
     }
   });
 
@@ -84,9 +88,11 @@ test.describe("admin product lifecycle @admin", () => {
     // Edit: renaming dirties the form, which mounts the sticky save bar.
     const renamed = `${productName} v2`;
     await page.getByLabel("Name", { exact: true }).fill(renamed);
+    const saveBar = page.getByRole("region", { name: "Product save controls" });
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("button", { name: "Save changes" })).toBeHidden();
     await expect(page.getByRole("status")).toHaveText("Product saved.");
+    await expect(saveBar).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save changes" })).toBeHidden();
     await expect(page.getByRole("heading", { name: renamed, level: 1 })).toBeVisible();
 
     // Add a second variant and save it.

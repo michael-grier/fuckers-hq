@@ -745,7 +745,10 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
 
       {/* ===== Sticky create bar ===== */}
       <div className="sticky bottom-4 z-30 -mx-2 mt-4 sm:mx-0">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg">
+        <section
+          aria-label="Product creation controls"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
+        >
           <p className="min-w-0 text-sm text-white/70">
             {actionError ? (
               <span className="text-red-300" role="alert">
@@ -788,7 +791,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               {pendingIntent === "publish" ? "Publishing…" : "Create & publish"}
             </Button>
           </div>
-        </div>
+        </section>
       </div>
     </div>
   );

@@ -749,7 +749,7 @@ export function ProductWorkspace({
 
       {/* ===== Sticky save bar, visible only while something is unsaved ===== */}
       {isDirty || actionError ? (
-        <div className="sticky bottom-4 z-30 mt-4">
+        <section aria-label="Product save controls" className="sticky bottom-4 z-30 mt-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg">
             <div className="flex min-w-0 items-center gap-2 text-sm">
               {actionError ? (
@@ -789,7 +789,7 @@ export function ProductWorkspace({
               </Button>
             </div>
           </div>
-        </div>
+        </section>
       ) : null}
     </div>
   );
