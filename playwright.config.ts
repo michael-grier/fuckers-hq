@@ -28,12 +28,21 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
-      testIgnore: ["**/admin/**", "**/commerce/**", "**/setup/**"],
+      testIgnore: ["**/admin/**", "**/commerce/**", "**/live/**", "**/setup/**"],
     },
     {
       name: "admin",
       testMatch: "**/admin/**",
       dependencies: ["clerk-setup"],
+      use: { ...devices["Desktop Chrome"], storageState: "e2e/.clerk/admin.json" },
+    },
+    {
+      // Opt-in external tier: real hosted-Checkout payment via the Stripe CLI and real R2
+      // uploads. Every spec self-skips unless E2E_STRIPE_LIVE=1 (bun run test:e2e:live).
+      name: "live",
+      testMatch: "**/live/**",
+      dependencies: ["clerk-setup"],
+      fullyParallel: false,
       use: { ...devices["Desktop Chrome"], storageState: "e2e/.clerk/admin.json" },
     },
     {
@@ -47,7 +56,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "bun run dev",
+    // CI builds first and serves the production bundle (E2E_WEB_SERVER_COMMAND="bun run start")
+    // so specs are not racing on-demand dev compiles.
+    command: process.env.E2E_WEB_SERVER_COMMAND ?? "bun run dev",
     url: baseURL,
     // Reuse a dev server already listening on the base URL (the same behavior as
     // scripts/visual-check.ts); boot one only when nothing is there.

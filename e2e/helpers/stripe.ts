@@ -145,13 +145,36 @@ export function buildSignedCheckoutEvent(
   return { payload, signature };
 }
 
+/**
+ * POST with a retry on connection-level failures only (ECONNRESET/EPIPE from the dev server
+ * dropping a keep-alive mid-request). Safe for these endpoints because both are idempotent by
+ * design: checkout converges on requestId, the webhook dedupes on the session id. HTTP error
+ * statuses are returned, never retried.
+ */
+export async function resilientPost(
+  request: APIRequestContext,
+  url: string,
+  options: Parameters<APIRequestContext["post"]>[1],
+): Promise<import("@playwright/test").APIResponse> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await request.post(url, options);
+    } catch (error) {
+      if (!/ECONNRESET|EPIPE|socket hang up/.test(String(error))) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 /** POSTs the exact signed bytes; re-serialization would invalidate the signature. */
 export async function postWebhook(
   request: APIRequestContext,
   event: { payload: string; signature: string },
   overrideSignature?: string,
 ): Promise<number> {
-  const response = await request.post("/api/webhooks/stripe", {
+  const response = await resilientPost(request, "/api/webhooks/stripe", {
     headers: {
       "content-type": "application/json",
       "stripe-signature": overrideSignature ?? event.signature,

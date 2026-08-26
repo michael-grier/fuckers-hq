@@ -1,0 +1,9 @@
+// Specs navigate relative to the configured baseURL; a hard-coded absolute URL points at some
+// deployed environment, which the e2e guardrails exist to prevent. External hosts that helpers
+// legitimately touch (Stripe, Clerk) live in e2e/helpers, outside this rule's scope.
+// The regex sees the argument's full source text, so it matches the opening quote in any of
+// the three string forms.
+`$obj.goto($url)` where {
+  $url <: r"[\"'`]https?://[\s\S]*",
+  register_diagnostic(span=$url, message="No absolute URLs in specs: navigate relative to baseURL.")
+}
