@@ -134,7 +134,11 @@ export function ProductMediaPanel({
               productName={productName}
             />
           ))}
-          <ImageUploader productId={productId} r2Configured={r2Configured} />
+          <ImageUploader
+            matchGridRow={optimisticImages.length > 0}
+            productId={productId}
+            r2Configured={r2Configured}
+          />
         </ReorderableList>
 
         {moveError ? (
@@ -154,7 +158,15 @@ function describeImage(image: ManagedProductImage, index: number): string {
   return image.alt || `Image ${index + 1}`;
 }
 
-function ImageUploader({ productId, r2Configured }: { productId: string; r2Configured: boolean }) {
+function ImageUploader({
+  matchGridRow,
+  productId,
+  r2Configured,
+}: {
+  matchGridRow: boolean;
+  productId: string;
+  r2Configured: boolean;
+}) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -221,6 +233,7 @@ function ImageUploader({ productId, r2Configured }: { productId: string; r2Confi
         helpId="existing-product-image-help"
         inputRef={fileInputRef}
         isUploading={isUploading}
+        matchGridRow={matchGridRow}
         onFile={addFile}
       />
       {!r2Configured || actionError || successMessage ? (

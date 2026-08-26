@@ -507,6 +507,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                   helpId="new-product-image-help"
                   inputRef={fileInputRef}
                   isUploading={isUploading}
+                  matchGridRow={stagedImages.length > 0}
                   onFile={stageFile}
                 />
               </div>
