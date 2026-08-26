@@ -4,9 +4,15 @@ on:
   push:
     branches:
       - main
-  # Manual replays: re-running after a guarded migration aborts and the data has been fixed, or
-  # after repository secrets change. The ref guard on the migrate job limits dispatches to main.
+  # Manual runs can replay a guarded migration or rebuild stale Vercel output without its cache.
+  # The ref guard on the migrate job limits dispatches to main.
   workflow_dispatch:
+    inputs:
+      force_no_build_cache:
+        description: Build without Vercel's existing cache
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -98,8 +104,14 @@ jobs:
       # holds no application secrets — only the deploy token. vercel.json disables Vercel's
       # git-driven deploys of main so this is the only production deploy path.
       - name: Deploy production
-        run: bun x vercel@58 deploy --prod --yes --token "$VERCEL_TOKEN"
+        run: |
+          deploy_args=(deploy --prod --yes --token "$VERCEL_TOKEN")
+          if [[ "$FORCE_NO_BUILD_CACHE" == "true" ]]; then
+            deploy_args+=(--force)
+          fi
+          bun x vercel@58 "${deploy_args[@]}"
         env:
+          FORCE_NO_BUILD_CACHE: ${{ inputs.force_no_build_cache }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
