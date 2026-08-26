@@ -19,6 +19,10 @@ mock.module("next/navigation", () => ({
 const savedPayloads: Array<Record<string, unknown>> = [];
 
 mock.module("@/lib/actions/product-workspace", () => ({
+  // Bun shares module mocks across test files, so keep every action imported by either admin form.
+  createProductFromComposer: async () => {
+    throw new Error("createProductFromComposer is not used in taxonomy field tests.");
+  },
   saveProductWorkspace: async (input: Record<string, unknown>) => {
     savedPayloads.push(input);
     return { success: true, data: { variants: [] } };
