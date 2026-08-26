@@ -14,9 +14,10 @@ const FORWARDED_EVENTS = [
 ].join(",");
 
 /**
- * Starts the relay and resolves once it is ready. Throws with a actionable message when the CLI
+ * Starts the relay and resolves once it is ready. Throws with an actionable message when the CLI
  * is missing or its signing secret is not the one the app verifies with — a mismatch would make
- * every forwarded event 400 and the failure would otherwise look like an app bug.
+ * every forwarded event 400 and the failure would otherwise look like an app bug. Every failure
+ * path kills the child, so an unready relay can never outlive the suite.
  */
 export async function startStripeRelay(): Promise<StripeRelay> {
   const apiKey = process.env.STRIPE_SECRET_KEY;
@@ -45,18 +46,28 @@ export async function startStripeRelay(): Promise<StripeRelay> {
 
   const secret = await new Promise<string>((resolve, reject) => {
     let output = "";
+    let timer: NodeJS.Timeout;
+    const settle = (outcome: () => void) => {
+      clearTimeout(timer);
+      outcome();
+    };
+    const fail = (error: Error) =>
+      settle(() => {
+        child.kill();
+        reject(error);
+      });
     const onData = (chunk: Buffer) => {
       output += chunk.toString();
       const match = output.match(/whsec_[A-Za-z0-9]+/);
-      if (match) resolve(match[0]);
+      if (match) settle(() => resolve(match[0]));
     };
     child.stdout?.on("data", onData);
     child.stderr?.on("data", onData);
-    child.on("error", (error) => reject(new Error(`Stripe CLI failed to start: ${error.message}`)));
+    child.on("error", (error) => fail(new Error(`Stripe CLI failed to start: ${error.message}`)));
     child.on("exit", (code) =>
-      reject(new Error(`Stripe CLI exited early (code ${code}): ${output}`)),
+      fail(new Error(`Stripe CLI exited early (code ${code}): ${output}`)),
     );
-    setTimeout(() => reject(new Error(`Stripe CLI never became ready: ${output}`)), 30_000);
+    timer = setTimeout(() => fail(new Error(`Stripe CLI never became ready: ${output}`)), 30_000);
   });
 
   if (secret !== process.env.STRIPE_WEBHOOK_SECRET) {

@@ -36,8 +36,13 @@ async function variantRow(page: Page, sku: string) {
 /** Opens the admin workspace for a product via the products list search. */
 async function openWorkspace(page: Page, productName: string): Promise<void> {
   await page.goto(`/admin/products?q=${encodeURIComponent(productName)}`);
-  await page.getByRole("link", { name: productName }).click();
-  await expect(page.getByRole("heading", { name: productName, level: 1 })).toBeVisible();
+  // A click before hydration is silently lost, so retry the action-and-outcome pair.
+  await expect(async () => {
+    await page.getByRole("link", { name: productName }).click();
+    await expect(page.getByRole("heading", { name: productName, level: 1 })).toBeVisible({
+      timeout: 5_000,
+    });
+  }).toPass({ timeout: 30_000 });
 }
 
 test.describe("checkout boundary @commerce", () => {

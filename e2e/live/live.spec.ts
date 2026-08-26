@@ -87,6 +87,14 @@ test.describe("live R2 image upload @stripe-live", () => {
     // The workspace media panel serves the stored object back from the public R2 URL.
     await expect(page.getByRole("heading", { name: "Media" })).toBeVisible();
     await expect(page.getByText("1 image", { exact: true })).toBeVisible();
+    // The count comes from state, not from a successful load — prove the object really serves
+    // from the public R2 URL by requiring decoded pixels.
+    const publicHost = new URL(process.env.R2_PUBLIC_URL ?? "").host;
+    const storedImage = page.locator(`img[src*="${publicHost}"]`).first();
+    await expect(storedImage).toBeVisible();
+    await expect
+      .poll(() => storedImage.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
 
     // Clean up the draft (and its image, via the app's own delete path).
     await page.getByRole("button", { name: "Delete product" }).click();
