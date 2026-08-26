@@ -7,6 +7,37 @@ const productName = `E2E Composer Deck ${runId}`;
 const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
+  test("keeps the product creation controls inside the mobile save bar", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/admin/products/new");
+
+    const saveBar = page.getByText("Nothing is public until you publish.").locator("..");
+    const controls = saveBar.getByRole("link", { name: "Cancel" }).or(saveBar.getByRole("button"));
+
+    const [barBox, controlBoxes] = await Promise.all([
+      saveBar.boundingBox(),
+      controls.evaluateAll((elements) =>
+        elements.map((element) => {
+          const { left, right } = element.getBoundingClientRect();
+          return { left, right };
+        }),
+      ),
+    ]);
+
+    expect(barBox).not.toBeNull();
+    expect(controlBoxes).toHaveLength(3);
+
+    if (barBox) {
+      // The bar uses 16px horizontal padding; allow one pixel for border rounding.
+      expect(Math.min(...controlBoxes.map(({ left }) => left)) - barBox.x).toBeGreaterThanOrEqual(
+        15,
+      );
+      expect(
+        barBox.x + barBox.width - Math.max(...controlBoxes.map(({ right }) => right)),
+      ).toBeGreaterThanOrEqual(15);
+    }
+  });
+
   test("composer validation surfaces zod errors inline", async ({ page }) => {
     await page.goto("/admin/products/new");
     await page.getByLabel("Name", { exact: true }).fill("E2E Validation Probe");
@@ -54,7 +85,8 @@ test.describe("admin product lifecycle @admin", () => {
     const renamed = `${productName} v2`;
     await page.getByLabel("Name", { exact: true }).fill(renamed);
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByText("Product saved.").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save changes" })).toBeHidden();
+    await expect(page.getByRole("status")).toHaveText("Product saved.");
     await expect(page.getByRole("heading", { name: renamed, level: 1 })).toBeVisible();
 
     // Add a second variant and save it.
