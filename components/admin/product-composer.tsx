@@ -450,7 +450,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               </p>
             </div>
             <div className="space-y-4 p-5">
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {stagedImages.map((image, index) => (
                   <figure
                     className="overflow-hidden rounded-lg border bg-background"
@@ -461,7 +461,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                         alt={image.alt || image.fileName}
                         className="h-full w-full object-contain object-center"
                         fill
-                        sizes="(min-width: 640px) 33vw, 100vw"
+                        sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw"
                         src={image.previewUrl}
                         unoptimized
                       />
@@ -505,10 +505,13 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                   </figure>
                 ))}
 
+                {/* The native input covers the tile so mobile browsers handle the
+                    picker directly. The wrapper keeps drag and paste support for
+                    devices that provide those interactions. */}
                 {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/paste
-                    affordances only; the button inside remains the accessible path. */}
+                    affordances only; the file input remains the accessible path. */}
                 <div
-                  className="flex aspect-square flex-col"
+                  className="relative flex min-h-72 flex-col sm:aspect-square sm:min-h-0"
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => {
                     event.preventDefault();
@@ -516,29 +519,31 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
                   }}
                   onPaste={(event) => void stageFile(event.clipboardData.files?.[0])}
                 >
-                  <button
-                    className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background px-4 text-center text-muted-foreground outline-none transition hover:border-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!r2Configured || busy}
-                    onClick={() => fileInputRef.current?.click()}
-                    type="button"
-                  >
-                    <ImagePlus aria-hidden="true" className="size-6" />
-                    <span className="font-semibold text-sm">
-                      {isUploading ? "Uploading…" : "Add image"}
-                    </span>
-                    <span className="text-xs">
-                      Drop, paste, or browse. JPEG, PNG, WebP, or AVIF up to{" "}
-                      {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.
-                    </span>
-                  </button>
                   <input
                     accept={allowedProductImageTypes.join(",")}
-                    className="sr-only"
+                    aria-describedby="new-product-image-help"
+                    aria-label="Choose a product photo"
+                    className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                    disabled={!r2Configured || busy}
                     onChange={(event) => void stageFile(event.target.files?.[0])}
                     ref={fileInputRef}
-                    tabIndex={-1}
                     type="file"
                   />
+                  <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-background px-4 text-center text-muted-foreground transition peer-hover:border-accent peer-hover:text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-50 peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50">
+                    <ImagePlus aria-hidden="true" className="size-6" />
+                    <span className="font-semibold text-base">
+                      {isUploading ? "Uploading…" : "Add a product photo"}
+                    </span>
+                    <span className="text-xs" id="new-product-image-help">
+                      JPEG, PNG, WebP, or AVIF up to {MAX_PRODUCT_IMAGE_BYTES / 1024 / 1024} MB.
+                    </span>
+                    <span className="mt-3 inline-flex h-11 items-center rounded-md bg-accent px-5 font-semibold text-accent-foreground text-sm">
+                      Choose photo
+                    </span>
+                    <span className="mt-1 hidden text-xs sm:block">
+                      You can also drop or paste an image here.
+                    </span>
+                  </div>
                 </div>
               </div>
 
