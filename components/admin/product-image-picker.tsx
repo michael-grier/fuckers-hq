@@ -29,7 +29,7 @@ export function ProductImagePicker({
     <>
       {/* biome-ignore lint/a11y/noStaticElementInteractions: drag/paste affordances only; the native file input remains the accessible path. */}
       <div
-        className="relative flex min-h-72 flex-col sm:aspect-square sm:min-h-0"
+        className="relative flex min-h-72 self-stretch flex-col sm:aspect-square sm:min-h-0"
         onDragOver={(event) => event.preventDefault()}
         onDrop={(event) => {
           event.preventDefault();
