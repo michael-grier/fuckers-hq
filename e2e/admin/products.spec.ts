@@ -7,8 +7,10 @@ const productName = `E2E Composer Deck ${runId}`;
 const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
-  test("keeps the product creation controls inside the mobile save bar", async ({ page }) => {
-    for (const width of [375, 390]) {
+  test("keeps the product creation controls padded and on one larger-screen row", async ({
+    page,
+  }) => {
+    for (const width of [375, 768, 1366]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/admin/products/new");
 
@@ -21,8 +23,8 @@ test.describe("admin product lifecycle @admin", () => {
         saveBar.boundingBox(),
         controls.evaluateAll((elements) =>
           elements.map((element) => {
-            const { left, right } = element.getBoundingClientRect();
-            return { left, right };
+            const { left, right, top } = element.getBoundingClientRect();
+            return { left, right, top };
           }),
         ),
       ]);
@@ -38,6 +40,12 @@ test.describe("admin product lifecycle @admin", () => {
         expect(
           barBox.x + barBox.width - Math.max(...controlBoxes.map(({ right }) => right)),
         ).toBeGreaterThanOrEqual(15);
+      }
+
+      if (width >= 768) {
+        expect(Math.max(...controlBoxes.map(({ top }) => top))).toBe(
+          Math.min(...controlBoxes.map(({ top }) => top)),
+        );
       }
     }
   });
