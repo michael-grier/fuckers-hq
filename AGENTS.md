@@ -109,6 +109,13 @@ the matching e2e tier as well: `bun run test:e2e` (see `.claude/skills/e2e-check
 tier selection and how to read failures). The opt-in live tier (`bun run test:e2e:live`) talks
 to external services and runs only on explicit request.
 
+A change that adds or alters a storefront, cart, checkout, webhook, order, inventory, email, or
+admin flow must extend the e2e suite in the same pull request: a spec that would fail if the new
+behavior regressed, following the conventions in `e2e/` (accessible selectors, self-contained
+data, released reservations). Update `docs/manual-qa.md` in the same change — it is the source
+spec each section of the suite maps to — and when a flow genuinely cannot be automated, record
+it there as manual-only and say so in the pull request instead of skipping coverage silently.
+
 Add focused regression coverage for behavior changes and failure modes — a test that would have
 caught the bug, not a suite of smoke tests around it. Do not apply migrations or use external
 production services as part of automated verification.

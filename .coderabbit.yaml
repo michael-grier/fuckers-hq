@@ -98,6 +98,18 @@ reviews:
         pending and error states, and server/client trust boundaries. Prefer existing
         shared UI primitives and simple component composition.
 
+    - path: "{app/(shop)/**,app/admin/**,app/api/**,components/cart/**,components/shop/**,components/admin/**,lib/checkout/**,lib/orders/**,lib/webhooks/**,lib/email/**}"
+      instructions: |
+        These paths implement the user flows the Playwright e2e suite covers (e2e/, with
+        docs/manual-qa.md as its source spec). When a change adds a new user-facing flow or
+        alters an existing one, require matching e2e coverage and its corresponding section in
+        docs/manual-qa.md. For a genuinely non-automatable flow, require a matching manual-only
+        entry instead. Compare the changed flow with its coverage rather than accepting unrelated
+        edits: an admin-flow change still lacks coverage if the pull request includes only an
+        unrelated e2e edit, or its matching e2e spec without the manual-QA section. Do not demand
+        e2e coverage for changes that are invisible to users, such as refactors, styling-only
+        edits, or observability changes.
+
     - path: "tests/**"
       instructions: |
         Require focused coverage for changed behavior, especially error paths,
