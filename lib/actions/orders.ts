@@ -24,10 +24,15 @@ import {
   resolveInventoryException,
 } from "@/lib/orders/resolve-inventory-exception";
 import {
+  OrderInventoryReturnError,
+  returnRefundedOrderInventory,
+} from "@/lib/orders/return-order-inventory";
+import {
   adminOrderIdSchema,
   markOrderShippedSchema,
   retryOrderEmailSchema,
   retryOrderInventoryAllocationSchema,
+  returnOrderInventorySchema,
 } from "@/lib/validators/admin";
 
 /** One stable Sentry operation per email kind, so dashboards can query each notification. */
@@ -183,6 +188,44 @@ export async function retryOrderInventoryAllocation(input: unknown): Promise<Act
 
   revalidatePath("/admin");
   revalidatePath("/admin/orders");
+  revalidatePath(`/admin/orders/${parsed.data.orderId}`);
+
+  return {
+    success: true,
+    data: undefined,
+  };
+}
+
+/** Returns every allocated unit on one refunded order to sellable stock. */
+export async function returnOrderInventoryToStock(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = returnOrderInventorySchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  try {
+    await returnRefundedOrderInventory(parsed.data.orderId, adminOrderRepository);
+  } catch (error) {
+    if (error instanceof OrderInventoryReturnError) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+
+    captureServerException(error, {
+      area: "admin",
+      operation: "admin.return-order-inventory",
+    });
+    throw error;
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin/deliveries");
   revalidatePath(`/admin/orders/${parsed.data.orderId}`);
 
   return {

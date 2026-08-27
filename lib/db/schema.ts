@@ -27,7 +27,7 @@ export const orderStatusValues = [
   "cancelled",
   "refunded",
 ] as const;
-export const orderInventoryStatusValues = ["allocated", "exception"] as const;
+export const orderInventoryStatusValues = ["allocated", "exception", "released"] as const;
 export const fulfillmentMethodValues = ["shipping", "delivery"] as const;
 export const orderEmailKindValues = ["confirmation", "delivery_scheduled", "shipped"] as const;
 export const refundStatusValues = ["none", "partial", "full"] as const;
@@ -349,8 +349,15 @@ export const orders = pgTable(
     // added enum value in the transaction that adds it, and the migrator runs every pending
     // migration in one transaction, so an enum-literal comparison here would break a fresh deploy.
     check(
-      "orders_fulfilled_inventory_allocated",
-      sql`${table.status}::text NOT IN ('fulfilled', 'delivery_scheduled') OR ${table.inventoryStatus} = 'allocated'`,
+      "orders_fulfilled_inventory_resolved",
+      sql`${table.status}::text NOT IN ('fulfilled', 'delivery_scheduled')
+        OR ${table.inventoryStatus}::text IN ('allocated', 'released')`,
+    ),
+    // Releasing an order makes its units sellable again, so it is valid only after Stripe has
+    // recorded some refund. The application decides whether that refund warrants a stock return.
+    check(
+      "orders_released_inventory_requires_refund",
+      sql`${table.inventoryStatus}::text <> 'released' OR ${table.refundStatus}::text <> 'none'`,
     ),
     check(
       "orders_delivery_scheduled_requires_delivery",

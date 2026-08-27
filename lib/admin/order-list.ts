@@ -1,5 +1,6 @@
 import type { Order, OrderEmailDelivery } from "@/lib/db/schema";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
+import { orderNeedsInventoryReturn } from "@/lib/orders/return-order-inventory";
 
 export const adminOrderFilterValues = [
   "all",
@@ -28,6 +29,10 @@ type FilterableOrder = Pick<
  * stock was never allocated, or the confirmation email exhausted its retries.
  */
 export function orderNeedsAction(order: FilterableOrder): boolean {
+  if (orderNeedsInventoryReturn(order)) {
+    return true;
+  }
+
   if (order.status !== "paid") {
     return false;
   }

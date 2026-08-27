@@ -11,10 +11,14 @@ import {
 } from "@/lib/orders/create-paid-order";
 import type { OrderFulfillmentRepository } from "@/lib/orders/order-fulfillment";
 import { orderFulfillmentTransitionRules } from "@/lib/orders/order-fulfillment";
+import { returnOrderItemsToStock } from "@/lib/orders/order-inventory-repository";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
 import type { InventoryExceptionRepository } from "@/lib/orders/resolve-inventory-exception";
+import type { OrderInventoryReturnRepository } from "@/lib/orders/return-order-inventory";
 
-export const adminOrderRepository: OrderFulfillmentRepository & InventoryExceptionRepository = {
+export const adminOrderRepository: OrderFulfillmentRepository &
+  InventoryExceptionRepository &
+  OrderInventoryReturnRepository = {
   async applyFulfillmentTransition(orderId, transition, occurredAt, shipment) {
     const rule = orderFulfillmentTransitionRules[transition];
 
@@ -216,6 +220,28 @@ export const adminOrderRepository: OrderFulfillmentRepository & InventoryExcepti
       }
 
       return "allocated";
+    });
+  },
+
+  async returnRefundedOrderInventory(orderId) {
+    return getDb().transaction(async (tx) => {
+      const paymentIdentity = await tx.query.orders.findFirst({
+        columns: { stripePaymentIntentId: true },
+        where: (orders, { eq }) => eq(orders.id, orderId),
+      });
+
+      if (!paymentIdentity) {
+        return "not_found";
+      }
+
+      if (paymentIdentity.stripePaymentIntentId) {
+        // Serialize against a refund webhook that may be deciding on the same allocated units.
+        await tx.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${paymentIdentity.stripePaymentIntentId}))`,
+        );
+      }
+
+      return returnOrderItemsToStock(tx, orderId);
     });
   },
 };

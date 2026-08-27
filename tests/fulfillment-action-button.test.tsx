@@ -25,6 +25,7 @@ mock.module("@/lib/actions/orders", () => ({
   markOrderDelivered: async () => ({ success: true, data: undefined }) as const,
   retryOrderEmail: async () => ({ success: true, data: undefined }) as const,
   retryOrderInventoryAllocation: async () => ({ success: true, data: undefined }) as const,
+  returnOrderInventoryToStock: async () => ({ success: true, data: undefined }) as const,
   scheduleOrderDelivery: async () => ({ success: true, data: undefined }) as const,
 }));
 

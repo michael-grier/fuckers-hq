@@ -145,6 +145,40 @@ export function buildSignedCheckoutEvent(
   return { payload, signature };
 }
 
+type RefundEventOptions = {
+  eventId: string;
+  refundedCents: number;
+  tokens: SessionTokens;
+};
+
+/** A signed charge.refunded event for the Payment Intent used by a synthetic paid event. */
+export function buildSignedRefundEvent(options: RefundEventOptions): {
+  payload: string;
+  signature: string;
+} {
+  const payload = JSON.stringify({
+    id: options.eventId,
+    object: "event",
+    type: "charge.refunded",
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: `ch_${options.eventId}`,
+        object: "charge",
+        payment_intent: `pi_e2e_${options.tokens.reservationToken.slice(0, 12)}`,
+        amount_refunded: options.refundedCents,
+        currency: "cad",
+      },
+    },
+  });
+  const signature = getStripe().webhooks.generateTestHeaderString({
+    payload,
+    secret: requireWebhookSecret(),
+  });
+
+  return { payload, signature };
+}
+
 /**
  * POST with a retry on connection-level failures only (ECONNRESET/EPIPE from the dev server
  * dropping a keep-alive mid-request). Safe for these endpoints because both are idempotent by

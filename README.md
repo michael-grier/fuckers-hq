@@ -174,6 +174,12 @@ runtime-editable `shipping_rates` table. Review the
 [backfill, deployment, and rollback notes](docs/migrations/0013-shipping-profiles.md) before applying
 it.
 
+Migration `0015_sour_banshee.sql` adds the `released` order inventory state used by refund
+restocking. It does not backfill older refunds because operators may already have corrected their
+stock manually. Review the
+[deployment and rollback notes](docs/migrations/0015-refunded-inventory-release.md) before applying
+it.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:
@@ -215,6 +221,11 @@ and applied when the order is created.
 Fully refunded orders and orders with open, lost, or prevented disputes are excluded from
 fulfillment. Partial refunds remain visible to the operator without automatically cancelling the
 remaining fulfillment.
+
+A full refund received while an order is still paid returns every allocated unit to stock in the
+same transaction as the refund state. Refunds received after scheduling, shipment, or delivery stay
+allocated until an administrator confirms the whole order is sellable. Partial refunds use the same
+operator path because Stripe does not identify which physical items, if any, came back.
 
 Migration `0002_chubby_grandmaster` adds the inventory allocation state and fulfillment constraint.
 Its non-null `allocated` default safely backfills existing orders. Deploy the migration before this

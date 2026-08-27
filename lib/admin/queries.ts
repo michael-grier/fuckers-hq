@@ -21,6 +21,7 @@ export async function getAdminDashboardSummary() {
     orderRows,
     awaitingFulfillmentRows,
     inventoryExceptionRows,
+    inventoryReturnRows,
     deliveriesToScheduleRows,
     awaitingDeliveryRows,
   ] = await Promise.all([
@@ -46,6 +47,15 @@ export async function getAdminDashboardSummary() {
       .from(orders)
       .where(
         and(
+          eq(orders.inventoryStatus, "allocated"),
+          inArray(orders.refundStatus, ["partial", "full"]),
+        ),
+      ),
+    db
+      .select({ count: count() })
+      .from(orders)
+      .where(
+        and(
           eq(orders.status, "paid"),
           eq(orders.fulfillmentMethod, "delivery"),
           eq(orders.inventoryStatus, "allocated"),
@@ -63,6 +73,7 @@ export async function getAdminDashboardSummary() {
     orderCount: orderRows[0]?.count ?? 0,
     awaitingFulfillmentCount: awaitingFulfillmentRows[0]?.count ?? 0,
     inventoryExceptionCount: inventoryExceptionRows[0]?.count ?? 0,
+    inventoryReturnCount: inventoryReturnRows[0]?.count ?? 0,
     deliveriesToScheduleCount: deliveriesToScheduleRows[0]?.count ?? 0,
     awaitingDeliveryCount: awaitingDeliveryRows[0]?.count ?? 0,
   };
@@ -96,43 +107,60 @@ export async function getAdminAttentionItems() {
   await requireAdmin();
 
   const db = getDb();
-  const [inventoryExceptionOrders, failedEmailDeliveries] = await Promise.all([
-    db.query.orders.findMany({
-      columns: {
-        id: true,
-        orderNumber: true,
-        email: true,
-        totalCents: true,
-        currency: true,
-        createdAt: true,
-      },
-      where: (orders, { and, eq }) =>
-        and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception")),
-      orderBy: (orders, { asc }) => [asc(orders.createdAt)],
-    }),
-    db.query.orderEmailDeliveries.findMany({
-      columns: {
-        id: true,
-        kind: true,
-        attemptCount: true,
-        lastErrorCode: true,
-        lastAttemptAt: true,
-      },
-      // "failed" is terminal: the cron has exhausted retries and a human must intervene.
-      where: (deliveries, { eq }) => eq(deliveries.status, "failed"),
-      with: {
-        order: {
-          columns: {
-            id: true,
-            orderNumber: true,
+  const [inventoryExceptionOrders, inventoryReturnOrders, failedEmailDeliveries] =
+    await Promise.all([
+      db.query.orders.findMany({
+        columns: {
+          id: true,
+          orderNumber: true,
+          email: true,
+          totalCents: true,
+          currency: true,
+          createdAt: true,
+        },
+        where: (orders, { and, eq }) =>
+          and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception")),
+        orderBy: (orders, { asc }) => [asc(orders.createdAt)],
+      }),
+      db.query.orders.findMany({
+        columns: {
+          id: true,
+          orderNumber: true,
+          email: true,
+          totalCents: true,
+          currency: true,
+          createdAt: true,
+        },
+        where: (orders, { and, eq, inArray }) =>
+          and(
+            eq(orders.inventoryStatus, "allocated"),
+            inArray(orders.refundStatus, ["partial", "full"]),
+          ),
+        orderBy: (orders, { asc }) => [asc(orders.createdAt)],
+      }),
+      db.query.orderEmailDeliveries.findMany({
+        columns: {
+          id: true,
+          kind: true,
+          attemptCount: true,
+          lastErrorCode: true,
+          lastAttemptAt: true,
+        },
+        // "failed" is terminal: the cron has exhausted retries and a human must intervene.
+        where: (deliveries, { eq }) => eq(deliveries.status, "failed"),
+        with: {
+          order: {
+            columns: {
+              id: true,
+              orderNumber: true,
+            },
           },
         },
-      },
-      orderBy: (deliveries, { asc }) => [asc(deliveries.lastAttemptAt)],
-    }),
-  ]);
+        orderBy: (deliveries, { asc }) => [asc(deliveries.lastAttemptAt)],
+      }),
+    ]);
 
-  return { inventoryExceptionOrders, failedEmailDeliveries };
+  return { inventoryExceptionOrders, inventoryReturnOrders, failedEmailDeliveries };
 }
 
 export async function getAdminProducts() {

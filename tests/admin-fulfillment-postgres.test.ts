@@ -35,10 +35,12 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
 
     adminClient = postgres(testDatabaseUrl, { max: 1, prepare: false });
     await adminClient.unsafe(`create schema "${schemaName}"`);
-    client = postgres(testDatabaseUrl, {
+    // A URL startup option survives Neon pooling; the postgres-js connection setting does not.
+    const scopedDatabaseUrl = new URL(testDatabaseUrl);
+    scopedDatabaseUrl.searchParams.set("options", `-csearch_path=${schemaName}`);
+    client = postgres(scopedDatabaseUrl.toString(), {
       max: 10,
       prepare: false,
-      connection: { search_path: schemaName },
     });
 
     for (const statement of postgresTestSchema) {
@@ -272,8 +274,12 @@ const postgresTestSchema = [
     currency text not null,
     shipping_address jsonb,
     created_at timestamptz not null default now(),
-    constraint orders_fulfilled_inventory_allocated check (
-      status not in ('fulfilled', 'delivery_scheduled') or inventory_status = 'allocated'
+    constraint orders_fulfilled_inventory_resolved check (
+      status not in ('fulfilled', 'delivery_scheduled')
+      or inventory_status in ('allocated', 'released')
+    ),
+    constraint orders_released_inventory_requires_refund check (
+      inventory_status <> 'released' or refund_status <> 'none'
     ),
     constraint orders_delivery_scheduled_requires_delivery check (
       status <> 'delivery_scheduled' or fulfillment_method = 'delivery'

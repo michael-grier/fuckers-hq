@@ -34,11 +34,13 @@ const fulfillmentMethodLabels: Record<Order["fulfillmentMethod"], string> = {
 const orderInventoryStatusStyles: Record<Order["inventoryStatus"], string> = {
   allocated: "border-emerald-200 bg-emerald-50 text-emerald-800",
   exception: "border-red-200 bg-red-50 text-red-800",
+  released: "border-emerald-200 bg-emerald-50 text-emerald-800",
 };
 
 const orderInventoryStatusLabels: Record<Order["inventoryStatus"], string> = {
   allocated: "Allocated",
   exception: "Inventory exception",
+  released: "Returned to stock",
 };
 
 const refundStatusStyles: Record<Order["refundStatus"], string> = {
@@ -125,6 +127,14 @@ export function OrderInventoryStatusBadge({ status }: { status: Order["inventory
   return (
     <Badge className={orderInventoryStatusStyles[status]} variant="outline">
       {orderInventoryStatusLabels[status]}
+    </Badge>
+  );
+}
+
+export function OrderRestockRequiredBadge() {
+  return (
+    <Badge className="border-red-300 bg-red-50 font-semibold text-red-800" variant="outline">
+      Restock required
     </Badge>
   );
 }

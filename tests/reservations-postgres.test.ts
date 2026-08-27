@@ -12,6 +12,7 @@ import {
   pendingCheckouts,
   products,
   productVariants,
+  stripePaymentEvents,
 } from "@/lib/db/schema";
 import type { PaidOrderWriter } from "@/lib/orders/create-paid-order";
 
@@ -38,10 +39,12 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
 
     adminClient = postgres(testDatabaseUrl, { max: 1, prepare: false });
     await adminClient.unsafe(`create schema "${schemaName}"`);
-    client = postgres(testDatabaseUrl, {
+    // A URL startup option survives Neon pooling; the postgres-js connection setting does not.
+    const scopedDatabaseUrl = new URL(testDatabaseUrl);
+    scopedDatabaseUrl.searchParams.set("options", `-csearch_path=${schemaName}`);
+    client = postgres(scopedDatabaseUrl.toString(), {
       max: 10,
       prepare: false,
-      connection: { search_path: schemaName },
     });
 
     for (const statement of postgresTestSchema) {
@@ -269,7 +272,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
           .set({ status: "delivery_scheduled", deliveryScheduledAt: new Date() })
           .where(eq(orders.stripeSessionId, "cs_delivery_blocked")),
       ),
-    ).toBe("orders_fulfilled_inventory_allocated");
+    ).toBe("orders_fulfilled_inventory_resolved");
 
     // The same constraint guards the terminal state, so an inventory-exception order cannot slip
     // straight to fulfilled either.
@@ -280,7 +283,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
           .set({ status: "fulfilled", deliveryScheduledAt: new Date() })
           .where(eq(orders.stripeSessionId, "cs_delivery_blocked")),
       ),
-    ).toBe("orders_fulfilled_inventory_allocated");
+    ).toBe("orders_fulfilled_inventory_resolved");
   });
 
   test("multi-line failures and transaction rollback never partially reserve", async () => {
@@ -362,6 +365,43 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       inventoryQty: 1,
       reservedQty: 0,
     });
+  });
+
+  test("a refund retained before paid-order creation releases the reservation without allocating", async () => {
+    await insertVariant(database, variantId, 1);
+    const reservation = await reserve(
+      checkoutRepository,
+      variantId,
+      "10000000-0000-4000-8000-000000000015",
+    );
+    await checkoutRepository.linkStripeSession(reservation.reservationToken, "cs_refunded_early");
+    await database.insert(stripePaymentEvents).values({
+      stripeEventId: "evt_refunded_before_paid_order",
+      stripePaymentIntentId: "pi_cs_refunded_early",
+      kind: "refund",
+      refundedCents: 8900,
+      currency: "cad",
+      occurredAt: new Date("2026-08-27T15:00:00.000Z"),
+    });
+
+    await expect(
+      paidOrders.createPaidOrder(paidCheckout(reservation, "cs_refunded_early")),
+    ).resolves.toMatchObject({ created: true });
+
+    expect(
+      await database.query.orders.findFirst({
+        columns: { status: true, inventoryStatus: true, refundStatus: true },
+      }),
+    ).toEqual({ status: "refunded", inventoryStatus: "released", refundStatus: "full" });
+    expect(await variantStock(database, variantId)).toEqual({
+      inventoryQty: 1,
+      reservedQty: 0,
+    });
+    expect(
+      await database.query.inventoryReservations.findFirst({
+        columns: { status: true, releaseReason: true },
+      }),
+    ).toEqual({ status: "released", releaseReason: "fully_refunded_before_order" });
   });
 
   test("payment racing expiration has one consistent terminal result", async () => {
@@ -687,9 +727,14 @@ const postgresTestSchema = [
       or fulfillment_method <> 'delivery'
       or delivery_scheduled_at is not null
     ),
-    -- Mirrors production: neither terminal nor staged orders may carry unallocated stock.
-    constraint orders_fulfilled_inventory_allocated check (
-      status not in ('fulfilled', 'delivery_scheduled') or inventory_status = 'allocated'
+    -- Mirrors production: terminal and staged orders may be allocated or returned after refund,
+    -- but they may never carry an unresolved inventory exception.
+    constraint orders_fulfilled_inventory_resolved check (
+      status not in ('fulfilled', 'delivery_scheduled')
+      or inventory_status in ('allocated', 'released')
+    ),
+    constraint orders_released_inventory_requires_refund check (
+      inventory_status <> 'released' or refund_status <> 'none'
     ),
     constraint orders_tracking_pair_complete check (
       (tracking_carrier is null and tracking_number is null)
