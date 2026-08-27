@@ -10,7 +10,7 @@ test.describe("admin product lifecycle @admin", () => {
   test("hides pristine creation controls and uses one compact mobile action row", async ({
     page,
   }) => {
-    for (const width of [375, 390, 768, 1366]) {
+    for (const width of [320, 375, 390, 768, 1366]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto("/admin/products/new");
 
@@ -19,6 +19,7 @@ test.describe("admin product lifecycle @admin", () => {
 
       await page.getByLabel("Name", { exact: true }).fill(`Layout probe ${width}`);
       await expect(saveBar).toBeVisible();
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
       const controls = saveBar.locator("a:visible, button:visible");
 
@@ -47,6 +48,11 @@ test.describe("admin product lifecycle @admin", () => {
 
       if (width < 640) {
         expect(barBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(64);
+        expect(barBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((barBox?.x ?? Number.POSITIVE_INFINITY) + (barBox?.width ?? 0)).toBeLessThanOrEqual(
+          width,
+        );
+        expect(barBox?.y ?? -1).toBeGreaterThanOrEqual(0);
         expect((barBox?.y ?? Number.POSITIVE_INFINITY) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
           844,
         );

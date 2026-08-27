@@ -710,12 +710,12 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
         </div>
       </div>
 
-      {/* ===== Mobile-fixed, larger-screen sticky create bar ===== */}
+      {/* Intrinsic button widths must not widen the fixed phone dock beyond its viewport gutters. */}
       {hasChanges || actionError ? (
-        <div className="fixed inset-x-4 bottom-4 z-30 sm:sticky sm:inset-x-auto sm:mt-4">
+        <div className="fixed right-4 bottom-4 left-4 z-30 min-w-0 max-w-[calc(100vw_-_2rem)] sm:sticky sm:right-auto sm:left-auto sm:mt-4 sm:max-w-none">
           <section
             aria-label="Product creation controls"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
+            className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
           >
             <p
               className={
@@ -734,7 +734,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
             </p>
             {/* Phones already have Back to products above the form, so the dock keeps only the
                 two creation actions until there is room for the full desktop controls. */}
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-normal">
+            <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-normal">
               <Button
                 asChild
                 className="hidden px-2 text-white/80 hover:bg-white/10 hover:text-white sm:inline-flex sm:w-auto sm:px-3"
@@ -747,7 +747,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               </Button>
               <Button
                 aria-label={pendingIntent === "draft" ? "Saving draft" : "Save as draft"}
-                className="w-full border-white/30 bg-transparent px-2 text-white hover:bg-white/10 hover:text-white sm:w-auto sm:px-3"
+                className="w-full min-w-0 overflow-hidden border-white/30 bg-transparent px-2 text-white hover:bg-white/10 hover:text-white sm:w-auto sm:px-3"
                 disabled={busy}
                 onClick={() => submitWithIntent("draft")}
                 size="sm"
@@ -763,7 +763,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
               </Button>
               <Button
                 aria-label={pendingIntent === "publish" ? "Publishing product" : "Create & publish"}
-                className="w-full rounded-full bg-accent px-2 text-accent-foreground hover:bg-accent/90 sm:w-auto sm:px-3"
+                className="w-full min-w-0 overflow-hidden rounded-full bg-accent px-2 text-accent-foreground hover:bg-accent/90 sm:w-auto sm:px-3"
                 disabled={busy}
                 onClick={() => submitWithIntent("publish")}
                 size="sm"
