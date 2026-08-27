@@ -3,8 +3,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 import type { PeekableOrder } from "@/components/admin/order-peek";
 
+const adminRouteRefreshes: true[] = [];
+
 mock.module("next/navigation", () => ({
-  useRouter: () => ({ refresh: () => {}, push: () => {}, replace: () => {} }),
+  useRouter: () => ({
+    refresh: () => {
+      adminRouteRefreshes.push(true);
+    },
+    push: () => {},
+    replace: () => {},
+  }),
   notFound: () => {
     throw new Error("notFound");
   },
@@ -31,8 +39,12 @@ mock.module("@/lib/actions/orders", () => ({
 
 const { FulfillmentActionButton } = await import("@/components/admin/fulfillment-action-button");
 const { OrderPeek } = await import("@/components/admin/order-peek");
+const { ReturnOrderInventoryButton } = await import(
+  "@/components/admin/return-order-inventory-button"
+);
 
 beforeEach(() => {
+  adminRouteRefreshes.length = 0;
   submittedShipments.length = 0;
 });
 
@@ -92,6 +104,23 @@ describe("shipment tracking form", () => {
         },
       ]);
     });
+  });
+});
+
+describe("return order inventory button", () => {
+  test("stays disabled while the refreshed order state is loading", async () => {
+    render(
+      <ReturnOrderInventoryButton itemCount={1} orderId="823071ff-f180-43ed-82df-af334ccfe35a" />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Return 1 unit to stock" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, return to stock" }));
+
+    await waitFor(() => expect(adminRouteRefreshes).toHaveLength(1));
+
+    const pendingButton = screen.getByRole("button", { name: "Returning…" });
+    expect((pendingButton as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Return 1 unit to stock" })).toBeNull();
   });
 });
 

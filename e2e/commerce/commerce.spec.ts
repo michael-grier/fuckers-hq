@@ -352,8 +352,47 @@ test.describe("refund inventory @commerce", () => {
     await expect(page.getByRole("heading", { name: "Stock action required" })).toBeVisible();
     await expect(page.getByText("Restock required", { exact: true })).toBeVisible();
     await expect.poll(() => readOrderNeedsActionCount(page)).toBe(initialNeedsActionCount + 1);
+
+    const orderPath = new URL(page.url()).pathname;
+    let releaseRefresh = () => {};
+    const refreshGate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    let reportRefreshStarted = () => {};
+    const refreshStarted = new Promise<void>((resolve) => {
+      reportRefreshStarted = resolve;
+    });
+    let holdNextOrderGet = true;
+    await page.route(
+      (url) => url.pathname === orderPath,
+      async (route) => {
+        if (holdNextOrderGet && route.request().method() === "GET") {
+          holdNextOrderGet = false;
+          reportRefreshStarted();
+          await refreshGate;
+        }
+        await route.continue();
+      },
+    );
+
     await page.getByRole("button", { name: "Return 1 unit to stock" }).click();
+    const actionCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === orderPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
     await page.getByRole("button", { name: "Yes, return to stock" }).click();
+    await actionCompleted;
+    await refreshStarted;
+    try {
+      const pendingReturn = page.getByRole("button", { name: "Returning…" });
+      await expect(pendingReturn).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Return 1 unit to stock" })).toBeHidden();
+    } finally {
+      releaseRefresh();
+    }
+
     await expect(page.getByText("Returned to stock", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Stock action required" })).toBeHidden();
     await expect.poll(() => readOrderNeedsActionCount(page)).toBe(initialNeedsActionCount);

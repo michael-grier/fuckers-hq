@@ -172,7 +172,8 @@ Refund inventory:
       appears instead of restocking automatically.
 - [ ] For sellable returned goods, use Return all units to stock and confirm the banner clears,
       the Orders navigation counter decreases, the inventory badge reads Returned to stock, and
-      each order quantity is added exactly once.
+      each order quantity is added exactly once. While the page refreshes, the action stays disabled
+      as Returning… instead of briefly offering the same stock return again.
 - [ ] For damaged, lost, or customer-kept goods, leave the action untouched. The warning remains
       visible rather than quietly making unavailable units sellable.
 

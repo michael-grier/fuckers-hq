@@ -32,12 +32,15 @@ export function ReturnOrderInventoryButton({
 
       if (!result.success) {
         setErrorMessage(result.message);
+        setIsSubmitting(false);
         return;
       }
 
+      // Keep the stale action disabled until the refreshed server state removes this component.
       router.refresh();
-    } finally {
+    } catch (error) {
       setIsSubmitting(false);
+      throw error;
     }
   }
 
