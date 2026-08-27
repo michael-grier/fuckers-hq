@@ -162,8 +162,8 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             Confirm the delivery address before scheduling
           </h2>
           <p className="mt-2 max-w-3xl text-sm">
-            The geocode was ambiguous, close to the Rocky View County boundary, or the address
-            entered at Stripe Checkout differed from the one checked in the cart.
+            The geocode was ambiguous, close to the 40 km limit, or the address entered at Stripe
+            Checkout differed from the one checked in the cart.
           </p>
         </section>
       ) : null}

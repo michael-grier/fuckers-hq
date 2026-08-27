@@ -188,7 +188,7 @@ export function buildStripeSessionParams(
     automatic_tax: { enabled: settings.taxEnabled },
     ...(isDelivery
       ? {
-          // The cart has already checked the address against the county boundary. Stripe still
+          // The cart has already checked the address against the delivery radius. Stripe still
           // collects it for tax and the drop-off; offering no shipping_options keeps delivery free.
           shipping_address_collection: {
             allowed_countries: ["CA" as const],

@@ -112,7 +112,7 @@ test.describe("cart @smoke", () => {
     await expect(dialog.getByRole("button", { name: "Checkout" })).toBeInViewport();
 
     await dialog.getByText("Check free local delivery").click();
-    await expect(dialog.getByText(/don't include the city or province/)).toBeVisible();
+    await expect(dialog.getByText(/don't include the city or province/i)).toBeVisible();
     await dialog.getByLabel("Street address").fill("262075 Rocky View Point");
     await dialog.getByLabel("Unit (optional)").fill("103");
     await dialog.getByLabel("Postal code").fill("T4A 0X2");

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
-
-import {
-  distanceToRockyViewBoundaryMeters,
-  isInsideRockyViewCounty,
-} from "@/lib/checkout/delivery-boundary";
 import { evaluateDeliveryEligibility } from "@/lib/checkout/delivery-eligibility";
-import { geocodeRockyViewAddress } from "@/lib/checkout/delivery-geocoder";
+import { geocodeDeliveryAddress } from "@/lib/checkout/delivery-geocoder";
+import {
+  CALGARY_GEOGRAPHIC_CENTER,
+  distanceFromCalgaryCenterMeters,
+  LOCAL_DELIVERY_RADIUS_METERS,
+} from "@/lib/checkout/delivery-radius";
 import {
   createDeliveryEligibilityToken,
   verifyDeliveryEligibilityToken,
@@ -19,27 +19,58 @@ import { deliveryAddressSchema } from "@/lib/validators/delivery";
 const address = { line1: "262075 Rocky View Point", postalCode: "T4A0X2" };
 const items = [{ variantId: "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6", quantity: 1 }];
 const secret = "delivery-eligibility-test-secret-long-enough";
+const earthRadiusMeters = 6_371_000;
+const radiusLatitudeOffset = (LOCAL_DELIVERY_RADIUS_METERS / earthRadiusMeters) * (180 / Math.PI);
 
-describe("Rocky View County boundary", () => {
-  test("includes a known county address while excluding nearby municipal enclaves", () => {
-    expect(isInsideRockyViewCounty([-113.9400966, 51.2165656])).toBe(true);
-    // Calgary and Airdrie share postal prefixes with the county but are separate municipalities.
-    expect(isInsideRockyViewCounty([-114.0719, 51.0447])).toBe(false);
-    expect(isInsideRockyViewCounty([-114.0144, 51.2917])).toBe(false);
-  });
-
-  test("measures points close enough to an edge for manual review", () => {
-    const nearBoundary = [-114.676554, 50.965247] as const;
-
-    expect(isInsideRockyViewCounty(nearBoundary)).toBe(true);
-    expect(distanceToRockyViewBoundaryMeters(nearBoundary)).toBeLessThan(250);
+describe("Calgary delivery radius", () => {
+  test("measures the 40 km boundary from the city's geographic center", () => {
+    expect(distanceFromCalgaryCenterMeters(CALGARY_GEOGRAPHIC_CENTER)).toBe(0);
+    expect(
+      distanceFromCalgaryCenterMeters([
+        CALGARY_GEOGRAPHIC_CENTER[0],
+        CALGARY_GEOGRAPHIC_CENTER[1] + radiusLatitudeOffset,
+      ]),
+    ).toBeCloseTo(LOCAL_DELIVERY_RADIUS_METERS, 6);
   });
 });
 
-describe("Rocky View municipal-address geocoder", () => {
-  test("normalizes road suffixes and returns a high-confidence coordinate", async () => {
-    const result = await geocodeRockyViewAddress(address, async (input) => {
-      expect(new URL(input.toString()).searchParams.get("where")).toBe("intHouseNum=262075");
+describe("delivery geocoder", () => {
+  test("normalizes a Calgary address for the national locator", async () => {
+    const result = await geocodeDeliveryAddress(
+      { line1: "800 Macleod Trail SE", postalCode: "T2G2M3" },
+      async (input) => {
+        const url = new URL(input.toString());
+
+        expect(url.origin).toBe("https://www.geolocator.api.geo.ca");
+        expect(url.searchParams.get("q")).toBe("800 MACLEOD TRAIL SOUTHEAST, T2G 2M3, Alberta");
+
+        return Response.json([
+          {
+            title: "800 Macleod Trail Southeast, Calgary, Alberta",
+            qualifier: "INTERPOLATED_POSITION",
+            type: "ca.gc.nrcan.geoloc.data.model.Street",
+            geometry: { type: "Point", coordinates: [-114.0582289, 51.0445938] },
+          },
+        ]);
+      },
+    );
+
+    expect(result).toEqual({
+      status: "match",
+      point: [-114.0582289, 51.0445938],
+      confidence: "high",
+    });
+  });
+
+  test("falls back to Rocky View's civic index for rural addresses", async () => {
+    const result = await geocodeDeliveryAddress(address, async (input) => {
+      const url = new URL(input.toString());
+
+      if (url.origin === "https://www.geolocator.api.geo.ca") {
+        return Response.json([]);
+      }
+
+      expect(url.searchParams.get("where")).toBe("intHouseNum=262075");
 
       return Response.json({
         features: [
@@ -62,59 +93,21 @@ describe("Rocky View municipal-address geocoder", () => {
     });
   });
 
-  test("routes a postal mismatch to low confidence and provider errors to unavailable", async () => {
-    const lowConfidence = await geocodeRockyViewAddress(address, async () =>
-      Response.json({
-        features: [
-          {
-            attributes: {
-              vchAddress: "262075 ROCKY VIEW PT",
-              vchPostalCode: "T4A9Z9",
-              AddressStatus: "Current",
-            },
-            geometry: { x: -113.9400966, y: 51.2165656 },
-          },
-        ],
-      }),
-    );
-    const unavailable = await geocodeRockyViewAddress(address, async () => {
-      throw new Error("timeout");
-    });
-
-    expect(lowConfidence.status === "match" && lowConfidence.confidence).toBe("low");
-    expect(unavailable).toEqual({ status: "unavailable" });
-  });
-
-  test("normalizes common abbreviated street suffixes before matching", async () => {
-    const result = await geocodeRockyViewAddress(
-      { ...address, line1: "262075 Rocky View Trl" },
-      async () =>
-        Response.json({
-          features: [
-            {
-              attributes: {
-                vchAddress: "262075 ROCKY VIEW TRAIL",
-                vchPostalCode: "T4A 0X2",
-                AddressStatus: "Current",
-              },
-              geometry: { x: -113.9400966, y: 51.2165656 },
-            },
-          ],
-        }),
-    );
-
-    expect(result).toMatchObject({ status: "match", confidence: "high" });
-  });
-
-  test("uses the civic number when a pasted address starts with a unit", async () => {
-    const result = await geocodeRockyViewAddress(
+  test("uses the civic number when a pasted rural address starts with a unit", async () => {
+    const result = await geocodeDeliveryAddress(
       {
         line1: "103 - 262075 Rocky View Point, Example, AB",
         unit: "103",
         postalCode: "T4A0X2",
       },
       async (input) => {
-        expect(new URL(input.toString()).searchParams.get("where")).toBe("intHouseNum=262075");
+        const url = new URL(input.toString());
+
+        if (url.origin === "https://www.geolocator.api.geo.ca") {
+          return Response.json([]);
+        }
+
+        expect(url.searchParams.get("where")).toBe("intHouseNum=262075");
 
         return Response.json({
           features: [
@@ -132,6 +125,24 @@ describe("Rocky View municipal-address geocoder", () => {
     );
 
     expect(result).toMatchObject({ status: "match", confidence: "high" });
+  });
+
+  test("treats provider failures as unavailable", async () => {
+    const result = await geocodeDeliveryAddress(address, async () => {
+      throw new Error("timeout");
+    });
+
+    expect(result).toEqual({ status: "unavailable" });
+  });
+
+  test("rejects malformed provider candidates without throwing", async () => {
+    let requestCount = 0;
+    const result = await geocodeDeliveryAddress(address, async () => {
+      requestCount += 1;
+      return requestCount === 1 ? Response.json([null]) : Response.json({ features: [] });
+    });
+
+    expect(result).toEqual({ status: "not_found" });
   });
 });
 
@@ -165,14 +176,14 @@ describe("delivery address input", () => {
 });
 
 describe("delivery eligibility", () => {
-  test("offers delivery for an in-county match and signs the checked address", async () => {
+  test("offers delivery for a match inside the radius and signs the checked address", async () => {
     const result = await evaluateDeliveryEligibility(
       { address, items },
       {
         getSubtotalCents: async () => 3_000,
         geocode: async () => ({
           status: "match",
-          point: [-113.9400966, 51.2165656],
+          point: CALGARY_GEOGRAPHIC_CENTER,
           confidence: "high",
         }),
         createToken: () => "signed-token",
@@ -208,7 +219,7 @@ describe("delivery eligibility", () => {
     expect(geocoderCalled).toBe(false);
   });
 
-  test("keeps shipping available for out-of-county and failed geocodes", async () => {
+  test("keeps shipping available outside the radius and after failed geocodes", async () => {
     const evaluate = (
       geocode: () => Promise<
         | { status: "unavailable" }
@@ -231,7 +242,7 @@ describe("delivery eligibility", () => {
     expect(
       await evaluate(async () => ({
         status: "match",
-        point: [-114.0719, 51.0447],
+        point: [CALGARY_GEOGRAPHIC_CENTER[0], CALGARY_GEOGRAPHIC_CENTER[1] + 0.6],
         confidence: "high",
       })),
     ).toMatchObject({ status: "ineligible", message: expect.stringContaining("Shipping") });
@@ -245,19 +256,17 @@ describe("delivery eligibility", () => {
     for (const geocode of [
       {
         status: "match" as const,
-        point: [-113.9400966, 51.2165656] as const,
+        point: CALGARY_GEOGRAPHIC_CENTER,
         confidence: "low" as const,
       },
       {
         status: "match" as const,
-        point: [-114.676554, 50.965247] as const,
-        confidence: "high" as const,
-      },
-      {
-        // A point exactly on the simplified line can ray-cast to either side. Human confirmation
-        // is safer than silently rejecting it.
-        status: "match" as const,
-        point: [-114.676054, 50.965147] as const,
+        point: [
+          CALGARY_GEOGRAPHIC_CENTER[0],
+          CALGARY_GEOGRAPHIC_CENTER[1] +
+            radiusLatitudeOffset +
+            (100 / earthRadiusMeters) * (180 / Math.PI),
+        ] as const,
         confidence: "high" as const,
       },
     ]) {

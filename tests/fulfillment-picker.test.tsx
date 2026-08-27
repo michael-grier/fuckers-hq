@@ -14,7 +14,7 @@ const line: CartDisplayLine = {
   imageUrl: null,
 };
 const deliveryArea = {
-  areaName: "Rocky View County, Alberta",
+  areaName: "40 km of central Calgary",
   instructions: null,
 };
 const originalFetch = globalThis.fetch;
@@ -45,7 +45,7 @@ describe("fulfillment picker", () => {
     expect(container.querySelector("details")?.open).toBe(false);
     expect(screen.queryByRole("radio", { name: "Local delivery" })).toBeNull();
     expect(screen.getByLabelText("Unit (optional)")).toBeDefined();
-    expect(screen.getByText(/don't include the city or province/)).toBeDefined();
+    expect(container.textContent).toContain("Don't include the city or province");
   });
 
   test("replaces a successful check with a compact verified choice", async () => {

@@ -96,10 +96,10 @@ transition.
 - [ ] A unit-prefixed address pasted with city and province still checks the building's civic
       address, preserves the unit in the verified summary, and does not reject the address because
       of the extra locality text.
-- [ ] A known Rocky View County address on an order of at least $30 replaces the form with a compact
-      verified summary and makes Local delivery selectable.
-- [ ] A Calgary address that shares an FSA with Rocky View does not expose Local delivery and leaves
-      shipping selected.
+- [ ] An address well within 40 km of Calgary's geographic center on an order of at least $30
+      replaces the form with a compact verified summary and makes Local delivery selectable.
+- [ ] An address more than 40.25 km from the center does not expose Local delivery and leaves
+      shipping selected. An address within 250 m of the limit is marked for address review.
 - [ ] An order under $30 explains the exact amount remaining instead of showing the address form.
 - [ ] Changing a cart line after a successful check clears the proof and returns the method to
       shipping. Reloading also requires a fresh address check.

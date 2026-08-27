@@ -121,7 +121,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
             Confirm the address before scheduling
           </p>
           <p className="mt-1.5 text-xs">
-            The geocode was ambiguous, close to the county boundary, or changed at Stripe Checkout.
+            The geocode was ambiguous, close to the 40 km limit, or changed at Stripe Checkout.
           </p>
         </div>
       ) : null}

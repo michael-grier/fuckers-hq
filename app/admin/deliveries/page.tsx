@@ -42,8 +42,8 @@ export default async function AdminDeliveriesPage() {
           <div className="mt-3 space-y-2 text-muted-foreground text-sm">
             <p className="font-semibold text-foreground">{deliveryArea.areaName}</p>
             <p>
-              Checkout checks each address against the stored county boundary. Orders marked Address
-              review need confirmation before you schedule the drop-off.
+              Checkout checks each address against the 40 km radius from central Calgary. Orders
+              marked Address review need confirmation before you schedule the drop-off.
             </p>
             {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
           </div>

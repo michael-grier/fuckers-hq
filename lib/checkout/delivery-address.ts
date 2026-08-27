@@ -1,4 +1,4 @@
-const streetSuffixes: Record<string, string> = {
+const streetTokens: Record<string, string> = {
   AV: "AVE",
   AVENUE: "AVE",
   BOULEVARD: "BLVD",
@@ -12,15 +12,23 @@ const streetSuffixes: Record<string, string> = {
   HIGHWAY: "HWY",
   LANE: "LANE",
   LN: "LANE",
+  NORTH: "N",
+  NORTHEAST: "NE",
+  NORTHWEST: "NW",
   PLACE: "PL",
   POINT: "PT",
   ROAD: "RD",
+  SOUTH: "S",
+  SOUTHEAST: "SE",
+  SOUTHWEST: "SW",
   STREET: "ST",
   TER: "TERR",
   TERRACE: "TERR",
   TRAIL: "TR",
   TRL: "TR",
   WAY: "WAY",
+  EAST: "E",
+  WEST: "W",
 };
 
 const labelledUnitPattern = /^(?:AP(?:T\.?|ARTMENT)|SUITE|UNIT|#)\s*#?\s*([^,]+),\s*(.+)$/i;
@@ -82,6 +90,6 @@ export function normalizeDeliveryStreetAddress(value: string): string {
     .replace(/[^A-Z0-9 ]/g, " ")
     .split(/\s+/)
     .filter(Boolean)
-    .map((part) => streetSuffixes[part] ?? part)
+    .map((part) => streetTokens[part] ?? part)
     .join(" ");
 }

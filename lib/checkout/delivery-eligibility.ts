@@ -1,15 +1,15 @@
 import { LOCAL_DELIVERY_MINIMUM_CENTS } from "@/lib/checkout/delivery";
-import {
-  distanceToRockyViewBoundaryMeters,
-  isInsideRockyViewCounty,
-} from "@/lib/checkout/delivery-boundary";
 import type { DeliveryGeocodeResult } from "@/lib/checkout/delivery-geocoder";
+import {
+  distanceFromCalgaryCenterMeters,
+  LOCAL_DELIVERY_RADIUS_METERS,
+} from "@/lib/checkout/delivery-radius";
 import type {
   DeliveryEligibilityRequest,
   DeliveryEligibilityResponse,
 } from "@/lib/validators/delivery";
 
-export const DELIVERY_BOUNDARY_REVIEW_DISTANCE_METERS = 250;
+export const DELIVERY_RADIUS_REVIEW_DISTANCE_METERS = 250;
 
 type DeliveryEligibilityDependencies = {
   getSubtotalCents: (items: DeliveryEligibilityRequest["items"]) => Promise<number>;
@@ -49,9 +49,11 @@ export async function evaluateDeliveryEligibility(
     };
   }
 
-  const isInside = isInsideRockyViewCounty(result.point);
+  const distanceMeters = distanceFromCalgaryCenterMeters(result.point);
+  const isInside = distanceMeters <= LOCAL_DELIVERY_RADIUS_METERS;
   const isNearBoundary =
-    distanceToRockyViewBoundaryMeters(result.point) <= DELIVERY_BOUNDARY_REVIEW_DISTANCE_METERS;
+    Math.abs(distanceMeters - LOCAL_DELIVERY_RADIUS_METERS) <=
+    DELIVERY_RADIUS_REVIEW_DISTANCE_METERS;
 
   if (!isInside && !isNearBoundary) {
     return {

@@ -227,8 +227,8 @@ export function FulfillmentPicker({
               ) : (
                 <form className="space-y-3" onSubmit={handleEligibilityCheck}>
                   <p className="text-muted-foreground text-xs">
-                    Use the street address only—don't include the city or province. We'll check
-                    whether it's inside {deliveryArea.areaName}.
+                    Use the street address only. Don't include the city or province. We'll check
+                    whether it's within {deliveryArea.areaName}.
                   </p>
                   <div className="space-y-1">
                     <label className="font-semibold text-xs" htmlFor={streetAddressId}>
@@ -239,7 +239,7 @@ export function FulfillmentPicker({
                       id={streetAddressId}
                       maxLength={120}
                       name="line1"
-                      placeholder="262075 Rocky View Point"
+                      placeholder="800 Macleod Trail SE"
                       required
                       onChange={(event) => setLine1(event.currentTarget.value)}
                       value={line1}

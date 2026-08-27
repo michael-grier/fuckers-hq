@@ -1,7 +1,7 @@
 # Migration 0015: local-delivery geofence review
 
 Migration `0015_material_anita_blake.sql` adds the checked delivery address and review status needed
-by the Rocky View County geofence.
+by the local-delivery geofence.
 
 ## Data changes
 
@@ -20,9 +20,10 @@ Apply the migration before deploying code that writes these new columns. Configu
 `DELIVERY_ELIGIBILITY_SECRET` of at least 32 characters in the same release. Delivery stays hidden
 without that secret, while shipping checkout remains available.
 
-After deployment, check one known Rocky View address, one Calgary address in a shared postal area,
-and a simulated geocoder failure. The first should offer delivery; the others should leave shipping
-selected without reserving inventory.
+After deployment, check addresses well inside and outside the 40 km radius, one address close to the
+limit, and a simulated geocoder failure. The inside address should offer delivery, the near-limit
+address should require review, and the others should leave shipping selected without reserving
+inventory.
 
 ## Rollback
 

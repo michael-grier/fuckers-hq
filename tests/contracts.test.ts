@@ -180,7 +180,7 @@ describe("environment contract", () => {
     const base = {
       NODE_ENV: "test",
       DELIVERY_ENABLED: "true",
-      DELIVERY_AREA_NAME: "Rocky View County, Alberta",
+      DELIVERY_AREA_NAME: "40 km of central Calgary",
     } as const;
 
     expect(resolveDeliveryArea(parseEnv(base))).toBeNull();
@@ -192,7 +192,7 @@ describe("environment contract", () => {
           DELIVERY_ELIGIBILITY_SECRET: "delivery-signing-secret-with-32-characters",
         }),
       )?.areaName,
-    ).toBe("Rocky View County, Alberta");
+    ).toBe("40 km of central Calgary");
   });
 });
 

@@ -123,15 +123,17 @@ offered only when `DELIVERY_ENABLED` is `true`, `DELIVERY_AREA_NAME` is set, and
 `DELIVERY_ELIGIBILITY_SECRET` contains at least 32 characters. A half-configured deploy falls back
 to ordinary shipping.
 
-The cart geocodes the street address through Rocky View County's municipal-address service and
-checks the result against the committed 2025 Statistics Canada municipal boundary. Eligible carts
-must total at least $30 before tax. Provider failure leaves paid shipping usable. Ambiguous,
-near-boundary, and changed Stripe addresses are marked `Address review` for the delivery operator.
+The cart geocodes the street address through [Natural Resources Canada's address
+locator](https://geogratis.gc.ca/site/eng/geoloc), with Rocky View County's civic index as a fallback
+for rural addresses. It then checks whether the coordinate is within 40 km of Calgary's geographic
+center. The center is the area-weighted centroid of the City's 14 official ward polygons. Eligible
+carts must total at least $30 before tax. Provider failure leaves paid shipping usable. Ambiguous,
+near-limit, and changed Stripe addresses are marked `Address review` for the delivery operator.
 Stripe still collects the Canada-only delivery address and charges no shipping amount.
 
 | Variable | Content |
 | --- | --- |
-| `DELIVERY_AREA_NAME` | Public name of the service area, e.g. `Rocky View County, Alberta` |
+| `DELIVERY_AREA_NAME` | Public name of the service area, e.g. `40 km of central Calgary` |
 | `DELIVERY_INSTRUCTIONS` | Optional note shown with the delivery option at checkout |
 | `DELIVERY_ELIGIBILITY_SECRET` | Random signing secret, at least 32 characters; do not reuse another provider secret |
 

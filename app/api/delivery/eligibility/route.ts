@@ -2,7 +2,7 @@ import { isIP } from "node:net";
 
 import { resolveDeliveryArea } from "@/lib/checkout/delivery";
 import { evaluateDeliveryEligibility } from "@/lib/checkout/delivery-eligibility";
-import { geocodeRockyViewAddress } from "@/lib/checkout/delivery-geocoder";
+import { geocodeDeliveryAddress } from "@/lib/checkout/delivery-geocoder";
 import { getDeliveryCartSubtotalCents } from "@/lib/checkout/delivery-repository";
 import { createDeliveryEligibilityToken } from "@/lib/checkout/delivery-token";
 import { CheckoutError } from "@/lib/checkout/errors";
@@ -59,7 +59,7 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json(
       await evaluateDeliveryEligibility(input.data, {
         getSubtotalCents: getDeliveryCartSubtotalCents,
-        geocode: geocodeRockyViewAddress,
+        geocode: geocodeDeliveryAddress,
         createToken: (address, reviewRequired) =>
           createDeliveryEligibilityToken(address, reviewRequired, secret),
       }),

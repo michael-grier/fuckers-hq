@@ -159,7 +159,7 @@ source maps are enabled.
 | `SHIPPING_ALLOWED_COUNTRIES` | Comma-separated ISO alpha-2 codes, e.g. `CA,US` | No |
 | `SHIPPING_FREE_THRESHOLD_CENTS` | Nonnegative integer cents | No |
 | `DELIVERY_ENABLED` | `true` to offer local delivery at checkout; defaults to `false` | No |
-| `DELIVERY_AREA_NAME` | Service area shown at checkout, e.g. `Rocky View County, Alberta` | No |
+| `DELIVERY_AREA_NAME` | Service area shown at checkout, e.g. `40 km of central Calgary` | No |
 | `DELIVERY_INSTRUCTIONS` | Optional extra note shown with the delivery option | No |
 | `DELIVERY_ELIGIBILITY_SECRET` | Random secret of at least 32 characters used to sign address checks | Yes, if delivery is enabled |
 

@@ -82,7 +82,7 @@ describe("cart sidebar", () => {
           lines={[deck]}
           onClear={() => undefined}
           deliveryArea={{
-            areaName: "Rocky View County, Alberta",
+            areaName: "40 km of central Calgary",
             instructions: "Ring the buzzer.",
           }}
         />
@@ -99,7 +99,7 @@ describe("cart sidebar", () => {
     // take visual space until the shopper expands it.
     expect(markup).toContain("Street address");
     expect(markup).toContain("Postal code");
-    expect(markup).toContain("Rocky View County, Alberta");
+    expect(markup).toContain("40 km of central Calgary");
     expect(markup).toContain("Ring the buzzer.");
   });
 
