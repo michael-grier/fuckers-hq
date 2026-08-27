@@ -266,6 +266,7 @@ const postgresTestSchema = [
     status text not null,
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
+    delivery_review_required boolean not null default false,
     delivery_scheduled_at timestamptz,
     shipped_at timestamptz,
     tracking_carrier text,
@@ -288,6 +289,9 @@ const postgresTestSchema = [
     ),
     constraint orders_released_inventory_requires_refund check (
       inventory_status <> 'released' or refund_status <> 'none'
+    ),
+    constraint orders_delivery_review_requires_delivery check (
+      not delivery_review_required or fulfillment_method = 'delivery'
     )
   )`,
   `create table order_items (
