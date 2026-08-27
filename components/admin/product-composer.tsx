@@ -276,10 +276,17 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
   });
 
   return (
-    <div className={hasChanges || actionError ? "pb-16 sm:pb-0" : undefined}>
+    <form
+      className={hasChanges || actionError ? "pb-16 sm:pb-0" : undefined}
+      // These catalog fields are not credentials. Proton Pass honors this marker and otherwise
+      // mutates the server-rendered tree before React hydrates it.
+      data-protonpass-ignore=""
+      onSubmit={(event) => event.preventDefault()}
+    >
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* ===== Main column ===== */}
-        <div className="min-w-0 space-y-4">
+        {/* Keep the escape hatch scoped to the element Proton Pass has been observed mutating. */}
+        <div className="min-w-0 space-y-4" suppressHydrationWarning>
           <section aria-labelledby="details-heading" className="rounded-lg border bg-background">
             <div className="border-b px-5 py-4">
               <h2 className="font-bold text-lg" id="details-heading">
@@ -780,7 +787,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
           </section>
         </div>
       ) : null}
-    </div>
+    </form>
   );
 }
 

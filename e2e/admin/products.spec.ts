@@ -10,14 +10,22 @@ test.describe("admin product lifecycle @admin", () => {
   test("hides pristine creation controls and uses one compact mobile action row", async ({
     page,
   }) => {
-    for (const width of [320, 375, 390, 768, 1366]) {
-      await page.setViewportSize({ width, height: 844 });
+    for (const { width, height } of [
+      { width: 320, height: 844 },
+      { width: 375, height: 844 },
+      { width: 390, height: 844 },
+      { width: 430, height: 932 },
+      { width: 768, height: 844 },
+      { width: 1366, height: 844 },
+    ]) {
+      await page.setViewportSize({ width, height });
       await page.goto("/admin/products/new");
 
       const saveBar = page.getByRole("region", { name: "Product creation controls" });
       await expect(saveBar).toHaveCount(0);
 
-      await page.getByLabel("Name", { exact: true }).fill(`Layout probe ${width}`);
+      const name = page.getByLabel("Name", { exact: true });
+      await name.fill(`Layout probe ${width}`);
       await expect(saveBar).toBeVisible();
       expect(await page.evaluate(() => window.scrollY)).toBe(0);
 
@@ -54,7 +62,7 @@ test.describe("admin product lifecycle @admin", () => {
         );
         expect(barBox?.y ?? -1).toBeGreaterThanOrEqual(0);
         expect((barBox?.y ?? Number.POSITIVE_INFINITY) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
-          844,
+          height,
         );
         expect(controlBoxes[0]?.top).toBe(controlBoxes[1]?.top);
         await expect(saveBar.getByRole("link", { name: "Cancel" })).toBeHidden();
@@ -67,6 +75,42 @@ test.describe("admin product lifecycle @admin", () => {
         );
       }
     }
+  });
+
+  test("tolerates a password-manager mutation before hydration", async ({ page }) => {
+    const hydrationErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && message.text().includes("hydrated")) {
+        hydrationErrors.push(message.text());
+      }
+    });
+    await page.addInitScript(() => {
+      const observer = new MutationObserver(() => {
+        const mainColumn = document.querySelector(
+          "form[data-protonpass-ignore] > .grid > .min-w-0.space-y-4",
+        );
+
+        if (mainColumn) {
+          mainColumn.setAttribute("data-protonpass-form", "");
+          observer.disconnect();
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
+
+    await page.setViewportSize({ width: 430, height: 932 });
+    await page.goto("/admin/products/new");
+    await expect(page.locator("form[data-protonpass-ignore]")).toHaveCount(1);
+
+    await page.getByLabel("Name", { exact: true }).fill("Hydration probe");
+    const saveBar = page.getByRole("region", { name: "Product creation controls" });
+    await expect(saveBar).toBeVisible();
+
+    const barBox = await saveBar.boundingBox();
+    expect((barBox?.y ?? Number.POSITIVE_INFINITY) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
+      932,
+    );
+    expect(hydrationErrors).toEqual([]);
   });
 
   test("shows creation controls when a staged image is the only edit", async ({ page }) => {
