@@ -97,6 +97,30 @@ describe("order confirmation template", () => {
     expect(html).not.toContain(delivery.orderId);
   });
 
+  // A zero tax line reads as "we assessed tax and there was none", which is a different claim from
+  // not being registered to charge it. The store is an unregistered small supplier, so the row is
+  // omitted entirely rather than rendered as $0.00. See #151.
+  test("omits the tax row when no tax was charged and shows it when there was", async () => {
+    const untaxed = await render(
+      createElement(OrderConfirmationEmail, {
+        order: delivery.order,
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(untaxed).not.toContain("Tax");
+
+    const taxed = await render(
+      createElement(OrderConfirmationEmail, {
+        order: { ...delivery.order, taxCents: 445, totalCents: 10845 },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(taxed).toContain("Tax");
+    expect(taxed).toContain("$4.45");
+  });
+
   test("formats Stripe shipping details and tolerates unavailable addresses", () => {
     expect(
       getShippingAddressLines({
