@@ -7,7 +7,7 @@ const productName = `E2E Composer Deck ${runId}`;
 const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
-  test("uses padded mobile rows and one larger-screen row for product creation controls", async ({
+  test("hides pristine creation controls and uses one compact mobile action row", async ({
     page,
   }) => {
     for (const width of [375, 390, 768, 1366]) {
@@ -15,9 +15,12 @@ test.describe("admin product lifecycle @admin", () => {
       await page.goto("/admin/products/new");
 
       const saveBar = page.getByRole("region", { name: "Product creation controls" });
-      const controls = saveBar
-        .getByRole("link", { name: "Cancel" })
-        .or(saveBar.getByRole("button"));
+      await expect(saveBar).toHaveCount(0);
+
+      await page.getByLabel("Name", { exact: true }).fill(`Layout probe ${width}`);
+      await expect(saveBar).toBeVisible();
+
+      const controls = saveBar.locator("a:visible, button:visible");
 
       const [barBox, controlBoxes] = await Promise.all([
         saveBar.boundingBox(),
@@ -30,7 +33,7 @@ test.describe("admin product lifecycle @admin", () => {
       ]);
 
       expect(barBox).not.toBeNull();
-      expect(controlBoxes).toHaveLength(3);
+      expect(controlBoxes).toHaveLength(width < 640 ? 2 : 3);
 
       if (barBox) {
         // The bar uses 16px horizontal padding; allow one pixel for border rounding.
@@ -43,9 +46,10 @@ test.describe("admin product lifecycle @admin", () => {
       }
 
       if (width < 640) {
-        const [cancelBox, saveDraftBox, publishBox] = controlBoxes;
-        expect(cancelBox?.top).toBe(saveDraftBox?.top);
-        expect(publishBox?.top).toBeGreaterThan(cancelBox?.top ?? Number.POSITIVE_INFINITY);
+        expect(barBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(64);
+        expect(controlBoxes[0]?.top).toBe(controlBoxes[1]?.top);
+        await expect(saveBar.getByRole("link", { name: "Cancel" })).toBeHidden();
+        await expect(saveBar.getByText("Nothing is public until you publish.")).toBeHidden();
       }
 
       if (width >= 768) {

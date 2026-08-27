@@ -94,6 +94,8 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
     ? getProductSubcategoryOptions(watchedCategory)
     : [];
   const busy = form.formState.isSubmitting || isUploading;
+  // Staged images live outside React Hook Form, so they must keep the creation controls visible too.
+  const hasChanges = form.formState.isDirty || stagedImages.length > 0;
 
   const nameRegistration = form.register("name");
   const slugRegistration = form.register("slug");
@@ -708,56 +710,76 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
         </div>
       </div>
 
-      {/* ===== Sticky create bar ===== */}
-      <div className="sticky bottom-4 z-30 -mx-2 mt-4 sm:mx-0">
-        <section
-          aria-label="Product creation controls"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
-        >
-          <p className="min-w-0 text-sm text-white/70">
-            {actionError ? (
-              <span className="text-red-300" role="alert">
-                {actionError}
-              </span>
-            ) : (
-              "Nothing is public until you publish."
-            )}
-          </p>
-          {/* Mobile actions use two rows for comfortable gutters. From sm up, natural-width
-              controls stay together on one row. */}
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-normal">
-            <Button
-              asChild
-              className="w-full px-2 text-white/80 hover:bg-white/10 hover:text-white sm:w-auto sm:px-3"
-              size="sm"
-              variant="ghost"
+      {/* ===== Sticky create bar, visible only after the first edit ===== */}
+      {hasChanges || actionError ? (
+        <div className="sticky bottom-4 z-30 -mx-2 mt-4 sm:mx-0">
+          <section
+            aria-label="Product creation controls"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
+          >
+            <p
+              className={
+                actionError
+                  ? "w-full min-w-0 text-sm sm:w-auto"
+                  : "hidden min-w-0 text-sm text-white/70 sm:block"
+              }
             >
-              <Link href={"/admin/products" as Route} prefetch={false}>
-                Cancel
-              </Link>
-            </Button>
-            <Button
-              className="w-full border-white/30 bg-transparent px-2 text-white hover:bg-white/10 hover:text-white sm:w-auto sm:px-3"
-              disabled={busy}
-              onClick={() => submitWithIntent("draft")}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {pendingIntent === "draft" ? "Saving…" : "Save as draft"}
-            </Button>
-            <Button
-              className="col-span-2 w-full rounded-full bg-accent px-2 text-accent-foreground hover:bg-accent/90 sm:col-auto sm:w-auto sm:px-3"
-              disabled={busy}
-              onClick={() => submitWithIntent("publish")}
-              size="sm"
-              type="button"
-            >
-              {pendingIntent === "publish" ? "Publishing…" : "Create & publish"}
-            </Button>
-          </div>
-        </section>
-      </div>
+              {actionError ? (
+                <span className="text-red-300" role="alert">
+                  {actionError}
+                </span>
+              ) : (
+                "Nothing is public until you publish."
+              )}
+            </p>
+            {/* Phones already have Back to products above the form, so the dock keeps only the
+                two creation actions until there is room for the full desktop controls. */}
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-normal">
+              <Button
+                asChild
+                className="hidden px-2 text-white/80 hover:bg-white/10 hover:text-white sm:inline-flex sm:w-auto sm:px-3"
+                size="sm"
+                variant="ghost"
+              >
+                <Link href={"/admin/products" as Route} prefetch={false}>
+                  Cancel
+                </Link>
+              </Button>
+              <Button
+                aria-label={pendingIntent === "draft" ? "Saving draft" : "Save as draft"}
+                className="w-full border-white/30 bg-transparent px-2 text-white hover:bg-white/10 hover:text-white sm:w-auto sm:px-3"
+                disabled={busy}
+                onClick={() => submitWithIntent("draft")}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                <span className="sm:hidden">
+                  {pendingIntent === "draft" ? "Saving…" : "Save draft"}
+                </span>
+                <span className="hidden sm:inline">
+                  {pendingIntent === "draft" ? "Saving…" : "Save as draft"}
+                </span>
+              </Button>
+              <Button
+                aria-label={pendingIntent === "publish" ? "Publishing product" : "Create & publish"}
+                className="w-full rounded-full bg-accent px-2 text-accent-foreground hover:bg-accent/90 sm:w-auto sm:px-3"
+                disabled={busy}
+                onClick={() => submitWithIntent("publish")}
+                size="sm"
+                type="button"
+              >
+                <span className="sm:hidden">
+                  {pendingIntent === "publish" ? "Publishing…" : "Publish"}
+                </span>
+                <span className="hidden sm:inline">
+                  {pendingIntent === "publish" ? "Publishing…" : "Create & publish"}
+                </span>
+              </Button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
