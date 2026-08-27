@@ -72,7 +72,9 @@ test.describe("cart @smoke", () => {
     // itself can sit behind an on-demand dev-server compile of /cart, hence the patient timeout.
     await page.getByRole("dialog").getByRole("link", { name: "View cart" }).click();
     await expect(page).toHaveURL(/\/cart$/);
-    await expect(page.getByRole("heading", { name: /Street Deck 8\.25/ })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByRole("heading", { name: /Street Deck 8\.25/ }),
+    ).toBeVisible();
   });
 
   test("the mobile delivery form stays collapsed until requested and collapses after success", async ({
