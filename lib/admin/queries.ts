@@ -1,11 +1,11 @@
 import "server-only";
 
-import { and, asc, count, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq, inArray, ne, or } from "drizzle-orm";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { shippingProfiles } from "@/lib/catalog/shipping-profiles";
 import { getDb } from "@/lib/db/client";
-import { orders, products, shippingRates } from "@/lib/db/schema";
+import { orderEmailDeliveries, orders, products, shippingRates } from "@/lib/db/schema";
 import { adminEntityIdSchema } from "@/lib/validators/admin";
 
 export async function getAdminDashboardSummary() {
@@ -77,6 +77,36 @@ export async function getAdminDashboardSummary() {
     deliveriesToScheduleCount: deliveriesToScheduleRows[0]?.count ?? 0,
     awaitingDeliveryCount: awaitingDeliveryRows[0]?.count ?? 0,
   };
+}
+
+/** Counts unique orders represented by the Orders page's Needs action filter. */
+export async function getAdminOrderNeedsActionCount() {
+  await requireAdmin();
+
+  const rows = await getDb()
+    .select({ count: countDistinct(orders.id) })
+    .from(orders)
+    .leftJoin(
+      orderEmailDeliveries,
+      and(
+        eq(orderEmailDeliveries.orderId, orders.id),
+        eq(orderEmailDeliveries.kind, "confirmation"),
+      ),
+    )
+    .where(
+      or(
+        and(
+          eq(orders.inventoryStatus, "allocated"),
+          inArray(orders.refundStatus, ["partial", "full"]),
+        ),
+        and(
+          eq(orders.status, "paid"),
+          or(eq(orders.inventoryStatus, "exception"), eq(orderEmailDeliveries.status, "failed")),
+        ),
+      ),
+    );
+
+  return rows[0]?.count ?? 0;
 }
 
 const recentOrderLimit = 5;

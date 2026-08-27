@@ -34,6 +34,15 @@ async function variantRow(page: Page, sku: string) {
   throw new Error(`No variant row with SKU ${sku}`);
 }
 
+async function readOrderNeedsActionCount(page: Page) {
+  const ordersLink = page
+    .getByRole("navigation", { name: "Admin navigation" })
+    .getByRole("link", { name: /^Orders/ });
+  const badge = ordersLink.getByLabel(/orders? needs? action/);
+
+  return (await badge.count()) === 0 ? 0 : Number(await badge.textContent());
+}
+
 /** Opens the admin workspace for a product via the products list search. */
 async function openWorkspace(page: Page, productName: string): Promise<void> {
   await page.goto(`/admin/products?q=${encodeURIComponent(productName)}`);
@@ -323,6 +332,7 @@ test.describe("refund inventory @commerce", () => {
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await page.getByRole("link", { name: "Open full order" }).click();
+    const initialNeedsActionCount = await readOrderNeedsActionCount(page);
     await page.getByRole("button", { name: "Mark as shipped" }).click();
     await page.getByRole("button", { name: "Ship and notify" }).click();
     await expect(page.getByText("Shipped", { exact: true }).first()).toBeVisible();
@@ -341,10 +351,12 @@ test.describe("refund inventory @commerce", () => {
 
     await expect(page.getByRole("heading", { name: "Stock action required" })).toBeVisible();
     await expect(page.getByText("Restock required", { exact: true })).toBeVisible();
+    await expect.poll(() => readOrderNeedsActionCount(page)).toBe(initialNeedsActionCount + 1);
     await page.getByRole("button", { name: "Return 1 unit to stock" }).click();
     await page.getByRole("button", { name: "Yes, return to stock" }).click();
     await expect(page.getByText("Returned to stock", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Stock action required" })).toBeHidden();
+    await expect.poll(() => readOrderNeedsActionCount(page)).toBe(initialNeedsActionCount);
 
     await openWorkspace(page, "Precision Bearings");
     await expect((await variantRow(page, "BEARINGS-PRECISION-8")).onHand).toHaveValue(

@@ -5,11 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { adminNavGroups, isAdminNavLinkActive } from "@/components/admin/admin-nav";
+import { AdminNavAttentionCount } from "@/components/admin/admin-nav-attention-count";
 import { AdminUserButton } from "@/components/admin/admin-user-button";
 import { BrandLogo } from "@/components/brand-logo";
 import { cn } from "@/lib/utils";
 
-export function AdminSidebar() {
+export function AdminSidebar({ orderNeedsActionCount }: { orderNeedsActionCount: number }) {
   const pathname = usePathname();
 
   return (
@@ -57,6 +58,9 @@ export function AdminSidebar() {
                     >
                       <link.icon aria-hidden="true" className="size-4 shrink-0" />
                       {link.label}
+                      {link.href === "/admin/orders" ? (
+                        <AdminNavAttentionCount count={orderNeedsActionCount} />
+                      ) : null}
                     </Link>
                   </li>
                 );
