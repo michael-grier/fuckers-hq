@@ -47,6 +47,9 @@ test.describe("admin product lifecycle @admin", () => {
 
       if (width < 640) {
         expect(barBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(64);
+        expect((barBox?.y ?? Number.POSITIVE_INFINITY) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
+          844,
+        );
         expect(controlBoxes[0]?.top).toBe(controlBoxes[1]?.top);
         await expect(saveBar.getByRole("link", { name: "Cancel" })).toBeHidden();
         await expect(saveBar.getByText("Nothing is public until you publish.")).toBeHidden();

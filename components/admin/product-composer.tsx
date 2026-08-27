@@ -276,7 +276,7 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
   });
 
   return (
-    <div>
+    <div className={hasChanges || actionError ? "pb-16 sm:pb-0" : undefined}>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         {/* ===== Main column ===== */}
         <div className="min-w-0 space-y-4">
@@ -710,9 +710,9 @@ export function ProductComposer({ r2Configured }: ProductComposerProps) {
         </div>
       </div>
 
-      {/* ===== Sticky create bar, visible only after the first edit ===== */}
+      {/* ===== Mobile-fixed, larger-screen sticky create bar ===== */}
       {hasChanges || actionError ? (
-        <div className="sticky bottom-4 z-30 -mx-2 mt-4 sm:mx-0">
+        <div className="fixed inset-x-4 bottom-4 z-30 sm:sticky sm:inset-x-auto sm:mt-4">
           <section
             aria-label="Product creation controls"
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white/10 bg-surface-chrome px-4 py-3 text-white shadow-lg"
