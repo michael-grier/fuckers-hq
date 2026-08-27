@@ -314,8 +314,9 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] A signed-out browser cannot access `/admin`.
 - [ ] A signed-in Clerk user absent from `ADMIN_USER_IDS` receives no admin data.
 - [ ] An allowlisted administrator can create a draft product.
-- [ ] The new-product action dock is absent before the first edit; after an edit, phones show one
-      compact row with Save draft and Publish while larger screens retain the full controls.
+- [ ] The new-product action dock is absent before the first edit; typing in the form or staging
+      only an image reveals it. Phones show one compact row with Save draft and Publish while
+      larger screens retain the full controls.
 - [ ] Choosing Accessories offers Magnets as a product subcategory.
 - [ ] Editing its name, slug, category, description, and status updates the storefront after
       revalidation.

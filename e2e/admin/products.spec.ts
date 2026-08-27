@@ -60,6 +60,48 @@ test.describe("admin product lifecycle @admin", () => {
     }
   });
 
+  test("shows creation controls when a staged image is the only edit", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/api/admin/upload-url", async (route) => {
+      const uploadRequest: unknown = route.request().postDataJSON();
+
+      if (
+        typeof uploadRequest !== "object" ||
+        uploadRequest === null ||
+        !("productId" in uploadRequest) ||
+        typeof uploadRequest.productId !== "string"
+      ) {
+        throw new Error("Expected a product-scoped image upload request.");
+      }
+
+      const uploadUrl = new URL("/api/admin/test-upload", route.request().url()).toString();
+      await route.fulfill({
+        json: {
+          uploadUrl,
+          objectKey: `products/${uploadRequest.productId}/20000000-0000-4000-8000-000000000002-deck.jpg`,
+          publicUrl: new URL("/test-product-image.jpg", uploadUrl).toString(),
+        },
+      });
+    });
+    await page.route("**/api/admin/test-upload", async (route) => {
+      await route.fulfill({ status: 200 });
+    });
+    await page.goto("/admin/products/new");
+
+    const saveBar = page.getByRole("region", { name: "Product creation controls" });
+    await expect(saveBar).toHaveCount(0);
+
+    await page.getByLabel("Choose a product photo").setInputFiles({
+      name: "deck.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+    });
+
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Alt text for deck.jpg")).toBeVisible();
+    await expect(saveBar).toBeVisible();
+  });
+
   test("composer validation surfaces zod errors inline", async ({ page }) => {
     await page.goto("/admin/products/new");
     await page.getByLabel("Name", { exact: true }).fill("E2E Validation Probe");
@@ -77,9 +119,14 @@ test.describe("admin product lifecycle @admin", () => {
 
   test("offers Magnets as an accessories subcategory", async ({ page }) => {
     await page.goto("/admin/products/new");
-    await page.getByLabel("Category", { exact: true }).selectOption("accessories");
-
+    const category = page.getByLabel("Category", { exact: true });
     const subcategory = page.getByLabel("Subcategory");
+    // A selection before hydration is silently lost, so retry the action and its enabled outcome.
+    await expect(async () => {
+      await category.selectOption("accessories");
+      await expect(subcategory).toBeEnabled();
+    }).toPass({ timeout: 30_000 });
+
     await subcategory.selectOption("magnets");
     await expect(subcategory).toHaveValue("magnets");
   });
