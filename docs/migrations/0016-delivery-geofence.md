@@ -1,6 +1,6 @@
-# Migration 0015: local-delivery geofence review
+# Migration 0016: local-delivery geofence review
 
-Migration `0015_material_anita_blake.sql` adds the checked delivery address and review status needed
+Migration `0016_known_black_queen.sql` adds the checked delivery address and review status needed
 by the local-delivery geofence.
 
 ## Data changes
