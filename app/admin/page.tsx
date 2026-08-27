@@ -40,7 +40,7 @@ export default async function AdminPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <p className={attentionCount > 0 ? "text-destructive" : "text-muted-foreground"}>
             {attentionCount === 0
               ? "All clear — nothing needs your attention."
               : `${attentionCount} ${attentionCount === 1 ? "item needs" : "items need"} your attention.`}
