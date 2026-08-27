@@ -7,17 +7,29 @@ const productName = `E2E Composer Deck ${runId}`;
 const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
-  test("uses padded mobile rows and one larger-screen row for product creation controls", async ({
+  test("hides pristine creation controls and uses one compact mobile action row", async ({
     page,
   }) => {
-    for (const width of [375, 390, 768, 1366]) {
-      await page.setViewportSize({ width, height: 844 });
+    for (const { width, height } of [
+      { width: 320, height: 844 },
+      { width: 375, height: 844 },
+      { width: 390, height: 844 },
+      { width: 430, height: 932 },
+      { width: 768, height: 844 },
+      { width: 1366, height: 844 },
+    ]) {
+      await page.setViewportSize({ width, height });
       await page.goto("/admin/products/new");
 
       const saveBar = page.getByRole("region", { name: "Product creation controls" });
-      const controls = saveBar
-        .getByRole("link", { name: "Cancel" })
-        .or(saveBar.getByRole("button"));
+      await expect(saveBar).toHaveCount(0);
+
+      const name = page.getByLabel("Name", { exact: true });
+      await name.fill(`Layout probe ${width}`);
+      await expect(saveBar).toBeVisible();
+      expect(await page.evaluate(() => window.scrollY)).toBe(0);
+
+      const controls = saveBar.locator("a:visible, button:visible");
 
       const [barBox, controlBoxes] = await Promise.all([
         saveBar.boundingBox(),
@@ -30,7 +42,7 @@ test.describe("admin product lifecycle @admin", () => {
       ]);
 
       expect(barBox).not.toBeNull();
-      expect(controlBoxes).toHaveLength(3);
+      expect(controlBoxes).toHaveLength(width < 640 ? 2 : 3);
 
       if (barBox) {
         // The bar uses 16px horizontal padding; allow one pixel for border rounding.
@@ -43,9 +55,18 @@ test.describe("admin product lifecycle @admin", () => {
       }
 
       if (width < 640) {
-        const [cancelBox, saveDraftBox, publishBox] = controlBoxes;
-        expect(cancelBox?.top).toBe(saveDraftBox?.top);
-        expect(publishBox?.top).toBeGreaterThan(cancelBox?.top ?? Number.POSITIVE_INFINITY);
+        expect(barBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(64);
+        expect(barBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+        expect((barBox?.x ?? Number.POSITIVE_INFINITY) + (barBox?.width ?? 0)).toBeLessThanOrEqual(
+          width,
+        );
+        expect(barBox?.y ?? -1).toBeGreaterThanOrEqual(0);
+        expect((barBox?.y ?? Number.POSITIVE_INFINITY) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
+          height,
+        );
+        expect(controlBoxes[0]?.top).toBe(controlBoxes[1]?.top);
+        await expect(saveBar.getByRole("link", { name: "Cancel" })).toBeHidden();
+        await expect(saveBar.getByText("Nothing is public until you publish.")).toBeHidden();
       }
 
       if (width >= 768) {
@@ -54,6 +75,84 @@ test.describe("admin product lifecycle @admin", () => {
         );
       }
     }
+  });
+
+  test("tolerates a password-manager mutation before hydration", async ({ page }) => {
+    const hydrationErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && message.text().includes("hydrated")) {
+        hydrationErrors.push(message.text());
+      }
+    });
+    await page.addInitScript(() => {
+      const observer = new MutationObserver(() => {
+        const mainColumn = document.querySelector(
+          "form[data-protonpass-ignore] > .grid > .min-w-0.space-y-4",
+        );
+
+        if (mainColumn) {
+          mainColumn.setAttribute("data-protonpass-form", "");
+          observer.disconnect();
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
+
+    await page.setViewportSize({ width: 430, height: 932 });
+    await page.goto("/admin/products/new");
+    await expect(page.locator("form[data-protonpass-ignore]")).toHaveCount(1);
+
+    await page.getByLabel("Name", { exact: true }).fill("Hydration probe");
+    const saveBar = page.getByRole("region", { name: "Product creation controls" });
+    await expect(saveBar).toBeVisible();
+
+    const barBox = await saveBar.boundingBox();
+    expect((barBox?.y ?? Number.POSITIVE_INFINITY) + (barBox?.height ?? 0)).toBeLessThanOrEqual(
+      932,
+    );
+    expect(hydrationErrors).toEqual([]);
+  });
+
+  test("shows creation controls when a staged image is the only edit", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/api/admin/upload-url", async (route) => {
+      const uploadRequest: unknown = route.request().postDataJSON();
+
+      if (
+        typeof uploadRequest !== "object" ||
+        uploadRequest === null ||
+        !("productId" in uploadRequest) ||
+        typeof uploadRequest.productId !== "string"
+      ) {
+        throw new Error("Expected a product-scoped image upload request.");
+      }
+
+      const uploadUrl = new URL("/api/admin/test-upload", route.request().url()).toString();
+      await route.fulfill({
+        json: {
+          uploadUrl,
+          objectKey: `products/${uploadRequest.productId}/20000000-0000-4000-8000-000000000002-deck.jpg`,
+          publicUrl: new URL("/test-product-image.jpg", uploadUrl).toString(),
+        },
+      });
+    });
+    await page.route("**/api/admin/test-upload", async (route) => {
+      await route.fulfill({ status: 200 });
+    });
+    await page.goto("/admin/products/new");
+
+    const saveBar = page.getByRole("region", { name: "Product creation controls" });
+    await expect(saveBar).toHaveCount(0);
+
+    await page.getByLabel("Choose a product photo").setInputFiles({
+      name: "deck.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+    });
+
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Alt text for deck.jpg")).toBeVisible();
+    await expect(saveBar).toBeVisible();
   });
 
   test("composer validation surfaces zod errors inline", async ({ page }) => {
@@ -73,9 +172,14 @@ test.describe("admin product lifecycle @admin", () => {
 
   test("offers Magnets as an accessories subcategory", async ({ page }) => {
     await page.goto("/admin/products/new");
-    await page.getByLabel("Category", { exact: true }).selectOption("accessories");
-
+    const category = page.getByLabel("Category", { exact: true });
     const subcategory = page.getByLabel("Subcategory");
+    // A selection before hydration is silently lost, so retry the action and its enabled outcome.
+    await expect(async () => {
+      await category.selectOption("accessories");
+      await expect(subcategory).toBeEnabled();
+    }).toPass({ timeout: 30_000 });
+
     await subcategory.selectOption("magnets");
     await expect(subcategory).toHaveValue("magnets");
   });

@@ -314,6 +314,11 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] A signed-out browser cannot access `/admin`.
 - [ ] A signed-in Clerk user absent from `ADMIN_USER_IDS` receives no admin data.
 - [ ] An allowlisted administrator can create a draft product.
+- [ ] The new-product action dock is absent before the first edit; typing in the form or staging
+      only an image reveals it. Phones immediately pin one compact row with Save draft and Publish
+      inside the page gutters and above the bottom edge, while larger screens retain the full
+      controls. Proton Pass does not alter the composer or cause a hydration error. Real-browser
+      phone testing still reproduces the dock-positioning failure tracked in #183.
 - [ ] Choosing Accessories offers Magnets as a product subcategory.
 - [ ] Editing its name, slug, category, description, and status updates the storefront after
       revalidation.
