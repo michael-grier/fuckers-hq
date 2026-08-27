@@ -28,6 +28,7 @@ import {
   derivePaymentLifecycleState,
   type PaymentLifecycleUpdate,
 } from "@/lib/orders/payment-lifecycle";
+import { resolveDeliveryAddressReview } from "@/lib/orders/shipping-address";
 
 type LockedReservation = typeof inventoryReservations.$inferSelect;
 type ReservationLine = {
@@ -150,6 +151,12 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
             // Taken from the pending checkout the server wrote at reservation time, not from the
             // Stripe Session metadata that round-tripped through the browser and Stripe.
             fulfillmentMethod: pendingCheckout.fulfillmentMethod,
+            deliveryReviewRequired: resolveDeliveryAddressReview(
+              pendingCheckout.fulfillmentMethod,
+              pendingCheckout.deliveryReviewRequired,
+              pendingCheckout.deliveryAddressCheck,
+              checkout.shippingAddress,
+            ),
             stripeSessionId: checkout.stripeSessionId,
             stripePaymentIntentId: checkout.stripePaymentIntentId,
             refundStatus: paymentState.refundStatus,

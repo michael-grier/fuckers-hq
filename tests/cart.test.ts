@@ -41,7 +41,12 @@ const bearings: CartDisplayLine = {
 };
 
 beforeEach(() => {
-  useCartStore.setState({ isCartOpen: false, lines: [] });
+  useCartStore.setState({
+    isCartOpen: false,
+    lines: [],
+    fulfillmentMethod: "shipping",
+    deliveryEligibility: null,
+  });
   storage.clear();
 });
 
@@ -176,6 +181,32 @@ describe("cart store", () => {
       items: [{ variantId: deck.variantId, quantity: 2 }],
       fulfillmentMethod: "delivery",
     });
+  });
+
+  test("sends the proof only for delivery and changes request identity with the checked address", () => {
+    const deliveryRequest = toCheckoutRequest([deck], "request-123", "delivery", "proof-one");
+
+    expect(deliveryRequest.deliveryEligibilityToken).toBe("proof-one");
+    expect(toCheckoutRequest([deck], "request-123", "shipping", "proof-one")).not.toHaveProperty(
+      "deliveryEligibilityToken",
+    );
+    expect(getCheckoutCartFingerprint([deck], "delivery", "proof-one")).not.toBe(
+      getCheckoutCartFingerprint([deck], "delivery", "proof-two"),
+    );
+  });
+
+  test("invalidates a delivery check when the cart changes without persisting the proof", () => {
+    useCartStore.getState().addLine(deck);
+    useCartStore.getState().setDeliveryEligibility({
+      token: "signed-proof",
+      address: { line1: "262075 Rocky View Point", postalCode: "T4A0X2" },
+      reviewRequired: false,
+    });
+
+    expect(storage.getItem("fuckers-hq-cart")).not.toContain("signed-proof");
+    useCartStore.getState().updateQuantity(deck.variantId, 2);
+    expect(useCartStore.getState().deliveryEligibility).toBeNull();
+    expect(useCartStore.getState().fulfillmentMethod).toBe("shipping");
   });
 
   test("uses one checkout request identity for equivalent reordered carts", () => {

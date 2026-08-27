@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -15,6 +16,7 @@ import {
 import { productCategoryValues, productSubcategories } from "@/lib/catalog/categories";
 import { type ShippingProfile, shippingProfileValues } from "@/lib/catalog/shipping-profiles";
 import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
+import type { DeliveryAddress } from "@/lib/validators/delivery";
 
 export const productStatusValues = ["draft", "active", "archived"] as const;
 // `fulfilled` is the terminal state for both methods: shipped for shipping, dropped off for
@@ -200,6 +202,10 @@ export const pendingCheckouts = pgTable(
     // The server-persisted fulfillment choice. Paid-order conversion reads it from here rather
     // than from Stripe Session metadata so the browser cannot restate it after checkout starts.
     fulfillmentMethod: fulfillmentMethod("fulfillment_method").notNull().default("shipping"),
+    // The signed address check is copied here before inventory is reserved so paid conversion can
+    // detect if the shopper changes the address on Stripe's hosted page.
+    deliveryAddressCheck: jsonb("delivery_address_check").$type<DeliveryAddress | null>(),
+    deliveryReviewRequired: boolean("delivery_review_required").notNull().default(false),
     stripeSessionId: text("stripe_session_id"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -212,6 +218,14 @@ export const pendingCheckouts = pgTable(
     check(
       "pending_checkouts_line_items_nonempty_array",
       sql`${table.lineItems} is null or (jsonb_typeof(${table.lineItems}) = 'array' and jsonb_array_length(${table.lineItems}) > 0)`,
+    ),
+    check(
+      "pending_checkouts_delivery_review_requires_delivery",
+      sql`NOT ${table.deliveryReviewRequired} OR ${table.fulfillmentMethod} = 'delivery'`,
+    ),
+    check(
+      "pending_checkouts_shipping_has_no_delivery_address",
+      sql`${table.fulfillmentMethod} = 'delivery' OR ${table.deliveryAddressCheck} IS NULL`,
     ),
   ],
 );
@@ -310,6 +324,7 @@ export const orders = pgTable(
     status: orderStatus("status").notNull().default("pending"),
     inventoryStatus: orderInventoryStatus("inventory_status").notNull().default("allocated"),
     fulfillmentMethod: fulfillmentMethod("fulfillment_method").notNull().default("shipping"),
+    deliveryReviewRequired: boolean("delivery_review_required").notNull().default(false),
     deliveryScheduledAt: timestamp("delivery_scheduled_at", { withTimezone: true }),
     shippedAt: timestamp("shipped_at", { withTimezone: true }),
     // Tracking is optional: not every shipment has a number, and the shipping notification is sent
@@ -362,6 +377,10 @@ export const orders = pgTable(
     check(
       "orders_delivery_scheduled_requires_delivery",
       sql`${table.status}::text <> 'delivery_scheduled' OR ${table.fulfillmentMethod} = 'delivery'`,
+    ),
+    check(
+      "orders_delivery_review_requires_delivery",
+      sql`NOT ${table.deliveryReviewRequired} OR ${table.fulfillmentMethod} = 'delivery'`,
     ),
     // The timestamp survives drop-off so the admin history keeps how long the order waited.
     // Covers `fulfilled` as well, so a delivery order cannot reach its terminal state without the

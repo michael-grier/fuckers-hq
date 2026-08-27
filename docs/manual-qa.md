@@ -47,8 +47,9 @@ against a development or disposable database branch.
 
 - [ ] The listener's signing secret matches `STRIPE_WEBHOOK_SECRET` in `.env.local`.
 - [ ] The configured Clerk user is present in `ADMIN_USER_IDS`.
-- [ ] To QA local delivery, `DELIVERY_ENABLED=true` and `DELIVERY_AREA_NAME` are set; the
-      fulfillment picker and delivery checkout are hidden otherwise.
+- [ ] To QA local delivery, `DELIVERY_ENABLED=true`, `DELIVERY_AREA_NAME`, and a random
+      `DELIVERY_ELIGIBILITY_SECRET` of at least 32 characters are set; the delivery check is hidden
+      otherwise.
 
 The failure-boundary checks below require a local-only breakpoint or temporary reviewed throw.
 Never commit fault-injection code. Use a fresh reservation for each case, target database changes by
@@ -88,9 +89,16 @@ transition.
 - [ ] View cart closes the sidebar and navigates to the full `/cart` page.
 - [ ] At phone widths the cart occupies the viewport width; at tablet and desktop widths it is
       capped and leaves the overlay visible.
-- [ ] With delivery configured, the fulfillment picker offers Ship it and Local delivery in both
-      the cart sidebar and `/cart`, shows the delivery area details, and the choice persists with
-      the cart across reloads.
+- [ ] With delivery configured, the sidebar shows one collapsed `Check free local delivery` row.
+      Expanding it reveals street-address and postal-code fields without pushing cart actions off a
+      phone screen while collapsed; `/cart` uses the same disclosure.
+- [ ] A known Rocky View County address on an order of at least $30 replaces the form with a compact
+      verified summary and makes Local delivery selectable.
+- [ ] A Calgary address that shares an FSA with Rocky View does not expose Local delivery and leaves
+      shipping selected.
+- [ ] An order under $30 explains the exact amount remaining instead of showing the address form.
+- [ ] Changing a cart line after a successful check clears the proof and returns the method to
+      shipping. Reloading also requires a fresh address check.
 - [ ] With delivery unconfigured, the picker does not render and checkout uses shipping.
 - [ ] Reloading the page preserves the cart.
 - [ ] Cancelling hosted Checkout returns to `/cart` without clearing purchase intent.
@@ -106,7 +114,10 @@ transition.
 - [ ] An order at the free-shipping threshold shows free shipping.
 - [ ] Only configured shipping countries are selectable.
 - [ ] A local-delivery checkout shows free delivery naming the configured area instead of shipping
-      rates, and still collects the customer's address.
+      rates, reminds the shopper to use the checked address, and still collects that address.
+- [ ] Make the geocoder unavailable and confirm the cart explains that it cannot check delivery,
+      keeps shipping selected, and still opens paid shipping Checkout.
+- [ ] A tampered or expired delivery proof is rejected before inventory is reserved.
 - [ ] Requesting the delivery method while delivery is not configured is rejected server-side.
 - [ ] Tax behavior matches `STRIPE_TAX_ENABLED` and the Stripe sandbox configuration.
 - [ ] Starting Checkout increases the selected variant's reserved quantity and reduces its
@@ -154,6 +165,8 @@ Fulfillment for a local-delivery order (requires the delivery configuration from
 
 - [ ] The paid order appears in the `/admin/deliveries` queue, oldest first, alongside the
       configured delivery area.
+- [ ] A low-confidence, near-boundary, or changed Stripe address shows `Address review` in the
+      queue, order list, preview, and full order before scheduling.
 - [ ] Scheduling the delivery moves the order to `delivery_scheduled` and delivers exactly one
       `delivery_scheduled` email.
 - [ ] Marking it delivered moves the order to `fulfilled` without sending another email.

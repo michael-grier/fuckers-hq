@@ -2,7 +2,10 @@ import type { Route } from "next";
 import Link from "next/link";
 
 import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-button";
-import { OrderInventoryStatusBadge } from "@/components/admin/status-badge";
+import {
+  DeliveryAddressReviewBadge,
+  OrderInventoryStatusBadge,
+} from "@/components/admin/status-badge";
 import { Button } from "@/components/ui/button";
 import { formatAdminDate } from "@/lib/admin/format";
 import { getAdminDeliveryQueue } from "@/lib/admin/queries";
@@ -39,8 +42,8 @@ export default async function AdminDeliveriesPage() {
           <div className="mt-3 space-y-2 text-muted-foreground text-sm">
             <p className="font-semibold text-foreground">{deliveryArea.areaName}</p>
             <p>
-              Checkout states the area but Stripe cannot enforce it, so confirm each address is
-              inside the area before arranging the drop-off.
+              Checkout checks each address against the stored county boundary. Orders marked Address
+              review need confirmation before you schedule the drop-off.
             </p>
             {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
           </div>
@@ -49,8 +52,9 @@ export default async function AdminDeliveriesPage() {
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-950">
           <h2 className="font-bold text-xl">Local delivery is not configured</h2>
           <p className="mt-2 max-w-3xl text-sm">
-            New delivery orders cannot be placed until DELIVERY_ENABLED and DELIVERY_AREA_NAME are
-            both set. Existing delivery orders below still need to be delivered.
+            New delivery orders cannot be placed until DELIVERY_ENABLED, DELIVERY_AREA_NAME, and
+            DELIVERY_ELIGIBILITY_SECRET are set. Existing delivery orders below still need to be
+            delivered.
           </p>
         </section>
       )}
@@ -143,6 +147,11 @@ function DeliverySection({
                     {order.inventoryStatus === "exception" ? (
                       <span className="mt-1.5 block">
                         <OrderInventoryStatusBadge status={order.inventoryStatus} />
+                      </span>
+                    ) : null}
+                    {order.deliveryReviewRequired ? (
+                      <span className="mt-1.5 block">
+                        <DeliveryAddressReviewBadge />
                       </span>
                     ) : null}
                   </td>

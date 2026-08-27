@@ -7,6 +7,7 @@ import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inve
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
 import {
+  DeliveryAddressReviewBadge,
   DisputeStatusBadge,
   FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
@@ -57,6 +58,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           ) : (
             <OrderInventoryStatusBadge status={order.inventoryStatus} />
           )}
+          {order.deliveryReviewRequired ? <DeliveryAddressReviewBadge /> : null}
           {order.refundStatus !== "none" ? <RefundStatusBadge status={order.refundStatus} /> : null}
           {order.disputeStatus !== "none" ? (
             <DisputeStatusBadge status={order.disputeStatus} />
@@ -109,6 +111,18 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
             Stripe.
           </p>
           {canFulfill ? <ResolveInventoryExceptionButton orderId={order.id} /> : null}
+        </div>
+      ) : null}
+
+      {order.deliveryReviewRequired ? (
+        <div className="bg-amber-50 p-4 text-amber-950">
+          <p className="flex items-center gap-2 font-semibold text-sm">
+            <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+            Confirm the address before scheduling
+          </p>
+          <p className="mt-1.5 text-xs">
+            The geocode was ambiguous, close to the county boundary, or changed at Stripe Checkout.
+          </p>
         </div>
       ) : null}
 

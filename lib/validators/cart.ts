@@ -65,6 +65,9 @@ export const checkoutSchema = z
     // Absent means shipping so a client that predates the fulfillment choice keeps working
     // unchanged.
     fulfillmentMethod: fulfillmentMethodSchema.default("shipping"),
+    // Required by the checkout service only when delivery is selected. Keeping it optional here
+    // preserves shipping requests from older clients.
+    deliveryEligibilityToken: z.string().min(40).max(1_024).optional(),
   })
   .strict();
 

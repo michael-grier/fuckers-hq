@@ -11,7 +11,12 @@ import {
 
 import { persistedCartStateSchema } from "@/lib/validators/cart";
 import { MAX_CART_LINE_QUANTITY } from "./constants";
-import type { AddCartLineInput, CartDisplayLine, CartFulfillmentMethod } from "./types";
+import type {
+  AddCartLineInput,
+  CartDisplayLine,
+  CartFulfillmentMethod,
+  DeliveryEligibility,
+} from "./types";
 
 type CartState = {
   lines: CartDisplayLine[];
@@ -19,9 +24,14 @@ type CartState = {
   // `resolveFulfillmentMethod` coerces this back to shipping when it is not — including a
   // persisted value from before the current method names existed.
   fulfillmentMethod: CartFulfillmentMethod;
+  // Short-lived and deliberately excluded from localStorage. A new browser session must recheck
+  // the address instead of reviving an expired proof.
+  deliveryEligibility: DeliveryEligibility | null;
   isCartOpen: boolean;
   setCartOpen: (open: boolean) => void;
   setFulfillmentMethod: (method: CartFulfillmentMethod) => void;
+  setDeliveryEligibility: (eligibility: DeliveryEligibility) => void;
+  clearDeliveryEligibility: () => void;
   addLine: (line: AddCartLineInput) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeLine: (variantId: string) => void;
@@ -108,9 +118,14 @@ export const useCartStore = create<CartState>()(
     (set) => ({
       lines: [],
       fulfillmentMethod: "shipping",
+      deliveryEligibility: null,
       isCartOpen: false,
       setCartOpen: (open) => set({ isCartOpen: open }),
       setFulfillmentMethod: (method) => set({ fulfillmentMethod: method }),
+      setDeliveryEligibility: (eligibility) =>
+        set({ deliveryEligibility: eligibility, fulfillmentMethod: "delivery" }),
+      clearDeliveryEligibility: () =>
+        set({ deliveryEligibility: null, fulfillmentMethod: "shipping" }),
       addLine: (line) => {
         const quantity = clampQuantity(line.quantity ?? 1);
 
@@ -119,6 +134,8 @@ export const useCartStore = create<CartState>()(
 
           if (existingLine) {
             return {
+              deliveryEligibility: null,
+              fulfillmentMethod: "shipping",
               isCartOpen: true,
               lines: state.lines.map((item) =>
                 item.variantId === line.variantId
@@ -136,6 +153,8 @@ export const useCartStore = create<CartState>()(
           }
 
           return {
+            deliveryEligibility: null,
+            fulfillmentMethod: "shipping",
             isCartOpen: true,
             lines: [
               ...state.lines,
@@ -149,6 +168,8 @@ export const useCartStore = create<CartState>()(
       },
       updateQuantity: (variantId, quantity) => {
         set((state) => ({
+          deliveryEligibility: null,
+          fulfillmentMethod: "shipping",
           lines: state.lines.map((line) =>
             line.variantId === variantId ? { ...line, quantity: clampQuantity(quantity) } : line,
           ),
@@ -156,10 +177,12 @@ export const useCartStore = create<CartState>()(
       },
       removeLine: (variantId) => {
         set((state) => ({
+          deliveryEligibility: null,
+          fulfillmentMethod: "shipping",
           lines: state.lines.filter((line) => line.variantId !== variantId),
         }));
       },
-      clear: () => set({ lines: [] }),
+      clear: () => set({ lines: [], deliveryEligibility: null, fulfillmentMethod: "shipping" }),
     }),
     {
       name: "fuckers-hq-cart",

@@ -32,6 +32,7 @@ export async function POST(request: Request): Promise<Response> {
           freeShippingThresholdCents: env.SHIPPING_FREE_THRESHOLD_CENTS,
           taxEnabled: env.STRIPE_TAX_ENABLED,
           deliveryArea: resolveDeliveryArea(env),
+          deliveryEligibilitySecret: env.DELIVERY_ELIGIBILITY_SECRET,
         },
         {
           repository: checkoutRepository,

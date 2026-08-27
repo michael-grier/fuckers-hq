@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+import {
+  normalizeCanadianPostalCode,
+  normalizeDeliveryStreetAddress,
+} from "@/lib/checkout/delivery-address";
+import type { FulfillmentMethod } from "@/lib/db/schema";
+import { deliveryAddressSchema } from "@/lib/validators/delivery";
+
 const shippingDetailsSchema = z.object({
   name: z.string().min(1).optional(),
   address: z.object({
@@ -29,5 +36,42 @@ export function getShippingAddressLines(input: unknown): string[] {
         (line): line is string => Boolean(line),
       ),
     ),
+  );
+}
+
+/** Missing or changed Stripe address data routes a delivery order to operator review. */
+export function deliveryAddressRequiresReview(
+  checkedAddress: unknown,
+  shippingAddress: unknown,
+): boolean {
+  const checked = deliveryAddressSchema.safeParse(checkedAddress);
+
+  if (!checked.success) {
+    // Delivery reservations created before the geofence migration have no signed address proof.
+    return true;
+  }
+
+  const parsed = shippingDetailsSchema.safeParse(shippingAddress);
+  const line1 = parsed.success ? parsed.data.address.line1 : null;
+  const postalCode = parsed.success ? parsed.data.address.postal_code : null;
+
+  return (
+    typeof line1 !== "string" ||
+    typeof postalCode !== "string" ||
+    normalizeDeliveryStreetAddress(line1) !== normalizeDeliveryStreetAddress(checked.data.line1) ||
+    normalizeCanadianPostalCode(postalCode) !== checked.data.postalCode
+  );
+}
+
+/** Carries earlier ambiguity forward and adds a review when Stripe collected another address. */
+export function resolveDeliveryAddressReview(
+  fulfillmentMethod: FulfillmentMethod,
+  reviewAlreadyRequired: boolean,
+  checkedAddress: unknown,
+  shippingAddress: unknown,
+): boolean {
+  return (
+    fulfillmentMethod === "delivery" &&
+    (reviewAlreadyRequired || deliveryAddressRequiresReview(checkedAddress, shippingAddress))
   );
 }

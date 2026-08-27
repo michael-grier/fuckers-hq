@@ -7,10 +7,12 @@ import {
   type CheckoutReservation,
   parsePersistedStripeSessionParams,
 } from "@/lib/checkout/create-hosted-checkout";
+import { LOCAL_DELIVERY_MINIMUM_CENTS } from "@/lib/checkout/delivery";
 import { CheckoutError } from "@/lib/checkout/errors";
 import {
   combineCartLines,
   createPendingCheckoutLineSnapshots,
+  getCheckoutSnapshotSubtotalCents,
   resolveCheckoutLines,
 } from "@/lib/checkout/items";
 import type { Database } from "@/lib/db/client";
@@ -61,11 +63,15 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
             );
           }
 
+          assertSameDeliveryEligibility(existing.pendingCheckout, checkout);
+
           const reservation = toCheckoutReservation(
             existing,
             parsePendingCheckoutLineSnapshots(existing.pendingCheckout.lineItems),
             existing.pendingCheckout.token,
             existing.pendingCheckout.fulfillmentMethod,
+            existing.pendingCheckout.deliveryAddressCheck,
+            existing.pendingCheckout.deliveryReviewRequired,
           );
 
           if (existing.stripeSessionParams) {
@@ -110,6 +116,17 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
         });
         const resolvedLines = resolveCheckoutLines(combinedItems, variantsWithRates);
         const lineItems = createPendingCheckoutLineSnapshots(resolvedLines);
+
+        if (
+          checkout.fulfillmentMethod === "delivery" &&
+          getCheckoutSnapshotSubtotalCents(lineItems) < LOCAL_DELIVERY_MINIMUM_CENTS
+        ) {
+          throw new CheckoutError(
+            "Local delivery requires a minimum order of $30 before tax.",
+            400,
+          );
+        }
+
         const [pendingCheckout] = await tx
           .insert(pendingCheckouts)
           .values({
@@ -117,6 +134,8 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
             items: combinedItems,
             lineItems,
             fulfillmentMethod: checkout.fulfillmentMethod,
+            deliveryAddressCheck: checkout.deliveryAddressCheck ?? null,
+            deliveryReviewRequired: checkout.deliveryReviewRequired ?? false,
             expiresAt: checkout.expiresAt,
           })
           .returning({ id: pendingCheckouts.id });
@@ -181,6 +200,8 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
           stripeSessionParams: null,
           expiresAt: checkout.expiresAt,
           fulfillmentMethod: checkout.fulfillmentMethod,
+          deliveryAddressCheck: checkout.deliveryAddressCheck ?? null,
+          deliveryReviewRequired: checkout.deliveryReviewRequired ?? false,
           lineItems,
         };
       });
@@ -202,7 +223,12 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
         }
 
         const pendingCheckout = await tx.query.pendingCheckouts.findFirst({
-          columns: { token: true, fulfillmentMethod: true },
+          columns: {
+            token: true,
+            fulfillmentMethod: true,
+            deliveryAddressCheck: true,
+            deliveryReviewRequired: true,
+          },
           where: (checkouts, { eq }) => eq(checkouts.id, reservation.pendingCheckoutId),
         });
 
@@ -218,6 +244,8 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
           stripeSessionParams: reservation.stripeSessionParams,
           expiresAt: reservation.expiresAt,
           fulfillmentMethod: pendingCheckout.fulfillmentMethod,
+          deliveryAddressCheck: pendingCheckout.deliveryAddressCheck,
+          deliveryReviewRequired: pendingCheckout.deliveryReviewRequired,
           lineItems: [],
         };
 
@@ -493,6 +521,8 @@ function toCheckoutReservation(
   lineItems: ReturnType<typeof parsePendingCheckoutLineSnapshots>,
   pendingCheckoutToken: string,
   fulfillmentMethod: FulfillmentMethod,
+  deliveryAddressCheck: CheckoutReservation["deliveryAddressCheck"],
+  deliveryReviewRequired: boolean,
 ): CheckoutReservation {
   return {
     pendingCheckoutToken,
@@ -502,6 +532,31 @@ function toCheckoutReservation(
     stripeSessionParams: reservation.stripeSessionParams,
     expiresAt: reservation.expiresAt,
     fulfillmentMethod,
+    deliveryAddressCheck,
+    deliveryReviewRequired,
     lineItems,
   };
+}
+
+function assertSameDeliveryEligibility(
+  persisted: Pick<
+    typeof pendingCheckouts.$inferSelect,
+    "deliveryAddressCheck" | "deliveryReviewRequired" | "fulfillmentMethod"
+  >,
+  requested: Parameters<CheckoutRepository["reserveCheckout"]>[0],
+): void {
+  if (persisted.fulfillmentMethod !== "delivery") {
+    return;
+  }
+
+  if (
+    JSON.stringify(persisted.deliveryAddressCheck) !==
+      JSON.stringify(requested.deliveryAddressCheck) ||
+    persisted.deliveryReviewRequired !== (requested.deliveryReviewRequired ?? false)
+  ) {
+    throw new CheckoutError(
+      "Checkout request ID was already used for another delivery address.",
+      409,
+    );
+  }
 }

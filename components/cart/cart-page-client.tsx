@@ -82,7 +82,7 @@ export function CartPageContent({ lines, onClear, deliveryArea }: CartPageConten
         </Button>
       </section>
       <div className="space-y-4">
-        <FulfillmentPicker deliveryArea={deliveryArea} />
+        <FulfillmentPicker deliveryArea={deliveryArea} lines={lines} />
         <CartSummary isDeliveryAvailable={deliveryArea !== null} />
         <CheckoutButton isDeliveryAvailable={deliveryArea !== null} />
       </div>

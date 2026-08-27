@@ -119,18 +119,21 @@ URL; a new enum value also requires a Postgres migration.
 
 Local delivery replaced local pickup (issue #106): because the business is headquartered in the
 owner's residence, they deliver local orders rather than publish a collection address. Delivery is
-offered only when `DELIVERY_ENABLED` is `true` **and** `DELIVERY_AREA_NAME` is set, so a
-half-configured deploy cannot offer delivery without saying where it applies.
+offered only when `DELIVERY_ENABLED` is `true`, `DELIVERY_AREA_NAME` is set, and
+`DELIVERY_ELIGIBILITY_SECRET` contains at least 32 characters. A half-configured deploy falls back
+to ordinary shipping.
 
-Checkout collects a Canada-only delivery address, charges nothing for delivery, and tells the
-customer the operator will contact them to arrange the drop-off. Stripe cannot restrict an address
-below country level, so the operator verifies each address is inside the area (Rocky View County,
-Alberta) when scheduling, and refunds out-of-area orders.
+The cart geocodes the street address through Rocky View County's municipal-address service and
+checks the result against the committed 2025 Statistics Canada municipal boundary. Eligible carts
+must total at least $30 before tax. Provider failure leaves paid shipping usable. Ambiguous,
+near-boundary, and changed Stripe addresses are marked `Address review` for the delivery operator.
+Stripe still collects the Canada-only delivery address and charges no shipping amount.
 
 | Variable | Content |
 | --- | --- |
 | `DELIVERY_AREA_NAME` | Public name of the service area, e.g. `Rocky View County, Alberta` |
 | `DELIVERY_INSTRUCTIONS` | Optional note shown with the delivery option at checkout |
+| `DELIVERY_ELIGIBILITY_SECRET` | Random signing secret, at least 32 characters; do not reuse another provider secret |
 
 If the brand declines, leave `DELIVERY_ENABLED=false` and the option never appears.
 

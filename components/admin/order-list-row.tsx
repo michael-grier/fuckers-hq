@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import {
+  DeliveryAddressReviewBadge,
   DisputeStatusBadge,
   OrderInventoryStatusBadge,
   OrderRestockRequiredBadge,
@@ -44,6 +45,7 @@ export function OrderListRow({ order, isSelected }: OrderListRowProps) {
 
   // Only rendered when present, so the common row stays two lines.
   const secondaryStates = [
+    order.deliveryReviewRequired ? <DeliveryAddressReviewBadge key="delivery-review" /> : null,
     order.refundStatus !== "none" ? (
       <RefundStatusBadge key="refund" status={order.refundStatus} />
     ) : null,

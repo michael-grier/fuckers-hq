@@ -91,6 +91,14 @@ type CheckoutEventOptions = {
   subtotalCents: number;
   email: string;
   paymentStatus?: "paid" | "unpaid";
+  fulfillmentMethod?: "shipping" | "delivery";
+  shippingAddress?: {
+    line1: string;
+    city: string;
+    state: string;
+    postal_code: string;
+    country: string;
+  };
 };
 
 /** A signed checkout.session.* event body ready to POST to the webhook route. */
@@ -102,7 +110,7 @@ export function buildSignedCheckoutEvent(
     | "checkout.session.expired",
   options: CheckoutEventOptions,
 ): { payload: string; signature: string } {
-  const shippingCents = 1_500;
+  const shippingCents = options.fulfillmentMethod === "delivery" ? 0 : 1_500;
   const payload = JSON.stringify({
     id: `evt_e2e_${Date.now().toString(36)}`,
     object: "event",
@@ -115,7 +123,10 @@ export function buildSignedCheckoutEvent(
         mode: "payment",
         payment_status: options.paymentStatus ?? "paid",
         payment_intent: `pi_e2e_${options.tokens.reservationToken.slice(0, 12)}`,
-        metadata: { ...options.tokens, fulfillmentMethod: "shipping" },
+        metadata: {
+          ...options.tokens,
+          fulfillmentMethod: options.fulfillmentMethod ?? "shipping",
+        },
         customer_details: { email: options.email },
         amount_subtotal: options.subtotalCents,
         amount_total: options.subtotalCents + shippingCents,
@@ -125,7 +136,7 @@ export function buildSignedCheckoutEvent(
         collected_information: {
           shipping_details: {
             name: "E2E Customer",
-            address: {
+            address: options.shippingAddress ?? {
               line1: "123 Test Street",
               city: "Calgary",
               state: "AB",

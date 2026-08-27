@@ -180,6 +180,10 @@ stock manually. Review the
 [deployment and rollback notes](docs/migrations/0015-refunded-inventory-release.md) before applying
 it.
 
+Migration `0015_material_anita_blake.sql` stores the address checked for local delivery and the
+manual-review flag copied to paid orders. Review the
+[deployment and rollback notes](docs/migrations/0015-delivery-geofence.md) before applying it.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:

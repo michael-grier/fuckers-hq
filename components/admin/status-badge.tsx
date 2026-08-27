@@ -123,6 +123,14 @@ export function FulfillmentMethodBadge({ method }: { method: Order["fulfillmentM
   );
 }
 
+export function DeliveryAddressReviewBadge() {
+  return (
+    <Badge className="border-amber-300 bg-amber-50 text-amber-900" variant="outline">
+      Address review
+    </Badge>
+  );
+}
+
 export function OrderInventoryStatusBadge({ status }: { status: Order["inventoryStatus"] }) {
   return (
     <Badge className={orderInventoryStatusStyles[status]} variant="outline">

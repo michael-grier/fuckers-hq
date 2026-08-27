@@ -67,4 +67,43 @@ test.describe("cart @smoke", () => {
     await expect(page).toHaveURL(/\/cart$/);
     await expect(page.getByRole("heading", { name: /Street Deck 8\.25/ })).toBeVisible();
   });
+
+  test("the mobile delivery form stays collapsed until requested and collapses after success", async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.DELIVERY_ENABLED !== "true" ||
+        !process.env.DELIVERY_AREA_NAME ||
+        !process.env.DELIVERY_ELIGIBILITY_SECRET,
+      "Local delivery is not configured in this environment.",
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route("**/api/delivery/eligibility", async (route) => {
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          status: "eligible",
+          token: "e2e-signed-delivery-token",
+          address: { line1: "262075 Rocky View Point", postalCode: "T4A0X2" },
+          reviewRequired: false,
+          message: "Free local delivery is available for this address.",
+        }),
+      });
+    });
+    await addStreetDeckToCart(page);
+    const dialog = page.getByRole("dialog");
+
+    await expect(dialog.getByText("Check free local delivery")).toBeVisible();
+    await expect(dialog.getByLabel("Street address")).toBeHidden();
+    await expect(dialog.getByRole("button", { name: "Checkout" })).toBeInViewport();
+
+    await dialog.getByText("Check free local delivery").click();
+    await dialog.getByLabel("Street address").fill("262075 Rocky View Point");
+    await dialog.getByLabel("Postal code").fill("T4A 0X2");
+    await dialog.getByRole("button", { name: "Check address" }).click();
+
+    await expect(dialog.getByText("Free local delivery available")).toBeVisible();
+    await expect(dialog.getByRole("radio", { name: "Local delivery" })).toBeChecked();
+    await expect(dialog.getByLabel("Street address")).toBeHidden();
+  });
 });

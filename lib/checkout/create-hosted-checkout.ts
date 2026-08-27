@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 import { z } from "zod";
 import type { DeliveryArea } from "@/lib/checkout/delivery";
+import { verifyDeliveryEligibilityToken } from "@/lib/checkout/delivery-token";
 import {
   buildStripeLineItemsFromSnapshots,
   getCheckoutSnapshotSubtotalCents,
@@ -13,6 +14,7 @@ import {
 import type { FulfillmentMethod, JsonRecord, PendingCheckoutLineSnapshot } from "@/lib/db/schema";
 import type { CartLine } from "@/lib/validators/cart";
 import { checkoutSchema, pendingCheckoutMetadataSchema } from "@/lib/validators/cart";
+import type { DeliveryAddress } from "@/lib/validators/delivery";
 
 import { CheckoutError } from "./errors";
 
@@ -27,6 +29,8 @@ export type CheckoutReservation = {
   stripeSessionParams: JsonRecord | null;
   expiresAt: Date;
   fulfillmentMethod: FulfillmentMethod;
+  deliveryAddressCheck?: DeliveryAddress | null;
+  deliveryReviewRequired?: boolean;
   lineItems: PendingCheckoutLineSnapshot[];
 };
 
@@ -37,6 +41,8 @@ export type CheckoutRepository = {
     reservationToken: string;
     items: CartLine[];
     fulfillmentMethod: FulfillmentMethod;
+    deliveryAddressCheck?: DeliveryAddress | null;
+    deliveryReviewRequired?: boolean;
     expiresAt: Date;
     nextReconcileAt: Date;
   }) => Promise<CheckoutReservation>;
@@ -62,6 +68,7 @@ export type HostedCheckoutSettings = {
   freeShippingThresholdCents?: number;
   taxEnabled: boolean;
   deliveryArea: DeliveryArea | null;
+  deliveryEligibilitySecret?: string;
 };
 
 type HostedCheckoutDependencies = {
@@ -77,7 +84,8 @@ export async function createHostedCheckout(
   settings: HostedCheckoutSettings,
   dependencies: HostedCheckoutDependencies,
 ): Promise<{ url: string }> {
-  const { items, requestId, fulfillmentMethod } = checkoutSchema.parse(input);
+  const { items, requestId, fulfillmentMethod, deliveryEligibilityToken } =
+    checkoutSchema.parse(input);
 
   // Availability is decided here, on the server, so a crafted request cannot select local
   // delivery while it is turned off and skip the shipping charge.
@@ -86,12 +94,33 @@ export async function createHostedCheckout(
   }
 
   const now = dependencies.now?.() ?? new Date();
+  const deliveryEligibility =
+    fulfillmentMethod === "delivery" &&
+    deliveryEligibilityToken &&
+    settings.deliveryEligibilitySecret
+      ? verifyDeliveryEligibilityToken(
+          deliveryEligibilityToken,
+          settings.deliveryEligibilitySecret,
+          now,
+        )
+      : null;
+
+  if (fulfillmentMethod === "delivery" && !deliveryEligibility) {
+    throw new CheckoutError("Check your address again before selecting local delivery.", 400);
+  }
+
   const reservation = await dependencies.repository.reserveCheckout({
     requestId,
     pendingCheckoutToken: dependencies.createToken(),
     reservationToken: dependencies.createToken(),
     items,
     fulfillmentMethod,
+    ...(deliveryEligibility
+      ? {
+          deliveryAddressCheck: deliveryEligibility.address,
+          deliveryReviewRequired: deliveryEligibility.reviewRequired,
+        }
+      : {}),
     expiresAt: new Date(now.getTime() + pendingCheckoutLifetimeMs),
     nextReconcileAt: new Date(now.getTime() + provisioningReconcileDelayMs),
   });
@@ -136,7 +165,12 @@ export async function createHostedCheckout(
 export function buildStripeSessionParams(
   reservation: Pick<
     CheckoutReservation,
-    "pendingCheckoutToken" | "reservationToken" | "expiresAt" | "lineItems" | "fulfillmentMethod"
+    | "pendingCheckoutToken"
+    | "reservationToken"
+    | "expiresAt"
+    | "lineItems"
+    | "fulfillmentMethod"
+    | "deliveryAddressCheck"
   >,
   settings: HostedCheckoutSettings,
 ): Stripe.Checkout.SessionCreateParams {
@@ -154,10 +188,8 @@ export function buildStripeSessionParams(
     automatic_tax: { enabled: settings.taxEnabled },
     ...(isDelivery
       ? {
-          // Local delivery is offered within one Canadian service area only, so the address is
-          // collected for Canada alone regardless of the shipping allowlist. Stripe cannot
-          // restrict below country level; the operator verifies the area when arranging the
-          // drop-off. Offering no shipping_options keeps delivery free of shipping charges.
+          // The cart has already checked the address against the county boundary. Stripe still
+          // collects it for tax and the drop-off; offering no shipping_options keeps delivery free.
           shipping_address_collection: {
             allowed_countries: ["CA" as const],
           },
@@ -178,7 +210,9 @@ export function buildStripeSessionParams(
       ? {
           custom_text: {
             submit: {
-              message: `Local delivery is available within ${settings.deliveryArea.areaName} only. We'll contact you after checkout to arrange a delivery time.`,
+              message: reservation.deliveryAddressCheck
+                ? `Use the checked address ${reservation.deliveryAddressCheck.line1}, ${reservation.deliveryAddressCheck.postalCode}. We'll contact you to arrange delivery.`
+                : `Local delivery is available within ${settings.deliveryArea.areaName} only. We'll contact you to arrange delivery.`,
             },
           },
         }

@@ -15,6 +15,11 @@ const optionalSecret = z.preprocess(
   z.string().min(16).optional(),
 );
 
+const optionalSigningSecret = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().min(32).optional(),
+);
+
 const optionalIntegerString = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().nonnegative().optional(),
@@ -66,11 +71,13 @@ const envSchema = z.object({
   // Search indexing is opt-in. A deploy that can take no payment, or a preview of unfinished copy,
   // must not be indexable by default — an accidental index is far more work to undo than to prevent.
   ALLOW_INDEXING: defaultFalseBooleanString,
-  // Local delivery stays off unless it is explicitly enabled and its service area is named, so a
-  // half-configured deploy cannot offer delivery without saying where it applies.
+  // Local delivery stays off unless it is explicitly enabled and fully configured.
   DELIVERY_ENABLED: defaultFalseBooleanString,
   DELIVERY_AREA_NAME: optionalString,
   DELIVERY_INSTRUCTIONS: optionalString,
+  // This signs short-lived address checks; without it, local delivery remains unavailable while
+  // ordinary shipping continues to work.
+  DELIVERY_ELIGIBILITY_SECRET: optionalSigningSecret,
 });
 
 export type Env = z.infer<typeof envSchema>;

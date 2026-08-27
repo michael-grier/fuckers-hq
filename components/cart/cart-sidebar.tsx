@@ -87,7 +87,7 @@ export function CartSidebarContent({
             ))}
           </div>
           <SheetFooter className="shrink-0 gap-2.5 border-t bg-background px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
-            <FulfillmentPicker compact deliveryArea={deliveryArea} />
+            <FulfillmentPicker compact deliveryArea={deliveryArea} lines={lines} />
             <CartSummary compact isDeliveryAvailable={deliveryArea !== null} />
             <CheckoutButton isDeliveryAvailable={deliveryArea !== null} />
             <SheetClose asChild>

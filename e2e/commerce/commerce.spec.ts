@@ -1,5 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
+import { createDeliveryEligibilityToken } from "@/lib/checkout/delivery-token";
+
 import {
   addToCartFromPdp,
   buildSignedCheckoutEvent,
@@ -444,19 +446,31 @@ test.describe("fulfillment @commerce", () => {
 
   test("a paid delivery order moves through the delivery queue", async ({ page }) => {
     test.skip(
-      process.env.DELIVERY_ENABLED !== "true" || !process.env.DELIVERY_AREA_NAME,
+      process.env.DELIVERY_ENABLED !== "true" ||
+        !process.env.DELIVERY_AREA_NAME ||
+        !process.env.DELIVERY_ELIGIBILITY_SECRET,
       "Local delivery is not configured in this environment.",
     );
     test.setTimeout(120_000);
     const email = `e2e-deliver-${runId}@example.com`;
 
-    await addToCartFromPdp(page, "e2e-budget-bearings");
+    await addToCartFromPdp(page, "precision-bearings");
     const variantId = await readCartVariantId(page);
+    const checkedAddress = {
+      line1: "262075 Rocky View Point",
+      postalCode: "T4A0X2",
+    };
+    const deliveryEligibilityToken = createDeliveryEligibilityToken(
+      checkedAddress,
+      false,
+      process.env.DELIVERY_ELIGIBILITY_SECRET ?? "",
+    );
     const response = await resilientPost(page.request, "/api/checkout", {
       data: {
         requestId: crypto.randomUUID(),
         items: [{ variantId, quantity: 1 }],
         fulfillmentMethod: "delivery",
+        deliveryEligibilityToken,
       },
     });
     expect(response.status()).toBe(200);
@@ -466,8 +480,16 @@ test.describe("fulfillment @commerce", () => {
     const event = buildSignedCheckoutEvent("checkout.session.completed", {
       sessionId,
       tokens,
-      subtotalCents: 500,
+      subtotalCents: 3_400,
       email,
+      fulfillmentMethod: "delivery",
+      shippingAddress: {
+        line1: checkedAddress.line1,
+        city: "Rocky View County",
+        state: "AB",
+        postal_code: "T4A 0X2",
+        country: "CA",
+      },
     });
     expect(await postWebhook(page.request, event)).toBe(200);
 

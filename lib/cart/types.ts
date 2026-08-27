@@ -14,6 +14,15 @@ export type CartDisplayLine = {
 
 export type CartFulfillmentMethod = "shipping" | "delivery";
 
+export type DeliveryEligibility = {
+  token: string;
+  address: {
+    line1: string;
+    postalCode: string;
+  };
+  reviewRequired: boolean;
+};
+
 export type CheckoutRequest = {
   requestId: string;
   items: Array<{
@@ -21,6 +30,7 @@ export type CheckoutRequest = {
     quantity: number;
   }>;
   fulfillmentMethod: CartFulfillmentMethod;
+  deliveryEligibilityToken?: string;
 };
 
 export type AddCartLineInput = Omit<CartDisplayLine, "quantity"> & {

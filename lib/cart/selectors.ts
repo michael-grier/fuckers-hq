@@ -26,18 +26,20 @@ export function getCartSubtotalCents(lines: CartDisplayLine[]): number {
 export function getCheckoutCartFingerprint(
   lines: CartDisplayLine[],
   fulfillmentMethod: CartFulfillmentMethod,
+  deliveryEligibilityToken?: string,
 ): string {
   const canonicalLines = lines
     .map(({ variantId, quantity }) => ({ variantId, quantity }))
     .sort((left, right) => left.variantId.localeCompare(right.variantId));
 
-  return JSON.stringify({ fulfillmentMethod, lines: canonicalLines });
+  return JSON.stringify({ deliveryEligibilityToken, fulfillmentMethod, lines: canonicalLines });
 }
 
 export function toCheckoutRequest(
   lines: CartDisplayLine[],
   requestId: string,
   fulfillmentMethod: CartFulfillmentMethod,
+  deliveryEligibilityToken?: string,
 ): CheckoutRequest {
   return {
     requestId,
@@ -46,5 +48,8 @@ export function toCheckoutRequest(
       quantity,
     })),
     fulfillmentMethod,
+    ...(fulfillmentMethod === "delivery" && deliveryEligibilityToken
+      ? { deliveryEligibilityToken }
+      : {}),
   };
 }

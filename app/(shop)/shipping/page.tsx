@@ -7,6 +7,7 @@ import {
   PolicyParagraph,
   PolicySection,
 } from "@/components/shop/policy-page";
+import { resolveDeliveryArea } from "@/lib/checkout/delivery";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -15,6 +16,8 @@ export const metadata: Metadata = {
 };
 
 export default function ShippingPage() {
+  const deliveryArea = resolveDeliveryArea(env);
+
   return (
     <PolicyPage
       description="Where we ship, what it costs, and when to expect your order."
@@ -63,12 +66,12 @@ export default function ShippingPage() {
 
       {/* Gated on the same server flag checkout uses, so a store with delivery off never
           advertises it here; see docs/production-launch-requirements.md §2. */}
-      {env.DELIVERY_ENABLED ? (
+      {deliveryArea ? (
         <PolicySection heading="Local delivery">
           <PolicyParagraph>
-            Orders within Rockyview County, Alberta are eligible for local delivery. We will contact
-            you to schedule a time and place. Delivery orders are not shipped and are not charged
-            shipping.
+            Orders of $30 or more within {deliveryArea.areaName} are eligible for free local
+            delivery. Check your address in the cart; we will contact you to schedule a time and
+            place.
           </PolicyParagraph>
         </PolicySection>
       ) : null}

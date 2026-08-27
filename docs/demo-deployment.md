@@ -47,7 +47,8 @@ runbook and the GitHub Actions secrets the workflow requires.
   values are `SHIPPING_ALLOWED_COUNTRIES=CA,US` and `SHIPPING_FREE_THRESHOLD_CENTS=10000`.
   Migration 0013 seeds the profile-specific rates in the demo database.
 - The deployed webhook is configured after the stable Vercel production URL exists.
-- Local delivery is offered only when `DELIVERY_ENABLED=true` and `DELIVERY_AREA_NAME` is set.
+- Local delivery is offered only when `DELIVERY_ENABLED=true`, `DELIVERY_AREA_NAME`, and a random
+  `DELIVERY_ELIGIBILITY_SECRET` of at least 32 characters are set. Eligible carts must total $30.
   Delivery sessions collect a Canada-only delivery address and carry no shipping rate, so Stripe
   reports zero shipping on them. Because these values are read at build time, changing them
   requires a redeploy.
@@ -160,6 +161,7 @@ source maps are enabled.
 | `DELIVERY_ENABLED` | `true` to offer local delivery at checkout; defaults to `false` | No |
 | `DELIVERY_AREA_NAME` | Service area shown at checkout, e.g. `Rocky View County, Alberta` | No |
 | `DELIVERY_INSTRUCTIONS` | Optional extra note shown with the delivery option | No |
+| `DELIVERY_ELIGIBILITY_SECRET` | Random secret of at least 32 characters used to sign address checks | Yes, if delivery is enabled |
 
 For Preview, add only the Clerk development publishable and secret keys if authenticated preview
 pages are useful. Keep database, Stripe, R2, Resend, cron, and admin allowlist variables

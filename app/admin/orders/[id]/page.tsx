@@ -8,6 +8,7 @@ import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inve
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
 import {
+  DeliveryAddressReviewBadge,
   DisputeStatusBadge,
   FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
@@ -73,6 +74,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             ) : (
               <OrderInventoryStatusBadge status={order.inventoryStatus} />
             )}
+            {order.deliveryReviewRequired ? <DeliveryAddressReviewBadge /> : null}
             {order.refundStatus !== "none" ? (
               <RefundStatusBadge status={order.refundStatus} />
             ) : null}
@@ -148,6 +150,21 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           {isOrderFulfillmentEligible(order) ? (
             <ResolveInventoryExceptionButton orderId={order.id} />
           ) : null}
+        </section>
+      ) : null}
+
+      {order.deliveryReviewRequired ? (
+        <section
+          aria-labelledby="delivery-address-review-heading"
+          className="rounded-lg border border-amber-300 bg-amber-50 p-6 text-amber-950"
+        >
+          <h2 className="font-bold text-xl" id="delivery-address-review-heading">
+            Confirm the delivery address before scheduling
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm">
+            The geocode was ambiguous, close to the Rocky View County boundary, or the address
+            entered at Stripe Checkout differed from the one checked in the cart.
+          </p>
         </section>
       ) : null}
 

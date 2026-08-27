@@ -1,105 +1,281 @@
 "use client";
 
-import { useId } from "react";
-import { resolveFulfillmentMethod } from "@/lib/cart/selectors";
+import { CheckCircle2, ChevronDown, LoaderCircle, MapPin } from "lucide-react";
+import { type FormEvent, useId, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { getCartSubtotalCents, resolveFulfillmentMethod } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
-import type { CartFulfillmentMethod } from "@/lib/cart/types";
-import type { DeliveryArea } from "@/lib/checkout/delivery";
+import type { CartDisplayLine, CartFulfillmentMethod } from "@/lib/cart/types";
+import { type DeliveryArea, LOCAL_DELIVERY_MINIMUM_CENTS } from "@/lib/checkout/delivery";
+import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { deliveryEligibilityResponseSchema } from "@/lib/validators/delivery";
 
 type FulfillmentPickerProps = {
   deliveryArea: DeliveryArea | null;
-  /** Sidebar variant: a segmented control with the details behind a disclosure. */
+  /** Sidebar variant: keeps the address form behind a one-row disclosure. */
   compact?: boolean;
+  lines: CartDisplayLine[];
 };
 
-export function FulfillmentPicker({ deliveryArea, compact = false }: FulfillmentPickerProps) {
+export function FulfillmentPicker({
+  deliveryArea,
+  lines,
+  compact = false,
+}: FulfillmentPickerProps) {
   const preference = useCartStore((state) => state.fulfillmentMethod);
+  const eligibility = useCartStore((state) => state.deliveryEligibility);
   const setFulfillmentMethod = useCartStore((state) => state.setFulfillmentMethod);
+  const setDeliveryEligibility = useCartStore((state) => state.setDeliveryEligibility);
+  const clearDeliveryEligibility = useCartStore((state) => state.clearDeliveryEligibility);
+  const [message, setMessage] = useState<string | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  const [line1, setLine1] = useState("");
+  const [postalCode, setPostalCode] = useState("");
+  const disclosureRef = useRef<HTMLDetailsElement>(null);
   const groupName = useId();
-  const selected = resolveFulfillmentMethod(preference, deliveryArea !== null);
+  const streetAddressId = useId();
+  const postalCodeId = useId();
+  const selected = resolveFulfillmentMethod(preference, eligibility !== null);
+  const subtotalCents = getCartSubtotalCents(lines);
+  const amountRemainingCents = Math.max(LOCAL_DELIVERY_MINIMUM_CENTS - subtotalCents, 0);
 
   if (!deliveryArea) {
     return null;
   }
 
-  const isDelivery = selected === "delivery";
+  async function handleEligibilityCheck(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    setIsChecking(true);
 
-  if (compact) {
-    return (
-      // The sheet footer also holds the summary and checkout button, so this stays roughly one
-      // control tall and keeps the delivery details collapsed until they are asked for.
-      <fieldset className="space-y-2">
-        <legend className="font-semibold text-sm">How do you want it?</legend>
-        <div className="grid grid-cols-2 gap-2">
-          <SegmentedOption
-            checked={!isDelivery}
-            label="Ship it"
-            name={groupName}
-            onSelect={setFulfillmentMethod}
-            value="shipping"
-          />
-          <SegmentedOption
-            checked={isDelivery}
-            label="Local delivery"
-            name={groupName}
-            onSelect={setFulfillmentMethod}
-            value="delivery"
-          />
-        </div>
-        {isDelivery ? (
-          <details className="text-muted-foreground text-xs">
-            <summary className="cursor-pointer rounded outline-none focus-visible:ring-2 focus-visible:ring-ring">
-              Free · {deliveryArea.areaName} only
-            </summary>
-            <div className="mt-2 space-y-1.5">
-              <p>
-                We deliver within {deliveryArea.areaName}. Enter your delivery address at checkout,
-                and we'll contact you to arrange a time.
-              </p>
-              {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
-            </div>
-          </details>
-        ) : (
-          <p className="text-muted-foreground text-xs">Rates and tax are calculated at checkout.</p>
-        )}
-      </fieldset>
-    );
+    try {
+      const response = await fetch("/api/delivery/eligibility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })),
+          address: {
+            line1,
+            postalCode,
+          },
+        }),
+      });
+      const responseBody: unknown = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const error =
+          typeof responseBody === "object" &&
+          responseBody !== null &&
+          "error" in responseBody &&
+          typeof responseBody.error === "string"
+            ? responseBody.error
+            : "We couldn't check that address. Try again.";
+        throw new Error(error);
+      }
+
+      const result = deliveryEligibilityResponseSchema.safeParse(responseBody);
+
+      if (!result.success) {
+        throw new Error("The delivery check returned an invalid response. Try again.");
+      }
+
+      setMessage(result.data.message);
+
+      if (result.data.status === "eligible") {
+        setDeliveryEligibility({
+          token: result.data.token,
+          address: result.data.address,
+          reviewRequired: result.data.reviewRequired,
+        });
+
+        if (disclosureRef.current) {
+          disclosureRef.current.open = false;
+        }
+      } else {
+        clearDeliveryEligibility();
+      }
+    } catch (error) {
+      clearDeliveryEligibility();
+      setMessage(
+        error instanceof Error ? error.message : "We couldn't check that address. Try again.",
+      );
+    } finally {
+      setIsChecking(false);
+    }
   }
 
+  function changeAddress() {
+    clearDeliveryEligibility();
+    setMessage(null);
+    requestAnimationFrame(() => {
+      if (disclosureRef.current) {
+        disclosureRef.current.open = true;
+      }
+    });
+  }
+
+  const isDelivery = selected === "delivery";
+
   return (
-    <fieldset className="rounded-lg border p-5">
-      <legend className="px-1 font-grotesk font-semibold text-lg">How do you want it?</legend>
-      <div className="mt-3 space-y-3">
-        <FulfillmentOption
-          checked={!isDelivery}
-          description="We ship it to your address. Rates and tax are calculated at checkout."
-          label="Ship it to me"
-          name={groupName}
-          onSelect={setFulfillmentMethod}
-          value="shipping"
-        />
-        <FulfillmentOption
-          checked={isDelivery}
-          description={`Free within ${deliveryArea.areaName}. We'll contact you after checkout to arrange a delivery time.`}
-          label="Local delivery"
-          name={groupName}
-          onSelect={setFulfillmentMethod}
-          value="delivery"
-        />
+    <fieldset className={cn(!compact && "rounded-lg border p-5")}>
+      <legend className={cn("font-grotesk font-semibold", compact ? "text-sm" : "px-1 text-lg")}>
+        How do you want it?
+      </legend>
+      <div className={cn(compact ? "mt-2 space-y-2" : "mt-3 space-y-3")}>
+        {compact ? (
+          <div className={cn("grid gap-2", eligibility && "grid-cols-2")}>
+            <SegmentedOption
+              checked={!isDelivery}
+              label="Ship it"
+              name={groupName}
+              onSelect={setFulfillmentMethod}
+              value="shipping"
+            />
+            {eligibility ? (
+              <SegmentedOption
+                checked={isDelivery}
+                label="Local delivery"
+                name={groupName}
+                onSelect={setFulfillmentMethod}
+                value="delivery"
+              />
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <FulfillmentOption
+              checked={!isDelivery}
+              description="Rates and tax are calculated at checkout."
+              label="Ship it to me"
+              name={groupName}
+              onSelect={setFulfillmentMethod}
+              value="shipping"
+            />
+            {eligibility ? (
+              <FulfillmentOption
+                checked={isDelivery}
+                description={`Free within ${deliveryArea.areaName}. We'll contact you to arrange a time.`}
+                label="Local delivery"
+                name={groupName}
+                onSelect={setFulfillmentMethod}
+                value="delivery"
+              />
+            ) : null}
+          </>
+        )}
+
+        {eligibility ? (
+          <div className="flex items-start gap-2 rounded-md border border-emerald-700/30 bg-emerald-500/10 p-2.5 text-xs">
+            <CheckCircle2 aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-emerald-700" />
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-foreground">Free local delivery available</p>
+              <p className="truncate text-muted-foreground">
+                {eligibility.address.line1} · {formatPostalCode(eligibility.address.postalCode)}
+              </p>
+              {eligibility.reviewRequired ? (
+                <p className="mt-1 text-muted-foreground">
+                  We'll confirm the address before scheduling.
+                </p>
+              ) : null}
+            </div>
+            <button
+              className="shrink-0 rounded font-semibold underline underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              onClick={changeAddress}
+              type="button"
+            >
+              Change
+            </button>
+          </div>
+        ) : (
+          <details className="group rounded-md border" ref={disclosureRef}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-3 py-2.5 font-semibold text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+              <MapPin aria-hidden="true" className="size-4 shrink-0" />
+              <span className="min-w-0 flex-1">Check free local delivery</span>
+              <span className="text-muted-foreground text-xs">$30 minimum</span>
+              <ChevronDown
+                aria-hidden="true"
+                className="size-4 shrink-0 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <div className="border-t px-3 py-3">
+              {amountRemainingCents > 0 ? (
+                <p className="text-muted-foreground text-sm">
+                  Add {formatMoney(amountRemainingCents)} more to unlock free local delivery in{" "}
+                  {deliveryArea.areaName}.
+                </p>
+              ) : (
+                <form className="space-y-3" onSubmit={handleEligibilityCheck}>
+                  <p className="text-muted-foreground text-xs">
+                    Enter the address you'll use at checkout. We'll check whether it's inside{" "}
+                    {deliveryArea.areaName}.
+                  </p>
+                  <div className={cn("grid gap-3", !compact && "sm:grid-cols-[1fr_9rem]")}>
+                    <div className="space-y-1">
+                      <label className="font-semibold text-xs" htmlFor={streetAddressId}>
+                        Street address
+                      </label>
+                      <Input
+                        autoComplete="shipping address-line1"
+                        id={streetAddressId}
+                        maxLength={120}
+                        name="line1"
+                        placeholder="262075 Rocky View Point"
+                        required
+                        onChange={(event) => setLine1(event.currentTarget.value)}
+                        value={line1}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-semibold text-xs" htmlFor={postalCodeId}>
+                        Postal code
+                      </label>
+                      <Input
+                        autoCapitalize="characters"
+                        autoComplete="shipping postal-code"
+                        id={postalCodeId}
+                        inputMode="text"
+                        maxLength={7}
+                        name="postalCode"
+                        placeholder="T4A 0X2"
+                        required
+                        onChange={(event) => setPostalCode(event.currentTarget.value)}
+                        value={postalCode}
+                      />
+                    </div>
+                  </div>
+                  <Button className="w-full" disabled={isChecking} size="sm" type="submit">
+                    {isChecking ? (
+                      <>
+                        <LoaderCircle aria-hidden="true" className="animate-spin" />
+                        Checking…
+                      </>
+                    ) : (
+                      "Check address"
+                    )}
+                  </Button>
+                  {deliveryArea.instructions ? (
+                    <p className="text-muted-foreground text-xs">{deliveryArea.instructions}</p>
+                  ) : null}
+                </form>
+              )}
+              {message ? (
+                <p aria-live="polite" className="mt-3 text-sm" role="status">
+                  {message}
+                </p>
+              ) : null}
+            </div>
+          </details>
+        )}
       </div>
-      {isDelivery ? (
-        <div className="mt-4 space-y-2 border-t pt-4 text-muted-foreground text-sm">
-          <p>
-            Available within{" "}
-            <span className="font-semibold text-foreground">{deliveryArea.areaName}</span> only.
-            Enter your delivery address at checkout.
-          </p>
-          {deliveryArea.instructions ? <p>{deliveryArea.instructions}</p> : null}
-        </div>
-      ) : null}
     </fieldset>
   );
+}
+
+function formatPostalCode(postalCode: string): string {
+  return `${postalCode.slice(0, 3)} ${postalCode.slice(3)}`;
 }
 
 type OptionProps = {
@@ -110,7 +286,7 @@ type OptionProps = {
   value: CartFulfillmentMethod;
 };
 
-/** Native radios stay in the markup (sr-only) so arrow-key navigation keeps working. */
+/** Native radios stay in the markup so arrow-key navigation keeps working. */
 function SegmentedOption({ checked, label, name, onSelect, value }: OptionProps) {
   return (
     <label className="cursor-pointer">

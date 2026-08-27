@@ -133,6 +133,7 @@ describe("order preview shipment layout", () => {
       status: "paid",
       inventoryStatus: "allocated",
       fulfillmentMethod: "shipping",
+      deliveryReviewRequired: false,
       deliveryScheduledAt: null,
       shippedAt: null,
       trackingCarrier: null,

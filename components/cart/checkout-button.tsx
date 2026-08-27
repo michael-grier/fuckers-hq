@@ -15,6 +15,7 @@ import { checkoutErrorResponseSchema, checkoutResponseSchema } from "@/lib/valid
 export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvailable?: boolean }) {
   const lines = useCartStore((state) => state.lines);
   const fulfillmentPreference = useCartStore((state) => state.fulfillmentMethod);
+  const deliveryEligibility = useCartStore((state) => state.deliveryEligibility);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const requestIdentity = useRef<{ cartFingerprint: string; requestId: string } | null>(null);
@@ -26,9 +27,15 @@ export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvai
     try {
       const fulfillmentMethod = resolveFulfillmentMethod(
         fulfillmentPreference,
-        isDeliveryAvailable,
+        isDeliveryAvailable && deliveryEligibility !== null,
       );
-      const cartFingerprint = getCheckoutCartFingerprint(lines, fulfillmentMethod);
+      const deliveryEligibilityToken =
+        fulfillmentMethod === "delivery" ? deliveryEligibility?.token : undefined;
+      const cartFingerprint = getCheckoutCartFingerprint(
+        lines,
+        fulfillmentMethod,
+        deliveryEligibilityToken,
+      );
 
       if (requestIdentity.current?.cartFingerprint !== cartFingerprint) {
         requestIdentity.current = {
@@ -43,7 +50,12 @@ export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvai
           "Content-Type": "application/json",
         },
         body: JSON.stringify(
-          toCheckoutRequest(lines, requestIdentity.current.requestId, fulfillmentMethod),
+          toCheckoutRequest(
+            lines,
+            requestIdentity.current.requestId,
+            fulfillmentMethod,
+            deliveryEligibilityToken,
+          ),
         ),
       });
       const responseBody: unknown = await response.json().catch(() => null);

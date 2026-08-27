@@ -13,9 +13,13 @@ type CartSummaryProps = {
 export function CartSummary({ isDeliveryAvailable = false, compact = false }: CartSummaryProps) {
   const lines = useCartStore((state) => state.lines);
   const fulfillmentPreference = useCartStore((state) => state.fulfillmentMethod);
+  const deliveryEligibility = useCartStore((state) => state.deliveryEligibility);
   const subtotal = getCartSubtotalCents(lines);
   const isDelivery =
-    resolveFulfillmentMethod(fulfillmentPreference, isDeliveryAvailable) === "delivery";
+    resolveFulfillmentMethod(
+      fulfillmentPreference,
+      isDeliveryAvailable && deliveryEligibility !== null,
+    ) === "delivery";
   const fulfillmentLabel = isDelivery ? "Delivery" : "Shipping";
   const fulfillmentValue = isDelivery ? "Free" : "Calculated at checkout";
 

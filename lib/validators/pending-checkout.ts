@@ -5,6 +5,7 @@ import { MAX_CART_LINE_QUANTITY, MAX_CART_LINES } from "@/lib/cart/constants";
 import { shippingProfileValues } from "@/lib/catalog/shipping-profiles";
 import { pendingCheckouts } from "@/lib/db/schema";
 import { cartSchema, pendingCheckoutTokenSchema } from "@/lib/validators/cart";
+import { deliveryAddressSchema } from "@/lib/validators/delivery";
 
 export const pendingCheckoutLineSnapshotSchema = z
   .object({
@@ -52,11 +53,13 @@ export const pendingCheckoutSelectSchema = createSelectSchema(pendingCheckouts, 
   token: pendingCheckoutTokenSchema,
   items: cartSchema,
   lineItems: pendingCheckoutLineSnapshotsSchema.nullable(),
+  deliveryAddressCheck: deliveryAddressSchema.nullable(),
 });
 
 export const pendingCheckoutInsertSchema = createInsertSchema(pendingCheckouts, {
   token: pendingCheckoutTokenSchema,
   items: cartSchema,
+  deliveryAddressCheck: deliveryAddressSchema.nullable().optional(),
 })
   .omit({
     id: true,

@@ -21,6 +21,7 @@ import {
   resolveCatalogTaxonomy,
   withFirstCatalogPage,
 } from "@/lib/catalog/search-params";
+import { resolveDeliveryArea } from "@/lib/checkout/delivery";
 import { parseEnv } from "@/lib/env";
 import { centsToDollars, dollarsToCents } from "@/lib/money";
 import { makeOrderNumber } from "@/lib/orders/order-number";
@@ -173,6 +174,25 @@ describe("environment contract", () => {
       "test_cron_secret_123456",
     );
     expect(() => parseEnv({ NODE_ENV: "test", CRON_SECRET: "too-short" })).toThrow();
+  });
+
+  test("keeps delivery unavailable until its address-check signing secret is configured", () => {
+    const base = {
+      NODE_ENV: "test",
+      DELIVERY_ENABLED: "true",
+      DELIVERY_AREA_NAME: "Rocky View County, Alberta",
+    } as const;
+
+    expect(resolveDeliveryArea(parseEnv(base))).toBeNull();
+    expect(() => parseEnv({ ...base, DELIVERY_ELIGIBILITY_SECRET: "too-short" })).toThrow();
+    expect(
+      resolveDeliveryArea(
+        parseEnv({
+          ...base,
+          DELIVERY_ELIGIBILITY_SECRET: "delivery-signing-secret-with-32-characters",
+        }),
+      )?.areaName,
+    ).toBe("Rocky View County, Alberta");
   });
 });
 

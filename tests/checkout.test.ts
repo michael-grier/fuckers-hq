@@ -8,6 +8,7 @@ import {
   createHostedCheckout,
   parsePersistedStripeSessionParams,
 } from "@/lib/checkout/create-hosted-checkout";
+import { createDeliveryEligibilityToken } from "@/lib/checkout/delivery-token";
 import { toCheckoutErrorResponse } from "@/lib/checkout/error-response";
 import { CheckoutError } from "@/lib/checkout/errors";
 import {
@@ -48,6 +49,11 @@ const reservationLineItems = [
     shippingRateCents: 2200,
   },
 ];
+const deliveryEligibilitySecret = "test-delivery-eligibility-secret-32-chars";
+const checkedDeliveryAddress = {
+  line1: "262075 Rocky View Point",
+  postalCode: "T4A0X2",
+};
 const settings = {
   appUrl: "http://localhost:3000",
   allowedCountries: ["CA", "US"] as const,
@@ -63,6 +69,7 @@ const deliverySettings = {
     areaName: "Rocky View County, Alberta",
     instructions: "Ring the buzzer.",
   },
+  deliveryEligibilitySecret,
 };
 
 function makeRepository(overrides: Partial<CheckoutRepository> = {}): CheckoutRepository {
@@ -514,8 +521,19 @@ describe("local delivery checkout", () => {
       },
     });
 
+    const deliveryEligibilityToken = createDeliveryEligibilityToken(
+      checkedDeliveryAddress,
+      false,
+      deliveryEligibilitySecret,
+    );
+
     await createHostedCheckout(
-      { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "delivery" },
+      {
+        requestId,
+        items: [{ variantId, quantity: 1 }],
+        fulfillmentMethod: "delivery",
+        deliveryEligibilityToken,
+      },
       deliverySettings,
       {
         repository,
@@ -530,6 +548,37 @@ describe("local delivery checkout", () => {
     );
 
     expect(reservationWrites[0]?.fulfillmentMethod).toBe("delivery");
+    expect(reservationWrites[0]?.deliveryAddressCheck).toEqual(checkedDeliveryAddress);
+    expect(reservationWrites[0]?.deliveryReviewRequired).toBe(false);
+  });
+
+  test("rejects a forged delivery check before reserving inventory", async () => {
+    let repositoryCalled = false;
+
+    await expect(
+      createHostedCheckout(
+        {
+          requestId,
+          items: [{ variantId, quantity: 1 }],
+          fulfillmentMethod: "delivery",
+          deliveryEligibilityToken:
+            "forged-token-that-is-long-enough-to-parse................................",
+        },
+        deliverySettings,
+        {
+          repository: makeRepository({
+            reserveCheckout: async () => {
+              repositoryCalled = true;
+              throw new Error("Unexpected reservation call.");
+            },
+          }),
+          sessions: { create: async () => ({ id: "cs_unused", url: null }) },
+          createToken: () => "unused-token",
+        },
+      ),
+    ).rejects.toThrow("Check your address again");
+
+    expect(repositoryCalled).toBe(false);
   });
 
   test("rejects a persisted session request whose method no longer matches", () => {
