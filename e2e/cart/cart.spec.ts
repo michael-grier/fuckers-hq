@@ -4,15 +4,22 @@ import { expect, test } from "@playwright/test";
 // header assertions (like the cart count badge) only run after closing the sheet with Escape.
 // The add button reads "Added to cart" for a moment after a click, hence the /Add(ed)?/ name.
 
-/** Adds the first variant of the Street Deck product and waits for the cart sheet to open. */
-async function addStreetDeckToCart(page: import("@playwright/test").Page): Promise<void> {
-  await page.goto("/products/street-deck-825");
+/** Adds the first variant of a product and waits for the cart sheet to open. */
+async function addProductToCart(
+  page: import("@playwright/test").Page,
+  slug: string,
+): Promise<void> {
+  await page.goto(`/products/${slug}`);
   // A click landing before React hydrates is silently lost, so retry the action-and-outcome
   // pair rather than allowing test-level retries (the config runs with retries: 0 on purpose).
   await expect(async () => {
     await page.getByRole("button", { name: /^Add(ed)? to cart$/ }).click();
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 15_000 });
+}
+
+async function addStreetDeckToCart(page: import("@playwright/test").Page): Promise<void> {
+  await addProductToCart(page, "street-deck-825");
 }
 
 /** Closes the cart sheet and waits for it to be gone, so header assertions can see the page. */
@@ -79,6 +86,9 @@ test.describe("cart @smoke", () => {
     );
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/api/delivery/eligibility", async (route) => {
+      expect(route.request().postDataJSON()).toMatchObject({
+        address: { line1: "262075 Rocky View Point", postalCode: "T4A 0X2" },
+      });
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
@@ -105,5 +115,27 @@ test.describe("cart @smoke", () => {
     await expect(dialog.getByText("Free local delivery available")).toBeVisible();
     await expect(dialog.getByRole("radio", { name: "Local delivery" })).toBeChecked();
     await expect(dialog.getByLabel("Street address")).toBeHidden();
+  });
+
+  test("an under-$30 cart shows the exact amount remaining", async ({ page }) => {
+    test.skip(
+      process.env.DELIVERY_ENABLED !== "true" ||
+        !process.env.DELIVERY_AREA_NAME ||
+        !process.env.DELIVERY_ELIGIBILITY_SECRET,
+      "Local delivery is not configured in this environment.",
+    );
+    await addProductToCart(page, "e2e-budget-bearings");
+    const dialog = page.getByRole("dialog");
+    const increaseQuantity = dialog.getByRole("button", {
+      name: /Increase quantity for E2E Budget Bearings/,
+    });
+
+    for (let quantity = 1; quantity < 5; quantity += 1) {
+      await increaseQuantity.click();
+    }
+
+    await dialog.getByText("Check free local delivery").click();
+    await expect(dialog.getByText(/Add \$5\.00 more/)).toBeVisible();
+    await expect(dialog.getByLabel("Street address")).toHaveCount(0);
   });
 });

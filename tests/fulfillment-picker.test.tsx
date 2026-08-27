@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 import { FulfillmentPicker } from "@/components/cart/fulfillment-picker";
 import { useCartStore } from "@/lib/cart/store";
@@ -18,6 +18,12 @@ const deliveryArea = {
   instructions: null,
 };
 const originalFetch = globalThis.fetch;
+
+function StoreBackedPicker() {
+  const lines = useCartStore((state) => state.lines);
+
+  return <FulfillmentPicker compact deliveryArea={deliveryArea} lines={lines} />;
+}
 
 afterEach(() => {
   cleanup();
@@ -51,6 +57,7 @@ describe("fulfillment picker", () => {
       }),
     );
     globalThis.fetch = fetchMock as unknown as typeof fetch;
+    useCartStore.setState({ lines: [line] });
     render(<FulfillmentPicker compact deliveryArea={deliveryArea} lines={[line]} />);
 
     fireEvent.change(screen.getByLabelText("Street address"), {
@@ -98,6 +105,42 @@ describe("fulfillment picker", () => {
     expect(await screen.findByText(/Shipping is still available/)).toBeDefined();
     expect((screen.getByRole("radio", { name: "Ship it" }) as HTMLInputElement).checked).toBe(true);
     expect(screen.queryByRole("radio", { name: "Local delivery" })).toBeNull();
+  });
+
+  test("ignores a successful response when the cart changed during the check", async () => {
+    let resolveFetch: ((response: Response) => void) | undefined;
+    globalThis.fetch = mock(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve;
+        }),
+    ) as unknown as typeof fetch;
+    useCartStore.setState({ lines: [line] });
+    render(<StoreBackedPicker />);
+
+    fireEvent.change(screen.getByLabelText("Street address"), {
+      target: { value: "262075 Rocky View Point" },
+    });
+    fireEvent.change(screen.getByLabelText("Postal code"), {
+      target: { value: "T4A 0X2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Check address" }));
+    act(() => useCartStore.getState().removeLine(line.variantId));
+    await act(async () => {
+      resolveFetch?.(
+        Response.json({
+          status: "eligible",
+          token: "obsolete-signed-token",
+          address: { line1: "262075 Rocky View Point", postalCode: "T4A0X2" },
+          reviewRequired: false,
+          message: "Free local delivery is available for this address.",
+        }),
+      );
+    });
+
+    expect(screen.queryByText(/Free local delivery is available/)).toBeNull();
+    expect(useCartStore.getState().deliveryEligibility).toBeNull();
+    expect(useCartStore.getState().fulfillmentMethod).toBe("shipping");
   });
 
   test("explains the amount remaining instead of showing an address form below $30", () => {

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 
 import { MAX_CART_LINE_QUANTITY, MAX_CART_LINES } from "@/lib/cart/constants";
 import { isOrderConfirmationCronAuthorized } from "@/lib/email/order-confirmation-cron";
@@ -7,6 +7,8 @@ import { checkoutSchema } from "@/lib/validators/cart";
 
 const variantId = "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6";
 const requestId = "a593031e-8306-46c9-b92d-caa1d274405d";
+
+mock.module("server-only", () => ({}));
 
 function jsonRequest(body: string, headers: HeadersInit = {}): Request {
   return new Request("http://localhost/api/test", {
@@ -78,6 +80,27 @@ describe("checkout request complexity", () => {
     }));
 
     expect(checkoutSchema.safeParse({ requestId, items }).success).toBe(false);
+  });
+});
+
+describe("delivery eligibility request limits", () => {
+  test("returns 429 before repeated requests can reach the database or geocoder", async () => {
+    const { POST } = await import("@/app/api/delivery/eligibility/route");
+    const responses: Response[] = [];
+
+    for (let attempt = 0; attempt < 11; attempt += 1) {
+      responses.push(
+        await POST(
+          jsonRequest("{}", {
+            "x-vercel-forwarded-for": "203.0.113.146",
+          }),
+        ),
+      );
+    }
+
+    expect(responses.slice(0, 10).every((response) => response.status === 400)).toBe(true);
+    expect(responses[10].status).toBe(429);
+    expect(responses[10].headers.get("Retry-After")).toBe("60");
   });
 });
 

@@ -186,6 +186,54 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     });
   });
 
+  test("keeps delivery review data off shipping records", async () => {
+    const expiresAt = new Date("2026-07-10T14:00:00.000Z");
+
+    expect(
+      await constraintViolation(() =>
+        database.insert(pendingCheckouts).values({
+          token: "checkout_review_flag_abcdef",
+          items: [{ variantId, quantity: 1 }],
+          fulfillmentMethod: "shipping",
+          deliveryReviewRequired: true,
+          expiresAt,
+        }),
+      ),
+    ).toBe("pending_checkouts_delivery_review_requires_delivery");
+    expect(
+      await constraintViolation(() =>
+        database.insert(pendingCheckouts).values({
+          token: "checkout_address_check_abcdef",
+          items: [{ variantId, quantity: 1 }],
+          fulfillmentMethod: "shipping",
+          deliveryAddressCheck: {
+            line1: "262075 Rocky View Point",
+            postalCode: "T4A0X2",
+          },
+          expiresAt,
+        }),
+      ),
+    ).toBe("pending_checkouts_shipping_has_no_delivery_address");
+    expect(
+      await constraintViolation(() =>
+        database.insert(orders).values({
+          orderNumber: "FHQ-20260827-REVIEW01",
+          email: "skater@example.com",
+          status: "paid",
+          inventoryStatus: "allocated",
+          fulfillmentMethod: "shipping",
+          deliveryReviewRequired: true,
+          stripeSessionId: "cs_shipping_review_invalid",
+          subtotalCents: 8_900,
+          taxCents: 0,
+          shippingCents: 1_500,
+          totalCents: 10_400,
+          currency: "cad",
+        }),
+      ),
+    ).toBe("orders_delivery_review_requires_delivery");
+  });
+
   test("rejects a delivery_scheduled status on a shipping order", async () => {
     await insertVariant(database, variantId, 1);
 
@@ -647,7 +695,13 @@ const postgresTestSchema = [
     stripe_session_id text unique,
     created_at timestamptz not null default now(),
     expires_at timestamptz not null,
-    completed_at timestamptz
+    completed_at timestamptz,
+    constraint pending_checkouts_delivery_review_requires_delivery check (
+      not delivery_review_required or fulfillment_method = 'delivery'
+    ),
+    constraint pending_checkouts_shipping_has_no_delivery_address check (
+      fulfillment_method = 'delivery' or delivery_address_check is null
+    )
   )`,
   `create table inventory_reservations (
     id uuid primary key default gen_random_uuid(),
@@ -724,6 +778,9 @@ const postgresTestSchema = [
     created_at timestamptz not null default now(),
     constraint orders_delivery_scheduled_requires_delivery check (
       status <> 'delivery_scheduled' or fulfillment_method = 'delivery'
+    ),
+    constraint orders_delivery_review_requires_delivery check (
+      not delivery_review_required or fulfillment_method = 'delivery'
     ),
     constraint orders_delivery_scheduled_at_required check (
       status not in ('delivery_scheduled', 'fulfilled')

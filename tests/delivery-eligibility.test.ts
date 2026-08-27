@@ -83,6 +83,27 @@ describe("Rocky View municipal-address geocoder", () => {
     expect(lowConfidence.status === "match" && lowConfidence.confidence).toBe("low");
     expect(unavailable).toEqual({ status: "unavailable" });
   });
+
+  test("normalizes common abbreviated street suffixes before matching", async () => {
+    const result = await geocodeRockyViewAddress(
+      { ...address, line1: "262075 Rocky View Trl" },
+      async () =>
+        Response.json({
+          features: [
+            {
+              attributes: {
+                vchAddress: "262075 ROCKY VIEW TRAIL",
+                vchPostalCode: "T4A 0X2",
+                AddressStatus: "Current",
+              },
+              geometry: { x: -113.9400966, y: 51.2165656 },
+            },
+          ],
+        }),
+    );
+
+    expect(result).toMatchObject({ status: "match", confidence: "high" });
+  });
 });
 
 describe("delivery eligibility", () => {

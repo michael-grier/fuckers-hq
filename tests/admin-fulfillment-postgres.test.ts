@@ -224,6 +224,27 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     expect(await findDeliveries(deliveryOrderId)).toHaveLength(0);
   });
 
+  test("rejects address-review flags on shipping orders", async () => {
+    expect(
+      await constraintViolation(() =>
+        database.insert(orders).values({
+          orderNumber: "FHQ-20260806-REVIEW01",
+          email: "skater@example.com",
+          status: "paid",
+          inventoryStatus: "allocated",
+          fulfillmentMethod: "shipping",
+          deliveryReviewRequired: true,
+          stripeSessionId: "cs_test_shipping_review_invalid",
+          subtotalCents: 8_900,
+          taxCents: 0,
+          shippingCents: 1_500,
+          totalCents: 10_400,
+          currency: "cad",
+        }),
+      ),
+    ).toBe("orders_delivery_review_requires_delivery");
+  });
+
   test("queues the delivery email on the delivery path without touching shipment columns", async () => {
     const readyAt = new Date("2026-08-06T12:00:00.000Z");
 
@@ -247,6 +268,17 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     });
   });
 });
+
+/** Returns the violated constraint name from Drizzle's wrapped Postgres error. */
+async function constraintViolation(run: () => Promise<unknown>): Promise<string | undefined> {
+  try {
+    await run();
+  } catch (error) {
+    return (error as { cause?: { constraint_name?: string } }).cause?.constraint_name;
+  }
+
+  return undefined;
+}
 
 // Mirrors the production DDL for only the tables this transition touches. Enum columns are declared
 // as text, matching the other Postgres suites, so the schema can be created without the app's types.
@@ -284,6 +316,9 @@ const postgresTestSchema = [
     ),
     constraint orders_delivery_scheduled_requires_delivery check (
       status <> 'delivery_scheduled' or fulfillment_method = 'delivery'
+    ),
+    constraint orders_delivery_review_requires_delivery check (
+      not delivery_review_required or fulfillment_method = 'delivery'
     ),
     constraint orders_delivery_scheduled_at_required check (
       status not in ('delivery_scheduled', 'fulfilled')

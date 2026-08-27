@@ -5,7 +5,11 @@ import { type FormEvent, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getCartSubtotalCents, resolveFulfillmentMethod } from "@/lib/cart/selectors";
+import {
+  getCartSubtotalCents,
+  getCheckoutCartFingerprint,
+  resolveFulfillmentMethod,
+} from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
 import type { CartDisplayLine, CartFulfillmentMethod } from "@/lib/cart/types";
 import { type DeliveryArea, LOCAL_DELIVERY_MINIMUM_CENTS } from "@/lib/checkout/delivery";
@@ -50,6 +54,7 @@ export function FulfillmentPicker({
     event.preventDefault();
     setMessage(null);
     setIsChecking(true);
+    const submittedCartFingerprint = getCheckoutCartFingerprint(lines, "shipping");
 
     try {
       const response = await fetch("/api/delivery/eligibility", {
@@ -82,9 +87,17 @@ export function FulfillmentPicker({
         throw new Error("The delivery check returned an invalid response. Try again.");
       }
 
-      setMessage(result.data.message);
-
       if (result.data.status === "eligible") {
+        const currentCartFingerprint = getCheckoutCartFingerprint(
+          useCartStore.getState().lines,
+          "shipping",
+        );
+
+        if (currentCartFingerprint !== submittedCartFingerprint) {
+          return;
+        }
+
+        setMessage(result.data.message);
         setDeliveryEligibility({
           token: result.data.token,
           address: result.data.address,
@@ -95,6 +108,7 @@ export function FulfillmentPicker({
           disclosureRef.current.open = false;
         }
       } else {
+        setMessage(result.data.message);
         clearDeliveryEligibility();
       }
     } catch (error) {
