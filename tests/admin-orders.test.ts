@@ -16,10 +16,16 @@ import {
   resolveInventoryException,
 } from "@/lib/orders/resolve-inventory-exception";
 import {
+  OrderInventoryReturnError,
+  type OrderInventoryReturnRepository,
+  returnRefundedOrderInventory,
+} from "@/lib/orders/return-order-inventory";
+import {
   adminOrderIdSchema,
   markOrderShippedSchema,
   retryOrderEmailSchema,
   retryOrderInventoryAllocationSchema,
+  returnOrderInventorySchema,
 } from "@/lib/validators/admin";
 
 const orderId = "823071ff-f180-43ed-82df-af334ccfe35a";
@@ -59,6 +65,7 @@ describe("order fulfillment transitions", () => {
     expect(() => markOrderShippedSchema.parse({ orderId, status: "refunded" })).toThrow();
     expect(adminOrderIdSchema.parse({ orderId })).toEqual({ orderId });
     expect(retryOrderInventoryAllocationSchema.parse({ orderId })).toEqual({ orderId });
+    expect(returnOrderInventorySchema.parse({ orderId })).toEqual({ orderId });
   });
 
   test("normalizes a tracking pair and rejects a half-filled one", () => {
@@ -318,6 +325,47 @@ describe("order fulfillment transitions", () => {
     expect(eligible({ status: "paid", refundStatus: "none", disputeStatus: "won" })).toBe(true);
     expect(eligible({ status: "fulfilled", refundStatus: "none", disputeStatus: "none" })).toBe(
       false,
+    );
+  });
+});
+
+describe("refunded order inventory returns", () => {
+  function makeReturnRepository(
+    result: Awaited<ReturnType<OrderInventoryReturnRepository["returnRefundedOrderInventory"]>>,
+  ): OrderInventoryReturnRepository {
+    return {
+      returnRefundedOrderInventory: mock(async () => result),
+    };
+  }
+
+  test("returns allocated units once and treats a replay as idempotent", async () => {
+    await expect(
+      returnRefundedOrderInventory(orderId, makeReturnRepository("returned")),
+    ).resolves.toEqual({ changed: true });
+    await expect(
+      returnRefundedOrderInventory(orderId, makeReturnRepository("already_returned")),
+    ).resolves.toEqual({ changed: false });
+  });
+
+  test("rejects an unrefunded or unallocated order", async () => {
+    await expect(
+      returnRefundedOrderInventory(orderId, makeReturnRepository("invalid_status")),
+    ).rejects.toEqual(
+      new OrderInventoryReturnError(
+        "Only refunded orders with allocated inventory can be returned to stock.",
+        "invalid_status",
+      ),
+    );
+  });
+
+  test("keeps the order allocated if its catalog variants cannot be restored", async () => {
+    await expect(
+      returnRefundedOrderInventory(orderId, makeReturnRepository("inventory_unavailable")),
+    ).rejects.toEqual(
+      new OrderInventoryReturnError(
+        "One or more order variants no longer exist or cannot accept more inventory. Update stock manually before trying again.",
+        "inventory_unavailable",
+      ),
     );
   });
 });

@@ -32,6 +32,16 @@ describe("orderNeedsAction", () => {
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "failed" }))).toBe(true);
   });
 
+  test("flags refunded allocated stock regardless of fulfillment state", () => {
+    expect(orderNeedsAction(order({ refundStatus: "partial" }))).toBe(true);
+    expect(orderNeedsAction(order({ refundStatus: "full", status: "fulfilled" }))).toBe(true);
+    expect(
+      orderNeedsAction(
+        order({ refundStatus: "full", status: "fulfilled", inventoryStatus: "released" }),
+      ),
+    ).toBe(false);
+  });
+
   test("ignores retryable delivery states the cron still owns", () => {
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "retry" }))).toBe(false);
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "pending" }))).toBe(false);
@@ -76,10 +86,11 @@ describe("matchesAdminOrderFilter", () => {
     ).toBe(false);
   });
 
-  test("partially refunded orders remain shippable but also count as refunded", () => {
+  test("partially refunded orders move to needs-action until stock is decided", () => {
     const partiallyRefunded = order({ refundStatus: "partial" });
 
-    expect(matchesAdminOrderFilter(partiallyRefunded, "to-ship")).toBe(true);
+    expect(matchesAdminOrderFilter(partiallyRefunded, "needs-action")).toBe(true);
+    expect(matchesAdminOrderFilter(partiallyRefunded, "to-ship")).toBe(false);
     expect(matchesAdminOrderFilter(partiallyRefunded, "refunded")).toBe(true);
   });
 
@@ -124,7 +135,7 @@ describe("countAdminOrdersByFilter", () => {
 
     expect(counts).toEqual({
       all: 4,
-      "needs-action": 1,
+      "needs-action": 2,
       "to-ship": 1,
       shipped: 2,
       refunded: 1,

@@ -3,6 +3,7 @@ import { expect, type Page, test } from "@playwright/test";
 import {
   addToCartFromPdp,
   buildSignedCheckoutEvent,
+  buildSignedRefundEvent,
   getSessionTokens,
   postWebhook,
   readCartVariantId,
@@ -31,6 +32,15 @@ async function variantRow(page: Page, sku: string) {
     }
   }
   throw new Error(`No variant row with SKU ${sku}`);
+}
+
+async function readOrderNeedsActionCount(page: Page) {
+  const ordersLink = page
+    .getByRole("navigation", { name: "Admin navigation" })
+    .getByRole("link", { name: /^Orders/ });
+  const badge = ordersLink.getByLabel(/orders? needs? action/);
+
+  return (await badge.count()) === 0 ? 0 : Number(await badge.textContent());
 }
 
 /** Opens the admin workspace for a product via the products list search. */
@@ -246,6 +256,151 @@ test.describe("paid-order webhook @commerce", () => {
     await expect(
       page.getByRole("heading", { name: "No orders match these filters" }),
     ).toBeVisible();
+  });
+});
+
+test.describe("refund inventory @commerce", () => {
+  test("a full refund before fulfillment restores stock automatically and once", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const email = `e2e-refund-auto-${runId}@example.com`;
+
+    await openWorkspace(page, "E2E Budget Bearings");
+    const beforeCheckout = await variantRow(page, "E2E-BEARINGS-BUDGET");
+    const initialStock = await beforeCheckout.onHand.inputValue();
+
+    await addToCartFromPdp(page, "e2e-budget-bearings");
+    const sessionId = await startCheckoutFromCart(page);
+    const tokens = await getSessionTokens(sessionId);
+    expect(
+      await postWebhook(
+        page.request,
+        buildSignedCheckoutEvent("checkout.session.completed", {
+          sessionId,
+          tokens,
+          subtotalCents: 500,
+          email,
+        }),
+      ),
+    ).toBe(200);
+
+    const refund = buildSignedRefundEvent({
+      eventId: `evt_e2e_refund_auto_${runId}`,
+      refundedCents: 2_000,
+      tokens,
+    });
+    expect(await postWebhook(page.request, refund)).toBe(200);
+    // Replaying the same event must not add the unit twice.
+    expect(await postWebhook(page.request, refund)).toBe(200);
+
+    await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
+    await page.getByRole("link", { name: /FHQ-/ }).click();
+    await page.getByRole("link", { name: "Open full order" }).click();
+    await expect(page.getByText("Returned to stock", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stock action required" })).toBeHidden();
+
+    await openWorkspace(page, "E2E Budget Bearings");
+    await expect((await variantRow(page, "E2E-BEARINGS-BUDGET")).onHand).toHaveValue(initialStock);
+  });
+
+  test("a refund after shipment stays visible until an operator returns the stock", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const email = `e2e-refund-manual-${runId}@example.com`;
+
+    await openWorkspace(page, "Precision Bearings");
+    const beforeCheckout = await variantRow(page, "BEARINGS-PRECISION-8");
+    const initialStock = Number(await beforeCheckout.onHand.inputValue());
+
+    await addToCartFromPdp(page, "precision-bearings");
+    const sessionId = await startCheckoutFromCart(page);
+    const tokens = await getSessionTokens(sessionId);
+    expect(
+      await postWebhook(
+        page.request,
+        buildSignedCheckoutEvent("checkout.session.completed", {
+          sessionId,
+          tokens,
+          subtotalCents: 3_400,
+          email,
+        }),
+      ),
+    ).toBe(200);
+
+    await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
+    await page.getByRole("link", { name: /FHQ-/ }).click();
+    await page.getByRole("link", { name: "Open full order" }).click();
+    const initialNeedsActionCount = await readOrderNeedsActionCount(page);
+    await page.getByRole("button", { name: "Mark as shipped" }).click();
+    await page.getByRole("button", { name: "Ship and notify" }).click();
+    await expect(page.getByText("Shipped", { exact: true }).first()).toBeVisible();
+
+    expect(
+      await postWebhook(
+        page.request,
+        buildSignedRefundEvent({
+          eventId: `evt_e2e_refund_manual_${runId}`,
+          refundedCents: 4_900,
+          tokens,
+        }),
+      ),
+    ).toBe(200);
+    await page.reload();
+
+    await expect(page.getByRole("heading", { name: "Stock action required" })).toBeVisible();
+    await expect(page.getByText("Restock required", { exact: true })).toBeVisible();
+    await expect.poll(() => readOrderNeedsActionCount(page)).toBe(initialNeedsActionCount + 1);
+
+    const orderPath = new URL(page.url()).pathname;
+    let releaseRefresh = () => {};
+    const refreshGate = new Promise<void>((resolve) => {
+      releaseRefresh = resolve;
+    });
+    let reportRefreshStarted = () => {};
+    const refreshStarted = new Promise<void>((resolve) => {
+      reportRefreshStarted = resolve;
+    });
+    let holdNextOrderGet = true;
+    await page.route(
+      (url) => url.pathname === orderPath,
+      async (route) => {
+        if (holdNextOrderGet && route.request().method() === "GET") {
+          holdNextOrderGet = false;
+          reportRefreshStarted();
+          await refreshGate;
+        }
+        await route.continue();
+      },
+    );
+
+    await page.getByRole("button", { name: "Return 1 unit to stock" }).click();
+    const actionCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === orderPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
+    await page.getByRole("button", { name: "Yes, return to stock" }).click();
+    await actionCompleted;
+    await refreshStarted;
+    try {
+      const pendingReturn = page.getByRole("button", { name: "Returning…" });
+      await expect(pendingReturn).toBeDisabled();
+      await expect(page.getByRole("button", { name: "Return 1 unit to stock" })).toBeHidden();
+    } finally {
+      releaseRefresh();
+    }
+
+    await expect(page.getByText("Returned to stock", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Stock action required" })).toBeHidden();
+    await expect.poll(() => readOrderNeedsActionCount(page)).toBe(initialNeedsActionCount);
+
+    await openWorkspace(page, "Precision Bearings");
+    await expect((await variantRow(page, "BEARINGS-PRECISION-8")).onHand).toHaveValue(
+      initialStock.toString(),
+    );
   });
 });
 

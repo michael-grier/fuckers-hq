@@ -1,3 +1,4 @@
+import { AlertTriangle } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,10 +6,12 @@ import { notFound } from "next/navigation";
 import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-button";
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
+import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
 import {
   DisputeStatusBadge,
   FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
+  OrderRestockRequiredBadge,
   OrderStatusBadge,
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
@@ -25,6 +28,7 @@ import type { OrderEmailDelivery, OrderEmailKind } from "@/lib/db/schema";
 import { formatMoney } from "@/lib/money";
 import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
+import { orderNeedsInventoryReturn } from "@/lib/orders/return-order-inventory";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
 
@@ -46,6 +50,8 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const isDelivery = order.fulfillmentMethod === "delivery";
   const nextTransition = resolveNextFulfillmentTransition(order);
   const tracking = resolveOrderTracking(order);
+  const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
+  const needsInventoryReturn = orderNeedsInventoryReturn(order);
 
   return (
     <div className="space-y-8">
@@ -62,7 +68,11 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             </h1>
             <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
             <FulfillmentMethodBadge method={order.fulfillmentMethod} />
-            <OrderInventoryStatusBadge status={order.inventoryStatus} />
+            {needsInventoryReturn ? (
+              <OrderRestockRequiredBadge />
+            ) : (
+              <OrderInventoryStatusBadge status={order.inventoryStatus} />
+            )}
             {order.refundStatus !== "none" ? (
               <RefundStatusBadge status={order.refundStatus} />
             ) : null}
@@ -86,6 +96,41 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           ) : null}
         </div>
       </div>
+
+      {needsInventoryReturn ? (
+        <section
+          aria-labelledby="inventory-return-heading"
+          className="overflow-hidden rounded-lg border-2 border-red-600 bg-background shadow-[0_8px_28px_rgba(185,28,28,0.12)]"
+        >
+          <div className="flex flex-wrap items-start gap-4 bg-red-600 px-6 py-3 text-white">
+            <AlertTriangle aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+            <div>
+              <h2 className="font-bold text-lg" id="inventory-return-heading">
+                Stock action required
+              </h2>
+              <p className="mt-0.5 text-red-50 text-sm">
+                This refund did not return the order's units to sellable inventory.
+              </p>
+            </div>
+            <span className="ml-auto rounded-full bg-white/15 px-3 py-1 font-semibold text-xs">
+              Needs attention
+            </span>
+          </div>
+          <div className="grid gap-5 p-6 md:grid-cols-[1fr_auto] md:items-end">
+            <div>
+              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                If every item is physically sellable, return all {itemCount}{" "}
+                {itemCount === 1 ? "unit" : "units"} to stock. Do not use this for damaged, lost, or
+                customer-kept items.
+              </p>
+              <p className="mt-3 font-semibold text-red-800 text-xs">
+                This returns the entire order. Individual lines cannot be selected.
+              </p>
+            </div>
+            <ReturnOrderInventoryButton itemCount={itemCount} orderId={order.id} />
+          </div>
+        </section>
+      ) : null}
 
       {order.inventoryStatus === "exception" ? (
         <section

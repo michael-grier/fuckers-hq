@@ -5,10 +5,12 @@ import Link from "next/link";
 import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-button";
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
+import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
 import {
   DisputeStatusBadge,
   FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
+  OrderRestockRequiredBadge,
   OrderStatusBadge,
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
@@ -23,6 +25,7 @@ import type { getAdminOrderById } from "@/lib/admin/queries";
 import { formatMoney } from "@/lib/money";
 import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
+import { orderNeedsInventoryReturn } from "@/lib/orders/return-order-inventory";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
 
@@ -38,6 +41,8 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
   const nextTransition = resolveNextFulfillmentTransition(order);
   const delivery = order.confirmationDelivery;
   const tracking = resolveOrderTracking(order);
+  const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
+  const needsInventoryReturn = orderNeedsInventoryReturn(order);
 
   return (
     // On the desktop pane this fills the fixed column height so the items
@@ -47,7 +52,11 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         <div className="flex flex-wrap items-center gap-2">
           <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
           <FulfillmentMethodBadge method={order.fulfillmentMethod} />
-          <OrderInventoryStatusBadge status={order.inventoryStatus} />
+          {needsInventoryReturn ? (
+            <OrderRestockRequiredBadge />
+          ) : (
+            <OrderInventoryStatusBadge status={order.inventoryStatus} />
+          )}
           {order.refundStatus !== "none" ? <RefundStatusBadge status={order.refundStatus} /> : null}
           {order.disputeStatus !== "none" ? (
             <DisputeStatusBadge status={order.disputeStatus} />
@@ -72,6 +81,22 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           </Button>
         </div>
       </div>
+
+      {needsInventoryReturn ? (
+        <div className="border-red-600 border-y-2 bg-red-50 p-4 text-red-950">
+          <p className="flex items-center gap-2 font-semibold text-sm">
+            <AlertTriangle aria-hidden="true" className="size-4 shrink-0 text-red-700" />
+            Stock action required
+          </p>
+          <p className="mt-1.5 text-xs leading-5">
+            This refund left {itemCount} {itemCount === 1 ? "unit" : "units"} out of sellable stock.
+            Return the whole order only if every item can be sold again.
+          </p>
+          <div className="mt-3">
+            <ReturnOrderInventoryButton itemCount={itemCount} orderId={order.id} size="sm" />
+          </div>
+        </div>
+      ) : null}
 
       {order.inventoryStatus === "exception" ? (
         <div className="bg-destructive/5 p-4">

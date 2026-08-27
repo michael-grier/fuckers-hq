@@ -123,7 +123,6 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
             : [];
         const reservationCanConvert =
           reservationIsUsable && hasConvertibleInventory(reservationLines, lockedVariants);
-        const inventoryStatus = reservationCanConvert ? "allocated" : "exception";
         const paymentEvents = checkout.stripePaymentIntentId
           ? await tx
               .select()
@@ -135,12 +134,18 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           checkout.currency,
           paymentEvents.map(toPaymentLifecycleUpdate),
         );
+        const isFullyRefunded = paymentState.refundStatus === "full";
+        const inventoryStatus = isFullyRefunded
+          ? "released"
+          : reservationCanConvert
+            ? "allocated"
+            : "exception";
         const [order] = await tx
           .insert(orders)
           .values({
             orderNumber: makeOrderNumber(),
             email: checkout.email,
-            status: paymentState.refundStatus === "full" ? "refunded" : "paid",
+            status: isFullyRefunded ? "refunded" : "paid",
             inventoryStatus,
             // Taken from the pending checkout the server wrote at reservation time, not from the
             // Stripe Session metadata that round-tripped through the browser and Stripe.
@@ -173,7 +178,21 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           return { created: false, orderId: concurrentOrder.id };
         }
 
-        if (reservationCanConvert && reservation) {
+        if (
+          isFullyRefunded &&
+          reservation &&
+          reservation.status !== "released" &&
+          reservation.status !== "converted"
+        ) {
+          // A refund retained before the paid event means the reservation should be released, not
+          // converted into an allocation that would immediately need to be returned.
+          await releaseReservation(
+            tx,
+            reservation,
+            reservationLines,
+            "fully_refunded_before_order",
+          );
+        } else if (reservationCanConvert && reservation) {
           await convertReservedInventory(
             tx,
             reservation,
@@ -186,7 +205,12 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           reservation.status !== "converted"
         ) {
           // Preserve the verified payment even when reservation counters require operator review.
-          await releaseInconsistentReservation(tx, reservation, reservationLines);
+          await releaseReservation(
+            tx,
+            reservation,
+            reservationLines,
+            "paid_reservation_inconsistent",
+          );
         }
 
         await tx.insert(orderItems).values(
@@ -285,10 +309,11 @@ async function convertReservedInventory(
   }
 }
 
-async function releaseInconsistentReservation(
+async function releaseReservation(
   tx: PaidOrderTransaction,
   reservation: LockedReservation,
   lines: ReservationLine[],
+  reason: "fully_refunded_before_order" | "paid_reservation_inconsistent",
 ): Promise<void> {
   let releasedEveryLine = true;
 
@@ -324,7 +349,7 @@ async function releaseInconsistentReservation(
     .set({
       status: "released",
       releasedAt,
-      releaseReason: "paid_reservation_inconsistent",
+      releaseReason: reason,
       reconcileLeaseUntil: null,
       lastReconcileErrorCode: releasedEveryLine ? null : "paid_reservation_stock_inconsistent",
       updatedAt: releasedAt,

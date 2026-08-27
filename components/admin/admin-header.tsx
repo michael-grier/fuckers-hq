@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { adminNavLinks, isAdminNavLinkActive } from "@/components/admin/admin-nav";
+import { AdminNavAttentionCount } from "@/components/admin/admin-nav-attention-count";
 import { AdminUserButton } from "@/components/admin/admin-user-button";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { cn } from "@/lib/utils";
  * Fixed like the storefront header so the collapsible panel overlays content
  * instead of pushing it down; the admin layout offsets it with --header-height.
  */
-export function AdminHeader() {
+export function AdminHeader({ orderNeedsActionCount }: { orderNeedsActionCount: number }) {
   const pathname = usePathname();
   const [isMobileNavigationOpen, setIsMobileNavigationOpen] = useState(false);
   const mobileNavigationTriggerRef = useRef<HTMLButtonElement>(null);
@@ -91,7 +92,7 @@ export function AdminHeader() {
               <Link
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "block rounded-md px-4 py-3 font-semibold outline-none transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white focus-visible:ring-2 focus-visible:ring-accent",
+                  "flex items-center gap-3 rounded-md px-4 py-3 font-semibold outline-none transition hover:bg-white/10 hover:text-white focus-visible:bg-white/10 focus-visible:text-white focus-visible:ring-2 focus-visible:ring-accent",
                   isActive
                     ? "bg-white/10 text-white shadow-[inset_2px_0_0_var(--accent)]"
                     : "text-white/80",
@@ -102,6 +103,9 @@ export function AdminHeader() {
                 prefetch={false}
               >
                 {link.label}
+                {link.href === "/admin/orders" ? (
+                  <AdminNavAttentionCount count={orderNeedsActionCount} />
+                ) : null}
               </Link>
             );
           })}

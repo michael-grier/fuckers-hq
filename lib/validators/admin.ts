@@ -16,6 +16,7 @@ export const adminOrderIdSchema = z
   .strict();
 
 export const retryOrderInventoryAllocationSchema = adminOrderIdSchema;
+export const returnOrderInventorySchema = adminOrderIdSchema;
 
 /**
  * Carrier tracking numbers are alphanumeric with spaces or hyphens as separators. Constraining the

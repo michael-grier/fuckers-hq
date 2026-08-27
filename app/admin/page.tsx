@@ -1,10 +1,11 @@
-import { AlertTriangle, ArrowUpRight, MailWarning } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, MailWarning, PackagePlus } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 
 import {
   DisputeStatusBadge,
   OrderInventoryStatusBadge,
+  OrderRestockRequiredBadge,
   OrderStatusBadge,
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
@@ -20,6 +21,7 @@ import {
   getAdminRecentOrders,
 } from "@/lib/admin/queries";
 import { formatMoney } from "@/lib/money";
+import { orderNeedsInventoryReturn } from "@/lib/orders/return-order-inventory";
 import { cn } from "@/lib/utils";
 
 export default async function AdminPage() {
@@ -29,14 +31,16 @@ export default async function AdminPage() {
     getAdminRecentOrders(),
   ]);
   const attentionCount =
-    attention.inventoryExceptionOrders.length + attention.failedEmailDeliveries.length;
+    attention.inventoryExceptionOrders.length +
+    attention.inventoryReturnOrders.length +
+    attention.failedEmailDeliveries.length;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">
           <h1 className="font-grotesk font-semibold text-4xl tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <p className={attentionCount > 0 ? "text-destructive" : "text-muted-foreground"}>
             {attentionCount === 0
               ? "All clear — nothing needs your attention."
               : `${attentionCount} ${attentionCount === 1 ? "item needs" : "items need"} your attention.`}
@@ -79,6 +83,12 @@ export default async function AdminPage() {
           href={"/admin/orders" as Route}
           label="Inventory exceptions"
           value={summary.inventoryExceptionCount}
+        />
+        <SummaryCard
+          highlight={summary.inventoryReturnCount > 0}
+          href={"/admin/orders?filter=needs-action" as Route}
+          label="Stock returns"
+          value={summary.inventoryReturnCount}
         />
       </dl>
 
@@ -134,7 +144,9 @@ export default async function AdminPage() {
                             fulfillmentMethod={order.fulfillmentMethod}
                             status={order.status}
                           />
-                          {order.inventoryStatus === "exception" ? (
+                          {orderNeedsInventoryReturn(order) ? (
+                            <OrderRestockRequiredBadge />
+                          ) : order.inventoryStatus === "exception" ? (
                             <OrderInventoryStatusBadge status={order.inventoryStatus} />
                           ) : null}
                           {order.refundStatus !== "none" ? (
@@ -173,7 +185,7 @@ export default async function AdminPage() {
           </div>
           {attentionCount === 0 ? (
             <p className="px-5 py-8 text-muted-foreground text-sm">
-              All clear. Inventory exceptions and failed order emails show up here.
+              All clear. Inventory exceptions, stock returns, and failed order emails show up here.
             </p>
           ) : (
             <ul className="divide-y">
@@ -185,6 +197,16 @@ export default async function AdminPage() {
                   icon={<AlertTriangle aria-hidden="true" className="size-4 text-destructive" />}
                   key={order.id}
                   title={`${order.orderNumber} — inventory exception`}
+                />
+              ))}
+              {attention.inventoryReturnOrders.map((order) => (
+                <AttentionItem
+                  action="Return stock"
+                  description={`Refund recorded for ${formatMoney(order.totalCents, order.currency)} · ${order.email}. Confirm whether every order item is sellable.`}
+                  href={`/admin/orders/${order.id}` as Route}
+                  icon={<PackagePlus aria-hidden="true" className="size-4 text-destructive" />}
+                  key={order.id}
+                  title={`${order.orderNumber} — stock return required`}
                 />
               ))}
               {attention.failedEmailDeliveries.map((delivery) => (

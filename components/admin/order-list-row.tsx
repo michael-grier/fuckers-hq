@@ -7,6 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import {
   DisputeStatusBadge,
   OrderInventoryStatusBadge,
+  OrderRestockRequiredBadge,
   OrderStatusBadge,
   RefundStatusBadge,
 } from "@/components/admin/status-badge";
@@ -14,6 +15,7 @@ import { formatAdminDate, formatAdminDay } from "@/lib/admin/format";
 import { orderNeedsAction } from "@/lib/admin/order-list";
 import type { AdminOrderSummary } from "@/lib/admin/queries";
 import { formatMoney } from "@/lib/money";
+import { orderNeedsInventoryReturn } from "@/lib/orders/return-order-inventory";
 import { cn } from "@/lib/utils";
 
 type OrderListRowProps = {
@@ -38,6 +40,7 @@ export function OrderListRow({ order, isSelected }: OrderListRowProps) {
 
   const query = params.toString();
   const href = (query ? `${pathname}?${query}` : pathname) as Route;
+  const needsInventoryReturn = orderNeedsInventoryReturn(order);
 
   // Only rendered when present, so the common row stays two lines.
   const secondaryStates = [
@@ -71,7 +74,9 @@ export function OrderListRow({ order, isSelected }: OrderListRowProps) {
       >
         <span className="flex items-center gap-2">
           <span className="truncate font-semibold text-sm">{order.orderNumber}</span>
-          {orderNeedsAction(order) && order.inventoryStatus === "exception" ? (
+          {needsInventoryReturn ? (
+            <OrderRestockRequiredBadge />
+          ) : orderNeedsAction(order) && order.inventoryStatus === "exception" ? (
             <OrderInventoryStatusBadge status={order.inventoryStatus} />
           ) : (
             <OrderStatusBadge status={order.status} />

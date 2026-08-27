@@ -160,6 +160,23 @@ Fulfillment for a local-delivery order (requires the delivery configuration from
 - [ ] Each step offers only the single valid next transition; a shipping order is never offered
       delivery steps and vice versa.
 
+Refund inventory:
+
+- [ ] Fully refund an unfulfilled paid order in Stripe. The order changes to `refunded`, its
+      inventory state changes to `released`, and every purchased unit returns to on-hand stock.
+- [ ] Replay the same signed refund event. Neither inventory nor the order changes a second time.
+- [ ] Partially refund another paid order. Stock stays allocated, the order enters the admin
+      Needs action filter and dashboard attention list, the red Orders navigation counter
+      increases, and its detail page shows the red Stock action required banner.
+- [ ] Fully refund a shipped or delivered order. Stock stays allocated and the same operator alert
+      appears instead of restocking automatically.
+- [ ] For sellable returned goods, use Return all units to stock and confirm the banner clears,
+      the Orders navigation counter decreases, the inventory badge reads Returned to stock, and
+      each order quantity is added exactly once. While the page refreshes, the action stays disabled
+      as Returning… instead of briefly offering the same stock return again.
+- [ ] For damaged, lost, or customer-kept goods, leave the action untouched. The warning remains
+      visible rather than quietly making unavailable units sellable.
+
 Use a fresh sandbox order to verify catalog mutation after Checkout creation:
 
 - [ ] Open hosted Checkout and record the displayed product name, variant name, unit price, and
