@@ -37,10 +37,12 @@ export function FulfillmentPicker({
   const [message, setMessage] = useState<string | null>(null);
   const [isChecking, setIsChecking] = useState(false);
   const [line1, setLine1] = useState("");
+  const [unit, setUnit] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const disclosureRef = useRef<HTMLDetailsElement>(null);
   const groupName = useId();
   const streetAddressId = useId();
+  const unitId = useId();
   const postalCodeId = useId();
   const selected = resolveFulfillmentMethod(preference, eligibility !== null);
   const subtotalCents = getCartSubtotalCents(lines);
@@ -64,6 +66,7 @@ export function FulfillmentPicker({
           items: lines.map(({ variantId, quantity }) => ({ variantId, quantity })),
           address: {
             line1,
+            unit,
             postalCode,
           },
         }),
@@ -187,7 +190,8 @@ export function FulfillmentPicker({
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-foreground">Free local delivery available</p>
               <p className="truncate text-muted-foreground">
-                {eligibility.address.line1} · {formatPostalCode(eligibility.address.postalCode)}
+                {formatDeliveryAddress(eligibility.address)} ·{" "}
+                {formatPostalCode(eligibility.address.postalCode)}
               </p>
               {eligibility.reviewRequired ? (
                 <p className="mt-1 text-muted-foreground">
@@ -223,23 +227,37 @@ export function FulfillmentPicker({
               ) : (
                 <form className="space-y-3" onSubmit={handleEligibilityCheck}>
                   <p className="text-muted-foreground text-xs">
-                    Enter the address you'll use at checkout. We'll check whether it's inside{" "}
-                    {deliveryArea.areaName}.
+                    Use the street address only—don't include the city or province. We'll check
+                    whether it's inside {deliveryArea.areaName}.
                   </p>
-                  <div className={cn("grid gap-3", !compact && "sm:grid-cols-[1fr_9rem]")}>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-xs" htmlFor={streetAddressId}>
+                      Street address
+                    </label>
+                    <Input
+                      autoComplete="shipping address-line1"
+                      id={streetAddressId}
+                      maxLength={120}
+                      name="line1"
+                      placeholder="262075 Rocky View Point"
+                      required
+                      onChange={(event) => setLine1(event.currentTarget.value)}
+                      value={line1}
+                    />
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] gap-3">
                     <div className="space-y-1">
-                      <label className="font-semibold text-xs" htmlFor={streetAddressId}>
-                        Street address
+                      <label className="font-semibold text-xs" htmlFor={unitId}>
+                        Unit <span className="font-normal text-muted-foreground">(optional)</span>
                       </label>
                       <Input
-                        autoComplete="shipping address-line1"
-                        id={streetAddressId}
-                        maxLength={120}
-                        name="line1"
-                        placeholder="262075 Rocky View Point"
-                        required
-                        onChange={(event) => setLine1(event.currentTarget.value)}
-                        value={line1}
+                        autoComplete="shipping address-line2"
+                        id={unitId}
+                        maxLength={32}
+                        name="unit"
+                        placeholder="103"
+                        onChange={(event) => setUnit(event.currentTarget.value)}
+                        value={unit}
                       />
                     </div>
                     <div className="space-y-1">
@@ -290,6 +308,11 @@ export function FulfillmentPicker({
 
 function formatPostalCode(postalCode: string): string {
   return `${postalCode.slice(0, 3)} ${postalCode.slice(3)}`;
+}
+
+/** Keeps the apartment identifier visible without including it in the geofence lookup. */
+function formatDeliveryAddress(address: { line1: string; unit?: string }): string {
+  return address.unit ? `Unit ${address.unit}, ${address.line1}` : address.line1;
 }
 
 type OptionProps = {

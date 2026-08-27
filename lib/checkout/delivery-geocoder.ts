@@ -1,6 +1,7 @@
 import {
   normalizeCanadianPostalCode,
   normalizeDeliveryStreetAddress,
+  parseDeliveryStreetAddress,
 } from "@/lib/checkout/delivery-address";
 import type { GeoPoint } from "@/lib/checkout/delivery-boundary";
 import type { DeliveryAddress } from "@/lib/validators/delivery";
@@ -30,7 +31,10 @@ export async function geocodeRockyViewAddress(
   address: DeliveryAddress,
   fetcher: GeocoderFetch = fetch,
 ): Promise<DeliveryGeocodeResult> {
-  const houseNumber = address.line1.match(/^\s*(\d{1,7})\b/)?.[1];
+  // Keep this defensive even though the request schema canonicalizes the line. Tokens and direct
+  // callers can still supply an older unit-first address shape.
+  const street = parseDeliveryStreetAddress(address.line1).line1;
+  const houseNumber = street.match(/^\s*(\d{1,7})\b/)?.[1];
 
   if (!houseNumber) {
     return { status: "not_found" };
@@ -64,7 +68,7 @@ export async function geocodeRockyViewAddress(
       if (
         typeof candidateAddress !== "string" ||
         normalizeDeliveryStreetAddress(candidateAddress) !==
-          normalizeDeliveryStreetAddress(address.line1) ||
+          normalizeDeliveryStreetAddress(street) ||
         typeof longitude !== "number" ||
         typeof latitude !== "number"
       ) {

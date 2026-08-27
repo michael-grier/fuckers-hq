@@ -211,7 +211,7 @@ export function buildStripeSessionParams(
           custom_text: {
             submit: {
               message: reservation.deliveryAddressCheck
-                ? `Use the checked address ${reservation.deliveryAddressCheck.line1}, ${reservation.deliveryAddressCheck.postalCode}. We'll contact you to arrange delivery.`
+                ? `Use the checked address ${formatCheckedDeliveryAddress(reservation.deliveryAddressCheck)}. We'll contact you to arrange delivery.`
                 : `Local delivery is available within ${settings.deliveryArea.areaName} only. We'll contact you to arrange delivery.`,
             },
           },
@@ -231,6 +231,13 @@ export function buildStripeSessionParams(
       fulfillmentMethod: reservation.fulfillmentMethod,
     },
   };
+}
+
+/** Includes the unit in Stripe's reminder without making it part of the geofence street line. */
+function formatCheckedDeliveryAddress(address: DeliveryAddress): string {
+  const street = address.unit ? `Unit ${address.unit}, ${address.line1}` : address.line1;
+
+  return `${street}, ${address.postalCode}`;
 }
 
 const persistedStripeSessionParamsSchema = z

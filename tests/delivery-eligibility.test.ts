@@ -14,6 +14,7 @@ import {
   deliveryAddressRequiresReview,
   resolveDeliveryAddressReview,
 } from "@/lib/orders/shipping-address";
+import { deliveryAddressSchema } from "@/lib/validators/delivery";
 
 const address = { line1: "262075 Rocky View Point", postalCode: "T4A0X2" };
 const items = [{ variantId: "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6", quantity: 1 }];
@@ -103,6 +104,63 @@ describe("Rocky View municipal-address geocoder", () => {
     );
 
     expect(result).toMatchObject({ status: "match", confidence: "high" });
+  });
+
+  test("uses the civic number when a pasted address starts with a unit", async () => {
+    const result = await geocodeRockyViewAddress(
+      {
+        line1: "103 - 262075 Rocky View Point, Example, AB",
+        unit: "103",
+        postalCode: "T4A0X2",
+      },
+      async (input) => {
+        expect(new URL(input.toString()).searchParams.get("where")).toBe("intHouseNum=262075");
+
+        return Response.json({
+          features: [
+            {
+              attributes: {
+                vchAddress: "262075 ROCKY VIEW PT",
+                vchPostalCode: "T4A 0X2",
+                AddressStatus: "Current",
+              },
+              geometry: { x: -113.9400966, y: 51.2165656 },
+            },
+          ],
+        });
+      },
+    );
+
+    expect(result).toMatchObject({ status: "match", confidence: "high" });
+  });
+});
+
+describe("delivery address input", () => {
+  test("separates a pasted apartment unit and removes city and province text", () => {
+    expect(
+      deliveryAddressSchema.parse({
+        line1: "Unit 103, 262075 Rocky View Point, Example, AB",
+        postalCode: "T4A 0X2",
+      }),
+    ).toEqual({
+      line1: "262075 Rocky View Point",
+      unit: "103",
+      postalCode: "T4A0X2",
+    });
+  });
+
+  test("keeps a separately entered unit out of the civic street line", () => {
+    expect(
+      deliveryAddressSchema.parse({
+        line1: "262075 Rocky View Point, Example, AB",
+        unit: "Apt 103",
+        postalCode: "T4A 0X2",
+      }),
+    ).toEqual({
+      line1: "262075 Rocky View Point",
+      unit: "103",
+      postalCode: "T4A0X2",
+    });
   });
 });
 
@@ -253,5 +311,31 @@ describe("delivery eligibility proof", () => {
     expect(resolveDeliveryAddressReview("delivery", true, address, matching)).toBe(true);
     expect(resolveDeliveryAddressReview("delivery", false, address, matching)).toBe(false);
     expect(resolveDeliveryAddressReview("shipping", true, null, null)).toBe(false);
+  });
+
+  test("compares a checked unit with Stripe without including it in the civic address", () => {
+    const checked = { ...address, unit: "103" };
+    const matching = {
+      name: "Test Skater",
+      address: {
+        line1: address.line1,
+        line2: "Apartment 103",
+        postal_code: "T4A 0X2",
+      },
+    };
+
+    expect(deliveryAddressRequiresReview(checked, matching)).toBe(false);
+    expect(
+      deliveryAddressRequiresReview(checked, {
+        ...matching,
+        address: { ...matching.address, line2: "Unit 104" },
+      }),
+    ).toBe(true);
+    expect(
+      deliveryAddressRequiresReview(checked, {
+        ...matching,
+        address: { ...matching.address, line1: `103-${address.line1}`, line2: null },
+      }),
+    ).toBe(false);
   });
 });

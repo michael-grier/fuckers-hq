@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { normalizeDeliveryUnit, parseDeliveryStreetAddress } from "@/lib/checkout/delivery-address";
 import { cartSchema } from "@/lib/validators/cart";
 
 const canadianPostalCodePattern = /^[A-Z]\d[A-Z]\d[A-Z]\d$/;
@@ -7,13 +8,28 @@ const canadianPostalCodePattern = /^[A-Z]\d[A-Z]\d[A-Z]\d$/;
 export const deliveryAddressSchema = z
   .object({
     line1: z.string().trim().min(3).max(120),
+    unit: z.string().trim().max(32).optional(),
     postalCode: z
       .string()
       .trim()
       .transform((value) => value.replace(/[\s-]/g, "").toUpperCase())
       .pipe(z.string().regex(canadianPostalCodePattern, "Enter a valid Canadian postal code.")),
   })
-  .strict();
+  .strict()
+  .transform(({ line1, unit, postalCode }) => {
+    const parsedStreet = parseDeliveryStreetAddress(line1);
+    const normalizedUnit = unit ? normalizeDeliveryUnit(unit) : parsedStreet.unit;
+
+    return {
+      line1: parsedStreet.line1,
+      ...(normalizedUnit ? { unit: normalizedUnit } : {}),
+      postalCode,
+    };
+  })
+  .refine((address) => address.line1.length >= 3, {
+    message: "Enter a valid street address.",
+    path: ["line1"],
+  });
 
 export const deliveryEligibilityRequestSchema = z
   .object({

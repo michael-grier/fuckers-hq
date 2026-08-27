@@ -44,24 +44,32 @@ describe("fulfillment picker", () => {
     expect(screen.getByText("Check free local delivery")).toBeDefined();
     expect(container.querySelector("details")?.open).toBe(false);
     expect(screen.queryByRole("radio", { name: "Local delivery" })).toBeNull();
+    expect(screen.getByLabelText("Unit (optional)")).toBeDefined();
+    expect(screen.getByText(/don't include the city or province/)).toBeDefined();
   });
 
   test("replaces a successful check with a compact verified choice", async () => {
-    const fetchMock = mock(async () =>
-      Response.json({
+    let submittedBody: unknown;
+    const fetchMock = mock(async (_input: string | URL | Request, init?: RequestInit) => {
+      submittedBody = typeof init?.body === "string" ? JSON.parse(init.body) : null;
+
+      return Response.json({
         status: "eligible",
         token: "signed-delivery-token",
-        address: { line1: "262075 Rocky View Point", postalCode: "T4A0X2" },
+        address: { line1: "262075 Rocky View Point", unit: "103", postalCode: "T4A0X2" },
         reviewRequired: false,
         message: "Free local delivery is available for this address.",
-      }),
-    );
+      });
+    });
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     useCartStore.setState({ lines: [line] });
     render(<FulfillmentPicker compact deliveryArea={deliveryArea} lines={[line]} />);
 
     fireEvent.change(screen.getByLabelText("Street address"), {
       target: { value: "262075 Rocky View Point" },
+    });
+    fireEvent.change(screen.getByLabelText("Unit (optional)"), {
+      target: { value: "103" },
     });
     fireEvent.change(screen.getByLabelText("Postal code"), {
       target: { value: "T4A 0X2" },
@@ -77,6 +85,10 @@ describe("fulfillment picker", () => {
     expect(screen.queryByRole("button", { name: "Check address" })).toBeNull();
     expect(useCartStore.getState().deliveryEligibility?.token).toBe("signed-delivery-token");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(submittedBody).toMatchObject({
+      address: { line1: "262075 Rocky View Point", unit: "103", postalCode: "T4A 0X2" },
+    });
+    expect(screen.getByText(/Unit 103/)).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Change" }));
     await waitFor(() => {

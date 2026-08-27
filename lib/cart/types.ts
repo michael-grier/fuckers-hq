@@ -18,6 +18,7 @@ export type DeliveryEligibility = {
   token: string;
   address: {
     line1: string;
+    unit?: string;
     postalCode: string;
   };
   reviewRequired: boolean;

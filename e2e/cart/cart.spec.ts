@@ -87,14 +87,18 @@ test.describe("cart @smoke", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.route("**/api/delivery/eligibility", async (route) => {
       expect(route.request().postDataJSON()).toMatchObject({
-        address: { line1: "262075 Rocky View Point", postalCode: "T4A 0X2" },
+        address: { line1: "262075 Rocky View Point", unit: "103", postalCode: "T4A 0X2" },
       });
       await route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({
           status: "eligible",
           token: "e2e-signed-delivery-token",
-          address: { line1: "262075 Rocky View Point", postalCode: "T4A0X2" },
+          address: {
+            line1: "262075 Rocky View Point",
+            unit: "103",
+            postalCode: "T4A0X2",
+          },
           reviewRequired: false,
           message: "Free local delivery is available for this address.",
         }),
@@ -108,11 +112,14 @@ test.describe("cart @smoke", () => {
     await expect(dialog.getByRole("button", { name: "Checkout" })).toBeInViewport();
 
     await dialog.getByText("Check free local delivery").click();
+    await expect(dialog.getByText(/don't include the city or province/)).toBeVisible();
     await dialog.getByLabel("Street address").fill("262075 Rocky View Point");
+    await dialog.getByLabel("Unit (optional)").fill("103");
     await dialog.getByLabel("Postal code").fill("T4A 0X2");
     await dialog.getByRole("button", { name: "Check address" }).click();
 
     await expect(dialog.getByText("Free local delivery available")).toBeVisible();
+    await expect(dialog.getByText(/Unit 103/)).toBeVisible();
     await expect(dialog.getByRole("radio", { name: "Local delivery" })).toBeChecked();
     await expect(dialog.getByLabel("Street address")).toBeHidden();
   });

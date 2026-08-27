@@ -3,6 +3,8 @@ import { z } from "zod";
 import {
   normalizeCanadianPostalCode,
   normalizeDeliveryStreetAddress,
+  normalizeDeliveryUnitForMatch,
+  parseDeliveryStreetAddress,
 } from "@/lib/checkout/delivery-address";
 import type { FulfillmentMethod } from "@/lib/db/schema";
 import { deliveryAddressSchema } from "@/lib/validators/delivery";
@@ -53,13 +55,26 @@ export function deliveryAddressRequiresReview(
 
   const parsed = shippingDetailsSchema.safeParse(shippingAddress);
   const line1 = parsed.success ? parsed.data.address.line1 : null;
+  const line2 = parsed.success ? parsed.data.address.line2 : null;
   const postalCode = parsed.success ? parsed.data.address.postal_code : null;
 
+  if (typeof line1 !== "string" || typeof postalCode !== "string") {
+    return true;
+  }
+
+  const stripeStreet = parseDeliveryStreetAddress(line1);
+  const stripeUnit = stripeStreet.unit ?? line2 ?? undefined;
+  const checkedUnitMatches =
+    !checked.data.unit ||
+    (stripeUnit !== undefined &&
+      normalizeDeliveryUnitForMatch(stripeUnit) ===
+        normalizeDeliveryUnitForMatch(checked.data.unit));
+
   return (
-    typeof line1 !== "string" ||
-    typeof postalCode !== "string" ||
-    normalizeDeliveryStreetAddress(line1) !== normalizeDeliveryStreetAddress(checked.data.line1) ||
-    normalizeCanadianPostalCode(postalCode) !== checked.data.postalCode
+    normalizeDeliveryStreetAddress(stripeStreet.line1) !==
+      normalizeDeliveryStreetAddress(checked.data.line1) ||
+    normalizeCanadianPostalCode(postalCode) !== checked.data.postalCode ||
+    !checkedUnitMatches
   );
 }
 

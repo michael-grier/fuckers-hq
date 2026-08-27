@@ -90,8 +90,12 @@ transition.
 - [ ] At phone widths the cart occupies the viewport width; at tablet and desktop widths it is
       capped and leaves the overlay visible.
 - [ ] With delivery configured, the sidebar shows one collapsed `Check free local delivery` row.
-      Expanding it reveals street-address and postal-code fields without pushing cart actions off a
-      phone screen while collapsed; `/cart` uses the same disclosure.
+      Expanding it explains that city and province are omitted, then shows a full-width street field
+      above optional-unit and postal-code fields sharing one row. The collapsed form keeps cart
+      actions on screen at phone widths; `/cart` uses the same disclosure.
+- [ ] A unit-prefixed address pasted with city and province still checks the building's civic
+      address, preserves the unit in the verified summary, and does not reject the address because
+      of the extra locality text.
 - [ ] A known Rocky View County address on an order of at least $30 replaces the form with a compact
       verified summary and makes Local delivery selectable.
 - [ ] A Calgary address that shares an FSA with Rocky View does not expose Local delivery and leaves

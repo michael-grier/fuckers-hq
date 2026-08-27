@@ -467,6 +467,20 @@ describe("local delivery checkout", () => {
     );
   });
 
+  test("includes the separately checked unit in Stripe's delivery reminder", () => {
+    const params = buildStripeSessionParams(
+      {
+        ...deliveryReservation,
+        deliveryAddressCheck: { ...checkedDeliveryAddress, unit: "103" },
+      },
+      deliverySettings,
+    );
+    const submitText = params.custom_text?.submit;
+    const message = submitText && typeof submitText === "object" ? submitText.message : null;
+
+    expect(message).toContain("Unit 103, 262075 Rocky View Point");
+  });
+
   test("keeps shipping collection and rates for a shipping order", () => {
     const params = buildStripeSessionParams(
       { ...deliveryReservation, fulfillmentMethod: "shipping" },
