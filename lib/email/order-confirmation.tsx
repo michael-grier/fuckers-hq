@@ -82,7 +82,12 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
                   : formatMoney(order.shippingCents, order.currency)
               }
             />
-            <TotalRow label="Tax" value={formatMoney(order.taxCents, order.currency)} />
+            {/* Omitted rather than shown as $0.00. A zero tax line reads as "we assessed tax and
+                there was none", which is a different claim from not being registered to charge it.
+                See the unregistered-supplier rules in #151. */}
+            {order.taxCents > 0 ? (
+              <TotalRow label="Tax" value={formatMoney(order.taxCents, order.currency)} />
+            ) : null}
             <Row>
               <Column>
                 <Text style={styles.totalLabel}>Total</Text>
