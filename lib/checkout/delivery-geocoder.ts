@@ -109,17 +109,12 @@ type ArcGisAddressFeature = {
   geometry?: { x?: unknown; y?: unknown };
 };
 
-/** Geocodes local addresses using national, Calgary, and Rocky View civic sources. */
+/** Geocodes local addresses using Calgary, Rocky View, and national civic sources. */
 export async function geocodeDeliveryAddress(
   address: DeliveryAddress,
   fetcher: GeocoderFetch = fetch,
 ): Promise<DeliveryGeocodeResult> {
-  const nationalResult = await geocodeNationalAddress(address, fetcher);
-
-  if (nationalResult.status === "match") {
-    return nationalResult;
-  }
-
+  // Municipal records win because the national search can return the same street in another city.
   const calgaryResult = await geocodeCalgaryAddress(address, fetcher);
 
   if (calgaryResult.status === "match") {
@@ -132,9 +127,15 @@ export async function geocodeDeliveryAddress(
     return rockyViewResult;
   }
 
-  return nationalResult.status === "unavailable" ||
-    calgaryResult.status === "unavailable" ||
-    rockyViewResult.status === "unavailable"
+  const nationalResult = await geocodeNationalAddress(address, fetcher);
+
+  if (nationalResult.status === "match") {
+    return nationalResult;
+  }
+
+  return calgaryResult.status === "unavailable" ||
+    rockyViewResult.status === "unavailable" ||
+    nationalResult.status === "unavailable"
     ? { status: "unavailable" }
     : { status: "not_found" };
 }
@@ -206,7 +207,7 @@ async function geocodeNationalAddress(
   }
 }
 
-/** Queries Calgary's parcel index when the national locator cannot resolve a city address. */
+/** Queries Calgary's parcel index for an authoritative city-address coordinate. */
 async function geocodeCalgaryAddress(
   address: DeliveryAddress,
   fetcher: GeocoderFetch,
@@ -270,7 +271,7 @@ async function geocodeCalgaryAddress(
   }
 }
 
-/** Queries Rocky View's civic index when the national locator cannot resolve a rural address. */
+/** Queries Rocky View's civic index for an authoritative rural-address coordinate. */
 async function geocodeRockyViewAddress(
   address: DeliveryAddress,
   fetcher: GeocoderFetch,

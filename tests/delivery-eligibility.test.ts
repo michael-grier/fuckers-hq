@@ -35,11 +35,19 @@ describe("Calgary delivery radius", () => {
 });
 
 describe("delivery geocoder", () => {
-  test("normalizes a Calgary address for the national locator", async () => {
+  test("normalizes an address for the national locator after civic sources miss", async () => {
     const result = await geocodeDeliveryAddress(
       { line1: "800 Macleod Trail SE", postalCode: "T2G2M3" },
       async (input) => {
         const url = new URL(input.toString());
+
+        if (url.origin === "https://data.calgary.ca") {
+          return Response.json([]);
+        }
+
+        if (url.origin === "https://atlasmap.rockyview.ca") {
+          return Response.json({ features: [] });
+        }
 
         expect(url.origin).toBe("https://www.geolocator.api.geo.ca");
         expect(url.searchParams.get("q")).toBe("800 MACLEOD TRAIL SOUTHEAST, T2G 2M3, Alberta");
@@ -62,15 +70,11 @@ describe("delivery geocoder", () => {
     });
   });
 
-  test("falls back to Calgary's parcel index when the national locator fails", async () => {
+  test("prefers Calgary's parcel index over the broader national locator", async () => {
     const result = await geocodeDeliveryAddress(
       { line1: "800 Macleod Trail SE", postalCode: "T2G2M3" },
       async (input) => {
         const url = new URL(input.toString());
-
-        if (url.origin === "https://www.geolocator.api.geo.ca") {
-          return new Response(null, { status: 503 });
-        }
 
         expect(url.origin).toBe("https://data.calgary.ca");
         expect(url.searchParams.get("$where")).toBe("house_number=800");
@@ -95,10 +99,6 @@ describe("delivery geocoder", () => {
   test("falls back to Rocky View's civic index for rural addresses", async () => {
     const result = await geocodeDeliveryAddress(address, async (input) => {
       const url = new URL(input.toString());
-
-      if (url.origin === "https://www.geolocator.api.geo.ca") {
-        return Response.json([]);
-      }
 
       if (url.origin === "https://data.calgary.ca") {
         return Response.json([]);
@@ -136,10 +136,6 @@ describe("delivery geocoder", () => {
       },
       async (input) => {
         const url = new URL(input.toString());
-
-        if (url.origin === "https://www.geolocator.api.geo.ca") {
-          return Response.json([]);
-        }
 
         if (url.origin === "https://data.calgary.ca") {
           return Response.json([]);

@@ -123,14 +123,14 @@ offered only when `DELIVERY_ENABLED` is `true`, `DELIVERY_AREA_NAME` is set, and
 `DELIVERY_ELIGIBILITY_SECRET` contains at least 32 characters. A half-configured deploy falls back
 to ordinary shipping.
 
-The cart geocodes the street address through [Natural Resources Canada's address
-locator](https://geogratis.gc.ca/site/eng/geoloc), with Calgary's parcel-address index and Rocky View
-County's civic index as municipal fallbacks. It then checks whether the coordinate is within 40 km
-of Calgary's geographic center. The center is the area-weighted centroid of the City's 14 official
-ward polygons. Eligible carts must total at least $30 before tax. Provider failure leaves paid
-shipping usable. Ambiguous, near-limit, and changed Stripe addresses are marked `Address review`
-for the delivery operator. Stripe still collects the Canada-only delivery address and charges no
-shipping amount.
+The cart geocodes the street address through Calgary's parcel-address index or Rocky View County's
+civic index, then uses [Natural Resources Canada's address
+locator](https://geogratis.gc.ca/site/eng/geoloc) when neither municipal source has a match. It then
+checks whether the coordinate is within 40 km of Calgary's geographic center. The center is the
+area-weighted centroid of the City's 14 official ward polygons. Eligible carts must total at least
+$30 before tax. Provider failure leaves paid shipping usable. Ambiguous, near-limit, and changed
+Stripe addresses are marked `Address review` for the delivery operator. Stripe still collects the
+Canada-only delivery address and charges no shipping amount.
 
 | Variable | Content |
 | --- | --- |
