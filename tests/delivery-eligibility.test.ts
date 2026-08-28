@@ -77,7 +77,7 @@ describe("delivery geocoder", () => {
         const url = new URL(input.toString());
 
         expect(url.origin).toBe("https://data.calgary.ca");
-        expect(url.searchParams.get("$where")).toBe("house_number=800");
+        expect(url.searchParams.get("$where")).toBe("address='800 MACLEOD TR SE'");
 
         return Response.json([
           {
@@ -94,6 +94,35 @@ describe("delivery geocoder", () => {
       point: [-114.05792721246195, 51.04539715854496],
       confidence: "high",
     });
+  });
+
+  test("retries one transient Calgary lookup failure", async () => {
+    let requestCount = 0;
+    const result = await geocodeDeliveryAddress(
+      { line1: "100 Example Boulevard SW", postalCode: "T2G2M3" },
+      async (input) => {
+        const url = new URL(input.toString());
+
+        expect(url.origin).toBe("https://data.calgary.ca");
+        expect(url.searchParams.get("$where")).toBe("address='100 EXAMPLE BV SW'");
+        requestCount += 1;
+
+        if (requestCount === 1) {
+          return new Response(null, { status: 503 });
+        }
+
+        return Response.json([
+          {
+            address: "100 EXAMPLE BV SW",
+            longitude: "-114.05792721246195",
+            latitude: "51.04539715854496",
+          },
+        ]);
+      },
+    );
+
+    expect(requestCount).toBe(2);
+    expect(result).toMatchObject({ status: "match", confidence: "high" });
   });
 
   test("falls back to Rocky View's civic index for rural addresses", async () => {

@@ -79,6 +79,12 @@ const calgaryStreetTypeTokens: Record<string, string> = {
   WK: "WALK",
   WY: "WAY",
 };
+const calgaryApiStreetTypeTokens = Object.fromEntries(
+  Object.entries(calgaryStreetTypeTokens).map(([apiToken, normalizedToken]) => [
+    normalizedToken,
+    apiToken,
+  ]),
+);
 
 export type DeliveryGeocodeResult =
   | { status: "match"; point: GeoPoint; confidence: "high" | "low" }
@@ -221,54 +227,64 @@ async function geocodeCalgaryAddress(
 
   const url = new URL(calgaryAddressService);
   url.searchParams.set("$select", "address,longitude,latitude");
-  url.searchParams.set("$where", `house_number=${houseNumber}`);
-  url.searchParams.set("$limit", "1000");
+  url.searchParams.set("$where", `address='${formatCalgaryAddress(street)}'`);
+  url.searchParams.set("$limit", "10");
 
-  try {
-    const response = await fetcher(url, { signal: AbortSignal.timeout(geocoderTimeoutMs) });
+  let body: unknown[] | null = null;
 
-    if (!response.ok) {
-      return { status: "unavailable" };
-    }
+  // Retry once because Socrata occasionally exceeds the timeout despite a valid exact query.
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const response = await fetcher(url, { signal: AbortSignal.timeout(geocoderTimeoutMs) });
 
-    const body: unknown = await response.json();
-
-    if (!Array.isArray(body)) {
-      return { status: "unavailable" };
-    }
-
-    const matches = body.flatMap((candidate: unknown) => {
-      if (!isCalgaryAddressRecord(candidate) || typeof candidate.address !== "string") {
-        return [];
+      if (!response.ok) {
+        continue;
       }
 
-      const longitude = parseCoordinate(candidate.longitude);
-      const latitude = parseCoordinate(candidate.latitude);
+      const responseBody: unknown = await response.json();
 
-      if (
-        normalizeCalgaryAddress(candidate.address) !== normalizeCalgaryAddress(street) ||
-        longitude === null ||
-        latitude === null ||
-        !isGeoPoint([longitude, latitude])
-      ) {
-        return [];
+      if (Array.isArray(responseBody)) {
+        body = responseBody;
+        break;
       }
-
-      return [[longitude, latitude] as GeoPoint];
-    });
-
-    if (matches.length === 0) {
-      return { status: "not_found" };
+    } catch {
+      // A second attempt handles one transient timeout without exposing the address in logs.
     }
+  }
 
-    return {
-      status: "match",
-      point: matches[0],
-      confidence: matches.length === 1 ? "high" : "low",
-    };
-  } catch {
+  if (!body) {
     return { status: "unavailable" };
   }
+
+  const matches = body.flatMap((candidate: unknown) => {
+    if (!isCalgaryAddressRecord(candidate) || typeof candidate.address !== "string") {
+      return [];
+    }
+
+    const longitude = parseCoordinate(candidate.longitude);
+    const latitude = parseCoordinate(candidate.latitude);
+
+    if (
+      normalizeCalgaryAddress(candidate.address) !== normalizeCalgaryAddress(street) ||
+      longitude === null ||
+      latitude === null ||
+      !isGeoPoint([longitude, latitude])
+    ) {
+      return [];
+    }
+
+    return [[longitude, latitude] as GeoPoint];
+  });
+
+  if (matches.length === 0) {
+    return { status: "not_found" };
+  }
+
+  return {
+    status: "match",
+    point: matches[0],
+    confidence: matches.length === 1 ? "high" : "low",
+  };
 }
 
 /** Queries Rocky View's civic index for an authoritative rural-address coordinate. */
@@ -357,6 +373,20 @@ function normalizeCalgaryAddress(value: string): string {
     .split(" ")
     .map((part) => calgaryStreetTypeTokens[part] ?? part)
     .join(" ");
+}
+
+/** Converts only the suffix token to the abbreviation used by Calgary's parcel index. */
+function formatCalgaryAddress(value: string): string {
+  const tokens = normalizeDeliveryStreetAddress(value).split(" ");
+  const quadrant = tokens.at(-1);
+  const streetTypeIndex = tokens.length - (quadrant?.match(/^(?:NE|NW|SE|SW)$/) ? 2 : 1);
+  const streetType = tokens[streetTypeIndex];
+
+  if (streetType) {
+    tokens[streetTypeIndex] = calgaryApiStreetTypeTokens[streetType] ?? streetType;
+  }
+
+  return tokens.join(" ");
 }
 
 function parseCoordinate(value: unknown): number | null {
