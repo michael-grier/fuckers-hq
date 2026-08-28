@@ -62,11 +62,45 @@ describe("delivery geocoder", () => {
     });
   });
 
+  test("falls back to Calgary's parcel index when the national locator fails", async () => {
+    const result = await geocodeDeliveryAddress(
+      { line1: "800 Macleod Trail SE", postalCode: "T2G2M3" },
+      async (input) => {
+        const url = new URL(input.toString());
+
+        if (url.origin === "https://www.geolocator.api.geo.ca") {
+          return new Response(null, { status: 503 });
+        }
+
+        expect(url.origin).toBe("https://data.calgary.ca");
+        expect(url.searchParams.get("$where")).toBe("house_number=800");
+
+        return Response.json([
+          {
+            address: "800 MACLEOD TR SE",
+            longitude: "-114.05792721246195",
+            latitude: "51.04539715854496",
+          },
+        ]);
+      },
+    );
+
+    expect(result).toEqual({
+      status: "match",
+      point: [-114.05792721246195, 51.04539715854496],
+      confidence: "high",
+    });
+  });
+
   test("falls back to Rocky View's civic index for rural addresses", async () => {
     const result = await geocodeDeliveryAddress(address, async (input) => {
       const url = new URL(input.toString());
 
       if (url.origin === "https://www.geolocator.api.geo.ca") {
+        return Response.json([]);
+      }
+
+      if (url.origin === "https://data.calgary.ca") {
         return Response.json([]);
       }
 
@@ -107,6 +141,10 @@ describe("delivery geocoder", () => {
           return Response.json([]);
         }
 
+        if (url.origin === "https://data.calgary.ca") {
+          return Response.json([]);
+        }
+
         expect(url.searchParams.get("where")).toBe("intHouseNum=262075");
 
         return Response.json({
@@ -136,10 +174,12 @@ describe("delivery geocoder", () => {
   });
 
   test("rejects malformed provider candidates without throwing", async () => {
-    let requestCount = 0;
-    const result = await geocodeDeliveryAddress(address, async () => {
-      requestCount += 1;
-      return requestCount === 1 ? Response.json([null]) : Response.json({ features: [] });
+    const result = await geocodeDeliveryAddress(address, async (input) => {
+      const url = new URL(input.toString());
+
+      return url.origin === "https://atlasmap.rockyview.ca"
+        ? Response.json({ features: [] })
+        : Response.json([null]);
     });
 
     expect(result).toEqual({ status: "not_found" });

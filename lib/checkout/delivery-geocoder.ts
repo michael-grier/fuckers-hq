@@ -7,6 +7,7 @@ import type { GeoPoint } from "@/lib/checkout/delivery-radius";
 import type { DeliveryAddress } from "@/lib/validators/delivery";
 
 const nationalGeocoderService = "https://www.geolocator.api.geo.ca/geolocation/en/locate";
+const calgaryAddressService = "https://data.calgary.ca/resource/s8b3-j88p.json";
 const rockyViewAddressService =
   "https://atlasmap.rockyview.ca/arcgis/rest/services/Land/MunicipalAddresses/MapServer/0/query";
 const geocoderTimeoutMs = 3_000;
@@ -36,6 +37,49 @@ const nationalGeocoderTokens: Record<string, string> = {
   W: "WEST",
 };
 
+// Open Calgary abbreviates several street types differently from customer-entered addresses.
+const calgaryStreetTypeTokens: Record<string, string> = {
+  AL: "ALLEY",
+  BA: "BAY",
+  BV: "BLVD",
+  CA: "CAPE",
+  CE: "CENTRE",
+  CI: "CIR",
+  CL: "CLOSE",
+  CM: "COMMON",
+  CO: "CRT",
+  CR: "CRES",
+  CV: "COVE",
+  GA: "GATE",
+  GD: "GARDENS",
+  GR: "GREEN",
+  GV: "GROVE",
+  HE: "HEATH",
+  HI: "HWY",
+  HL: "HILL",
+  HT: "HEIGHTS",
+  IS: "ISLAND",
+  LD: "LANDING",
+  LI: "LINK",
+  ME: "MEWS",
+  MR: "MANOR",
+  MT: "MOUNT",
+  PA: "PARK",
+  PH: "PATH",
+  PR: "PARADE",
+  PS: "PASSAGE",
+  PY: "PARKWAY",
+  PZ: "PLAZA",
+  RI: "RISE",
+  RO: "ROW",
+  SQ: "SQUARE",
+  TC: "TERR",
+  VI: "VILLAS",
+  VW: "VIEW",
+  WK: "WALK",
+  WY: "WAY",
+};
+
 export type DeliveryGeocodeResult =
   | { status: "match"; point: GeoPoint; confidence: "high" | "low" }
   | { status: "not_found" }
@@ -50,6 +94,12 @@ type NationalGeocoderResult = {
   geometry?: { type?: unknown; coordinates?: unknown };
 };
 
+type CalgaryAddressRecord = {
+  address?: unknown;
+  longitude?: unknown;
+  latitude?: unknown;
+};
+
 type ArcGisAddressFeature = {
   attributes?: {
     vchAddress?: unknown;
@@ -59,7 +109,7 @@ type ArcGisAddressFeature = {
   geometry?: { x?: unknown; y?: unknown };
 };
 
-/** Geocodes Canadian addresses, with Rocky View's civic index as a rural-address fallback. */
+/** Geocodes local addresses using national, Calgary, and Rocky View civic sources. */
 export async function geocodeDeliveryAddress(
   address: DeliveryAddress,
   fetcher: GeocoderFetch = fetch,
@@ -70,13 +120,21 @@ export async function geocodeDeliveryAddress(
     return nationalResult;
   }
 
+  const calgaryResult = await geocodeCalgaryAddress(address, fetcher);
+
+  if (calgaryResult.status === "match") {
+    return calgaryResult;
+  }
+
   const rockyViewResult = await geocodeRockyViewAddress(address, fetcher);
 
   if (rockyViewResult.status === "match") {
     return rockyViewResult;
   }
 
-  return nationalResult.status === "unavailable" || rockyViewResult.status === "unavailable"
+  return nationalResult.status === "unavailable" ||
+    calgaryResult.status === "unavailable" ||
+    rockyViewResult.status === "unavailable"
     ? { status: "unavailable" }
     : { status: "not_found" };
 }
@@ -132,6 +190,70 @@ async function geocodeNationalAddress(
       }
 
       return [coordinates];
+    });
+
+    if (matches.length === 0) {
+      return { status: "not_found" };
+    }
+
+    return {
+      status: "match",
+      point: matches[0],
+      confidence: matches.length === 1 ? "high" : "low",
+    };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+/** Queries Calgary's parcel index when the national locator cannot resolve a city address. */
+async function geocodeCalgaryAddress(
+  address: DeliveryAddress,
+  fetcher: GeocoderFetch,
+): Promise<DeliveryGeocodeResult> {
+  const street = parseDeliveryStreetAddress(address.line1).line1;
+  const houseNumber = street.match(/^\s*(\d{1,7})\b/)?.[1];
+
+  if (!houseNumber) {
+    return { status: "not_found" };
+  }
+
+  const url = new URL(calgaryAddressService);
+  url.searchParams.set("$select", "address,longitude,latitude");
+  url.searchParams.set("$where", `house_number=${houseNumber}`);
+  url.searchParams.set("$limit", "1000");
+
+  try {
+    const response = await fetcher(url, { signal: AbortSignal.timeout(geocoderTimeoutMs) });
+
+    if (!response.ok) {
+      return { status: "unavailable" };
+    }
+
+    const body: unknown = await response.json();
+
+    if (!Array.isArray(body)) {
+      return { status: "unavailable" };
+    }
+
+    const matches = body.flatMap((candidate: unknown) => {
+      if (!isCalgaryAddressRecord(candidate) || typeof candidate.address !== "string") {
+        return [];
+      }
+
+      const longitude = parseCoordinate(candidate.longitude);
+      const latitude = parseCoordinate(candidate.latitude);
+
+      if (
+        normalizeCalgaryAddress(candidate.address) !== normalizeCalgaryAddress(street) ||
+        longitude === null ||
+        latitude === null ||
+        !isGeoPoint([longitude, latitude])
+      ) {
+        return [];
+      }
+
+      return [[longitude, latitude] as GeoPoint];
     });
 
     if (matches.length === 0) {
@@ -229,6 +351,19 @@ function formatCanadianPostalCode(postalCode: string): string {
   return `${postalCode.slice(0, 3)} ${postalCode.slice(3)}`;
 }
 
+function normalizeCalgaryAddress(value: string): string {
+  return normalizeDeliveryStreetAddress(value)
+    .split(" ")
+    .map((part) => calgaryStreetTypeTokens[part] ?? part)
+    .join(" ");
+}
+
+function parseCoordinate(value: unknown): number | null {
+  const coordinate = typeof value === "string" && value.trim() ? Number(value) : value;
+
+  return typeof coordinate === "number" && Number.isFinite(coordinate) ? coordinate : null;
+}
+
 function isGeoPoint(value: unknown): value is GeoPoint {
   return (
     Array.isArray(value) &&
@@ -243,6 +378,10 @@ function isGeoPoint(value: unknown): value is GeoPoint {
 }
 
 function isNationalGeocoderResult(value: unknown): value is NationalGeocoderResult {
+  return typeof value === "object" && value !== null;
+}
+
+function isCalgaryAddressRecord(value: unknown): value is CalgaryAddressRecord {
   return typeof value === "object" && value !== null;
 }
 
