@@ -60,8 +60,7 @@ export default defineConfig({
     // so specs are not racing on-demand dev compiles.
     command: process.env.E2E_WEB_SERVER_COMMAND ?? "bun run dev",
     url: baseURL,
-    // Reuse a dev server already listening on the base URL (the same behavior as
-    // scripts/visual-check.ts); boot one only when nothing is there.
+    // E2E_BASE_URL is an explicit target, so reuse that server when it is already running.
     reuseExistingServer: true,
     timeout: 120_000,
   },
