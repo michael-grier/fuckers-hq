@@ -31,6 +31,7 @@ const VIEWPORTS = [
 const SERVER_READY_TIMEOUT_MS = 90_000;
 const NAV_TIMEOUT_MS = 60_000; // first hit compiles the route in dev
 const SERVER_LOG_LIMIT = 12_000;
+const SERVER_START_ATTEMPTS = 3;
 type AuthMode = "none" | "admin";
 type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 
@@ -56,7 +57,9 @@ export function parseArgs(argv: string[]) {
     } else if (arg.startsWith("-")) throw new Error(`Unknown flag: ${arg}`);
     else {
       const route = arg.startsWith("/") ? arg : `/${arg}`;
-      if (route.startsWith("//")) throw new Error(`Route must be same-origin: ${arg}`);
+      if (route.startsWith("//") || route.includes("\\")) {
+        throw new Error(`Route must be same-origin: ${arg}`);
+      }
       routes.push(route);
     }
   }
@@ -110,6 +113,7 @@ async function isUp(url: string): Promise<boolean> {
 /** Drains a server stream while retaining only enough output to diagnose a failed run. */
 async function collectLogTail(
   stream: number | ReadableStream<Uint8Array> | undefined,
+  onOutput?: (output: string) => void,
 ): Promise<string> {
   if (!stream || typeof stream === "number") return "";
   const reader = stream.getReader();
@@ -120,9 +124,39 @@ async function collectLogTail(
     const { done, value } = await reader.read();
     if (done) break;
     output = (output + decoder.decode(value, { stream: true })).slice(-SERVER_LOG_LIMIT);
+    onOutput?.(output);
   }
 
   return (output + decoder.decode()).slice(-SERVER_LOG_LIMIT).trim();
+}
+
+type DevServerReadiness = "ready" | "exited" | "timeout";
+
+/** Accepts readiness only after the spawned Next process announces it and answers HTTP. */
+export async function waitForOwnedDevServer({
+  readinessUrl,
+  getExitCode,
+  hasAnnouncedReady,
+  checkUp = isUp,
+  sleep = Bun.sleep,
+  timeoutMs = SERVER_READY_TIMEOUT_MS,
+}: {
+  readinessUrl: string;
+  getExitCode: () => number | null;
+  hasAnnouncedReady: () => boolean;
+  checkUp?: (url: string) => Promise<boolean>;
+  sleep?: (milliseconds: number) => Promise<unknown>;
+  timeoutMs?: number;
+}): Promise<DevServerReadiness> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    if (getExitCode() !== null) return "exited";
+    if (hasAnnouncedReady() && (await checkUp(readinessUrl))) {
+      return getExitCode() === null ? "ready" : "exited";
+    }
+    await sleep(500);
+  }
+  return "timeout";
 }
 
 /** Finds a currently unused loopback port for this worktree's temporary dev server. */
@@ -179,7 +213,7 @@ async function main(): Promise<number> {
   const outDir = resolveOutDir(out, process.cwd());
   const slugs = planSlugs(routes);
 
-  let baseUrl: string;
+  let baseUrl: string | undefined;
   let devServer: ReturnType<typeof Bun.spawn> | undefined;
   let devServerLogs: Promise<string[]> | undefined;
 
@@ -206,32 +240,45 @@ async function main(): Promise<number> {
       }
       console.log(`Using explicit server ${baseUrl}`);
     } else {
-      const port = await findAvailablePort();
-      // Clerk's development middleware canonicalizes its browser origin to localhost.
-      baseUrl = `http://localhost:${port}`;
-      console.log(`Starting this worktree's dev server on ${baseUrl} ...`);
-      devServer = Bun.spawn(
-        ["bun", "run", "dev", "--hostname", "localhost", "--port", String(port)],
-        {
-          stdout: "pipe",
-          stderr: "pipe",
-        },
-      );
-      devServerLogs = Promise.all([
-        collectLogTail(devServer.stdout),
-        collectLogTail(devServer.stderr),
-      ]);
-      const deadline = Date.now() + SERVER_READY_TIMEOUT_MS;
-      const readinessUrl = new URL("/favicon.ico", baseUrl).href;
-      while (!(await isUp(readinessUrl))) {
-        if (Date.now() > deadline || devServer.exitCode !== null) {
-          console.error("Dev server failed to become ready.");
-          await stopDevServer(true);
-          return 1;
+      let ready = false;
+      for (let attempt = 1; attempt <= SERVER_START_ATTEMPTS; attempt++) {
+        const port = await findAvailablePort();
+        // Clerk's development middleware canonicalizes its browser origin to localhost.
+        baseUrl = `http://localhost:${port}`;
+        console.log(`Starting this worktree's dev server on ${baseUrl} ...`);
+        let announcedReady = false;
+        devServer = Bun.spawn(
+          ["bun", "run", "dev", "--hostname", "localhost", "--port", String(port)],
+          {
+            stdout: "pipe",
+            stderr: "pipe",
+          },
+        );
+        devServerLogs = Promise.all([
+          collectLogTail(devServer.stdout, (output) => {
+            if (output.includes("Ready in")) announcedReady = true;
+          }),
+          collectLogTail(devServer.stderr),
+        ]);
+        const readiness = await waitForOwnedDevServer({
+          readinessUrl: new URL("/favicon.ico", baseUrl).href,
+          getExitCode: () => (devServer ? devServer.exitCode : 1),
+          hasAnnouncedReady: () => announcedReady,
+        });
+        if (readiness === "ready") {
+          ready = true;
+          break;
         }
-        await Bun.sleep(500);
+
+        const retrying = attempt < SERVER_START_ATTEMPTS;
+        console.error(
+          `Dev server ${readiness === "exited" ? "exited before readiness" : "timed out"}.${retrying ? " Retrying on another port." : ""}`,
+        );
+        await stopDevServer(!retrying);
       }
+      if (!ready) return 1;
     }
+    if (!baseUrl) return 1;
 
     rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
@@ -246,6 +293,7 @@ async function main(): Promise<number> {
     }
 
     let failures = 0;
+    let runError: string | undefined;
     const results: Array<{
       route: string;
       viewport: string;
@@ -326,6 +374,10 @@ async function main(): Promise<number> {
         }
         await context.close();
       }
+    } catch (err) {
+      failures++;
+      runError = err instanceof Error ? err.message : String(err);
+      console.error(`FAIL visual-check setup: ${runError}`);
     } finally {
       await browser.close();
     }
@@ -333,7 +385,7 @@ async function main(): Promise<number> {
     const reportFile = join(outDir, "report.json");
     writeFileSync(
       reportFile,
-      `${JSON.stringify({ auth, routes, viewports: VIEWPORTS, failures, results }, null, 2)}\n`,
+      `${JSON.stringify({ auth, routes, viewports: VIEWPORTS, failures, results, error: runError }, null, 2)}\n`,
     );
     console.log(
       `\n${results.filter((result) => result.screenshot).length} screenshot(s) and report.json in ${out}/${failures ? `, ${failures} failure(s)` : ""}`,

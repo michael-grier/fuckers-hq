@@ -5,21 +5,24 @@ description: Run the Playwright e2e suite to verify storefront, admin, or commer
 
 # E2E Check
 
-The suite lives in `e2e/` and runs against a dev server on :3000 (reused if already running,
-booted otherwise) and this worktree's own database. Global setup refuses to run against anything
-that is not test-scoped (sandbox Stripe key, dev Clerk key, loopback URL, and the
-`E2E_DATABASE_URL === DATABASE_URL` opt-in that `setup:worktree` writes), then reseeds the
-catalog, so runs are repeatable.
+The suite lives in `e2e/`. In a worktree, choose an unused port and pass that same value through
+`PORT` and `E2E_BASE_URL` on every run. Playwright reuses a server at `E2E_BASE_URL`, so leaving
+the default port in place can target another worktree. Global setup still refuses anything that
+is not test-scoped, then reseeds this worktree's database so runs are repeatable.
 
 ## Choosing a tier
 
 ```bash
-bun run test:e2e                         # everything deterministic (~2 min)
-bun run test:e2e -- --grep @smoke        # storefront + cart only, quickest signal
-bun run test:e2e -- --project=admin      # Clerk-authenticated admin surface
-bun run test:e2e -- --project=commerce   # checkout + synthetic signed Stripe webhooks
-bun run test:e2e:live                    # OPT-IN: real hosted-Checkout payment + R2 upload
+PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e
+PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e -- --grep @smoke
+PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e -- --project=admin
+PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e -- --project=commerce
+PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e:live
 ```
+
+Substitute an unused port for `4317`. The tiers are, in order, the full deterministic suite,
+the quickest storefront and cart signal, Clerk-authenticated admin, synthetic commerce, and the
+opt-in external tier.
 
 Match the tier to the change: catalog/cart/UI → `@smoke`; admin or authz → `admin`;
 anything touching checkout, webhooks, orders, inventory, or emails → `commerce`. The live tier
