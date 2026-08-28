@@ -195,9 +195,6 @@ export function assertAdminAuthEnvironment(baseUrl: string, env: NodeJS.ProcessE
 
 /** Signs in once, then returns an in-memory state reused by every screenshot context. */
 async function createAdminStorageState(browser: Browser, baseUrl: string): Promise<StorageState> {
-  nextEnv.loadEnvConfig(process.cwd());
-  assertAdminAuthEnvironment(baseUrl, process.env);
-
   const context = await browser.newContext({ baseURL: baseUrl });
   try {
     const page = await context.newPage();
@@ -282,6 +279,21 @@ async function main(): Promise<number> {
 
     rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
+
+    if (auth === "admin") {
+      try {
+        nextEnv.loadEnvConfig(process.cwd());
+        assertAdminAuthEnvironment(baseUrl, process.env);
+      } catch (err) {
+        const error = err instanceof Error ? err.message : String(err);
+        writeFileSync(
+          join(outDir, "report.json"),
+          `${JSON.stringify({ auth, routes, viewports: VIEWPORTS, failures: 1, results: [], error }, null, 2)}\n`,
+        );
+        console.error(`FAIL visual-check setup: ${error}`);
+        return 1;
+      }
+    }
 
     let browser: Browser;
     try {
