@@ -11,10 +11,10 @@ decide, **Build** items are work that follows once the brand item arrives.
 
 ## Document status
 
-**Claims in this document were last verified against `main` at commit `c0fa3f2`.** Statements about
-what does and does not exist in the codebase go stale quickly — several were already wrong within
-two weeks of first being written. Re-verify against the code before acting on any "current state"
-claim here, and update this line when you do.
+**The code references changed for issue #104 were verified against `main` at commit `15ba59a`.**
+Statements about what does and does not exist in the codebase go stale quickly. Several were already
+wrong within two weeks of first being written. Re-verify other "current state" claims before acting
+on them.
 
 ### Build status at a glance
 
@@ -30,8 +30,8 @@ claim here, and update this line when you do.
 | Videos page content | **Not built** — empty state | `app/(shop)/videos/page.tsx` |
 | Discount codes, newsletter, gift cards, analytics | **Not built**, not scoped | — |
 
-The remaining blockers are overwhelmingly *brand inputs*, not engineering work. The critical path is
-**domain purchase → DNS access → email and Clerk verification**, described in section 4.
+The domain, DNS, email, Clerk, and Stripe production resources now exist. The remaining blockers are
+overwhelming *brand inputs* and launch verification, not engineering work.
 
 ---
 
@@ -53,29 +53,54 @@ owner.
 - Statement descriptor — the text customers see on their credit card statement (22 character limit)
 - GST/HST number, only if they are registered
 
-**Decisions required:**
+**Confirmed operating setup:**
 
-- **Who is the Stripe account owner.** On an individual account this person is personally
-  responsible for chargebacks, refunds, disputes, and income tax on the revenue. It is their SIN,
-  their bank account, and their credit. Choose deliberately rather than by whoever fills out the form
-  first, and write down what the group agrees to regarding revenue, expenses, and what happens if
-  someone leaves. A shared document is sufficient.
-- **Where payouts land.** If payouts go to a personal chequing account in the owner's own name, no
-  filing is needed. If they want a business bank account under the "Fuckers Skateboards" name,
-  Alberta banks will require a **trade name registration** (declaration of trade name) first —
-  inexpensive and quick, but a prerequisite rather than an afterthought.
-- Confirmation that all prices are CAD. The admin variant form is currently labelled "Price (CAD)".
+- **Legal operator and Stripe owner.** Tristan Hawkins, operating as a sole proprietor under his own
+  legal name. The terms and privacy pages identify him as the store operator.
+- **Payout account.** Tristan's personal account in his legal name. A business bank account is not a
+  launch dependency. The payout choice does not decide whether the public storefront name must be
+  registered as a trade name.
+- **Income reporting.** Tristan has operated the business for several years and reports its income on
+  his personal tax return. CRA directs sole proprietors to report business income and expenses using
+  [Form T2125](https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/sole-proprietorships-partnerships/report-business-income-expenses.html).
+- **Currency.** All storefront prices are CAD. The admin variant form is labelled "Price (CAD)".
+
+### Alberta trade-name registration
+
+Alberta defines a trade name as a name an individual uses to do business under something other than
+their personal name. It also describes a business name as a name used to represent the business to
+the public. The storefront is operated legally by Tristan but presents "Fuckers Skateboards" as its
+public name, so the payout account cannot be used as the test for registration.
+
+No registry agent, lawyer, or accountant has confirmed whether this specific presentation requires a
+Declaration of Trade Name. Treat registration as a pre-launch requirement unless an Alberta registry
+agent or legal adviser confirms that operating and contracting in Tristan's name makes it unnecessary.
+See [Alberta's business-name guidance](https://www.alberta.ca/register-business-name.aspx).
 
 ### GST/HST and Stripe Tax
 
-Canada's small supplier threshold is $30,000 CAD in revenue across four consecutive calendar
-quarters. Below that, GST/HST registration is not required, and an apartment-scale operation is very
-likely under it.
+Launch shipping is Canada-only. Tristan expects his total taxable supplies to remain well below the
+federal $30,000 CAD small-supplier threshold, and no tax registration was reported. The threshold
+calculation covers worldwide taxable supplies from all of the person's businesses and associates,
+not only revenue from this storefront. CRA applies it both to a single calendar quarter and across
+four consecutive calendar quarters. See
+[CRA's registration rules](https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/when-register-charge.html).
 
-`STRIPE_TAX_ENABLED` therefore stays `false` for launch. Collecting tax the brand is not registered
-to remit is a worse problem than not collecting it. The schema default is `false` so that a missing
-variable in Vercel cannot silently enable collection; enabling it requires both an explicit `true`
-and registered tax jurisdictions inside Stripe.
+`STRIPE_TAX_ENABLED` stays `false` for launch. This is a fail-closed operating decision, not a
+completed Canada-wide tax review. Collecting tax without the matching registration creates a
+remittance obligation the business is not prepared to meet. The schema default is `false` so that a
+missing Vercel variable cannot silently enable collection.
+
+No accountant has reviewed the provincial obligations. The federal $30,000 threshold cannot be
+applied to every provincial sales tax. For example, certain Canadian sellers outside British
+Columbia must register after exceeding $10,000 in B.C. revenue in the previous 12 months or their
+reasonable estimate for the next 12 months. See
+[B.C.'s PST registration guidance](https://www2.gov.bc.ca/assets/gov/taxes/sales-taxes/publications/pst-001-registering-to-collect-pst.pdf).
+
+Before relying on the launch setting long-term, the brand must record taxable supplies by quarter and
+sales by province, then have an accountant review each province served. Where collection becomes
+required, complete the registration and add the matching jurisdiction in Stripe Tax before changing
+`STRIPE_TAX_ENABLED` to `true`.
 
 ### Verify early, not late
 
@@ -88,11 +113,11 @@ and registered tax jurisdictions inside Stripe.
 - **Calgary Home Occupation permit.** Running a business from a residence may require one. This is
   between the brand and the city and is not a deploy blocker, but they should know it exists.
 
-> The tax and registration details above are the general shape only, from a developer rather than a
-> lawyer or accountant. An hour with an accountant before launch is cheap and worth it.
+> The tax and registration details above record the current operating decisions and the remaining
+> professional review. They are not legal or accounting advice.
 
-**Build follow-up:** switch to live Stripe keys, register the live webhook endpoint, and verify the
-webhook signing secret in production.
+**Production status.** Live Stripe keys and the live webhook are configured. A live charge and refund
+verified the payment lifecycle; `STRIPE_TAX_ENABLED` remains `false`.
 
 ---
 
@@ -379,6 +404,9 @@ traffic to YouTube.
 - **Admin emails** — each admin must create a Clerk account *before* launch. The `ADMIN_USER_IDS`
   environment variable takes Clerk user IDs, not email addresses, so the accounts have to exist
   first. Sequence this ahead of launch day.
+- **Clerk ownership.** Tristan owns the production Clerk account, with the developer added as a
+  collaborator. Before launch, Tristan must sign in against the production instance and confirm that
+  `/admin` loads for his production user ID.
 - **Domain name** — purchased, with DNS access. See [Email and DNS](#4-email-and-dns), which is the
   most common cause of launch delay on this list.
 
@@ -406,63 +434,45 @@ Sentry project, and fresh Vercel secrets.
 **Clerk and Resend both need production instances, and both need DNS records** — Clerk for its
 frontend API and accounts portal, Resend for SPF and DKIM. Neither is optional.
 
-### Vercel: hosting under the developer's existing Pro team
+### Vercel: initial hosting under the developer's existing Pro team
 
 The developer already holds a Vercel Pro account, so the commercial-use requirement is already
-satisfied and the brand does not need to buy their own plan to launch.
+satisfied and the brand does not need to buy its own plan for launch. The agreed launch arrangement
+keeps the project there initially, then transfers it to a brand-owned account within roughly two
+months of launch.
 
-Two viable arrangements:
-
-1. **Host under the developer's existing Pro team.** Nothing new to buy. The brand has no direct
-   Vercel access, which is acceptable provided it is documented and the project is transferable.
-   Adding brand members to that team costs an additional seat each.
-2. **The brand creates their own Pro team** and the project is transferred to it. Vercel supports
-   transferring projects between teams, so this is not a one-way door and can be deferred until the
-   brand wants direct control.
-
-Option 1 is the sensible default for launch. Record that the project can be transferred on request so
-it does not become an unspoken dependency.
-
-### R2 needs a custom domain in production
+### Cloudflare DNS and R2
 
 Cloudflare's `r2.dev` public bucket URL is rate-limited and is not recommended for production
 traffic. Production should serve images from a custom domain on the bucket — for example
 `images.theirdomain.com` — which becomes `R2_PUBLIC_URL`.
 
-This is another consumer of DNS access. The application requires no other change: `img-src` in the
-middleware CSP is `https:` and product images are `unoptimized`, so there are no `remotePatterns` to
-update.
+Cloudflare now holds both the production DNS zone and R2 storage. The account stays with the
+developer for the initial launch and transfers to the brand within roughly two months. The handoff
+must preserve the DNS zone, the R2 bucket and custom domain, and least-privilege application
+credentials. Losing this account would interrupt the site, transactional email, and Clerk sign-in.
 
-### Recommended ownership
+The application requires no other R2 change: `img-src` in the middleware CSP is `https:` and
+product images are `unoptimized`, so there are no `remotePatterns` to update.
 
-**The brand should own the domain, Stripe, Neon, R2, and Resend**, with the developer added as a
-collaborator on each.
+### Agreed ownership and handoff
 
-The reasoning is continuity, and it protects both parties. If the working relationship ends, for any
-reason, the brand keeps a functioning store and the developer keeps no open obligations. The
-developer also is not carrying the brand's infrastructure costs personally, and is not a single point
-of failure while unreachable. The painful version of this conversation happens years later when
-nobody remembers who controls the DNS.
+| Service | Launch owner | Handoff plan |
+| --- | --- | --- |
+| Domain registration | Tristan | Developer retains collaborator access only. |
+| Stripe | Tristan | Developer may be added as a team member. |
+| Clerk | Tristan | Developer is a collaborator. |
+| Vercel | Developer | Transfer to the brand within roughly two months of launch. |
+| Cloudflare DNS and R2 | Developer | Transfer the account resources and restore developer collaborator access within roughly two months of launch. |
+| Resend | Developer | Transfer to a brand-owned account within roughly two months of launch; re-verify the sending domain if Resend issues account-specific DKIM records. |
+| Sentry | Developer | No transfer planned; it is developer tooling rather than a customer-facing account. |
 
-**Sentry may stay under the developer's account** — it is developer tooling rather than
-customer-facing infrastructure, and the brand will never sign into it.
+Neon's existing ownership arrangement was already settled and does not change as part of this
+handoff.
 
-**Vercel** follows the arrangement chosen above.
-
-### Practical middle ground
-
-A small group running this from an apartment may not want to create and manage six accounts. A
-reasonable compromise: the brand creates the accounts that hold money or identity — **Stripe, the
-domain, and Vercel if they choose option 2** — and the developer manages Neon, R2, Resend, and Sentry
-with a written note that each can be transferred on request.
-
-What matters is that this is decided explicitly and written down, rather than defaulting to whoever
-happened to have a browser open.
-
-**Sequencing note:** have the brand create these accounts using an email the whole group can access,
-not one person's personal Gmail. A shared `hello@theirdomain.com` is ideal — which requires the
-domain first. **Domain purchase is the head of the dependency chain for nearly everything on this
-list.**
+The Vercel, Cloudflare, and Resend transfers are operational work, not a copy-only handoff. Schedule
+them one provider at a time, rotate credentials where ownership changes, redeploy, and verify the
+affected production path before moving to the next provider.
 
 ---
 
