@@ -245,7 +245,20 @@ test.describe("admin product lifecycle @admin", () => {
     await page.getByLabel("Variant 1 SKU").fill(`E2E-CD-${runId}`);
     await page.getByLabel("Variant 1 price in dollars").fill("79.00");
     await page.getByLabel("Variant 1 on-hand inventory").fill("4");
-    await page.getByRole("button", { name: "Create & publish" }).click();
+    // A pre-hydration click is silently lost. Wait for the server-action response so the retry
+    // stops before it could submit the same unique slug and SKU twice.
+    await expect(async () => {
+      await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            new URL(response.url()).pathname === "/admin/products/new" &&
+            response.request().method() === "POST" &&
+            response.ok(),
+          { timeout: 5_000 },
+        ),
+        page.getByRole("button", { name: "Create & publish" }).click(),
+      ]);
+    }).toPass({ timeout: 30_000 });
 
     // Publishing lands on the product workspace.
     await expect(page).toHaveURL(/\/admin\/products\/[0-9a-f-]+$/);
@@ -263,9 +276,10 @@ test.describe("admin product lifecycle @admin", () => {
     await page.getByLabel("Name", { exact: true }).fill(renamed);
     const saveBar = page.getByRole("region", { name: "Product save controls" });
     await page.getByRole("button", { name: "Save changes" }).click();
-    await expect(page.getByRole("status")).toHaveText("Product saved.");
+    await expect(page.getByText("Product saved.").first()).toBeVisible();
     await expect(saveBar).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Save changes" })).toBeHidden();
+    await page.reload();
     await expect(page.getByRole("heading", { name: renamed, level: 1 })).toBeVisible();
 
     // Add a second variant and save it.

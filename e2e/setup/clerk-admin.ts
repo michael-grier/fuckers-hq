@@ -49,7 +49,11 @@ export async function signInE2eAdmin(page: Page): Promise<void> {
   const client = createClerkClient({ secretKey });
   const users = await client.users.getUserList({ emailAddress: [email] });
   const user = users.data[0];
-  if (!user) throw new Error(`No Clerk user found for E2E_CLERK_USER_EMAIL: ${email}`);
+  if (!user) {
+    // This error is copied into CI diagnostics, so name the bad setting without persisting its
+    // secret value in the JSON report or accessibility snapshot.
+    throw new Error("No Clerk user matched E2E_CLERK_USER_EMAIL in the development instance");
+  }
   const ticket = await client.signInTokens.createSignInToken({
     userId: user.id,
     expiresInSeconds: 300,

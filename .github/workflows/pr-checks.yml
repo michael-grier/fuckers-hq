@@ -112,8 +112,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      # The whole job no-ops (each step skips, job stays green) until the e2e secrets exist.
-      # Forked PRs never see secrets, so this also keeps the job quiet for external PRs.
+      # Pushes, manual runs, and same-repository PRs may use repository secrets. Fork PRs never
+      # receive them, so they report an explicit skip instead of failing for missing credentials.
+      E2E_SECRETS_REQUIRED: >-
+        ${{ github.event_name != 'pull_request' ||
+            github.event.pull_request.head.repo.full_name == github.repository }}
       E2E_SECRETS_PRESENT: >-
         ${{ secrets.STRIPE_SECRET_KEY != '' &&
             secrets.CLERK_SECRET_KEY != '' &&
@@ -123,11 +126,33 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/fuckers_e2e
       # Seeding requires the explicit disposable-database opt-in (e2e/setup/global-setup.ts).
       E2E_DATABASE_URL: postgres://postgres:postgres@localhost:5432/fuckers_e2e
+      # Deterministic admin specs intercept image uploads. Fake configuration exposes the upload
+      # controls without granting CI access to R2 or requiring another external service.
+      R2_ACCOUNT_ID: e2e-account
+      R2_ACCESS_KEY_ID: e2e-access-key
+      R2_SECRET_ACCESS_KEY: e2e-secret-access-key
+      R2_BUCKET: e2e-bucket
+      R2_PUBLIC_URL: https://e2e-r2.invalid
+      # Exercise local delivery instead of silently skipping its deterministic commerce test.
+      DELIVERY_ENABLED: "true"
+      DELIVERY_AREA_NAME: E2E delivery area
+      DELIVERY_INSTRUCTIONS: Test orders only.
+      # Deterministic CI records retryable email state and local errors without contacting Resend
+      # or the production Sentry project.
+      RESEND_API_KEY: ""
+      SENTRY_DSN: ""
+      NEXT_PUBLIC_SENTRY_DSN: ""
 
     steps:
-      - name: Report when e2e secrets are not configured
-        if: env.E2E_SECRETS_PRESENT != 'true'
-        run: echo "e2e secrets are not configured; skipping the browser suite."
+      - name: Require e2e secrets for trusted runs
+        if: env.E2E_SECRETS_REQUIRED == 'true' && env.E2E_SECRETS_PRESENT != 'true'
+        run: |
+          echo "::error::The five required E2E repository secrets are not configured."
+          exit 1
+
+      - name: Report unavailable e2e secrets for a fork
+        if: env.E2E_SECRETS_REQUIRED != 'true' && env.E2E_SECRETS_PRESENT != 'true'
+        run: echo "Fork pull requests do not receive repository secrets; skipping E2E."
 
       - name: Check out the pull request
         if: env.E2E_SECRETS_PRESENT == 'true'
@@ -177,10 +202,17 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET || 'whsec_e2e_ci_only' }}
           NEXT_TELEMETRY_DISABLED: "1"
 
-      - name: Upload traces on failure
+      - name: Upload safe diagnostics on failure
         if: failure() && env.E2E_SECRETS_PRESENT == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: e2e-artifacts
-          path: .e2e-artifacts/
+          # Authenticated traces can retain session-bearing network data. Keep them off GitHub;
+          # screenshots, accessibility snapshots, and the JSON report contain enough first-pass
+          # context without preserving request headers.
+          name: e2e-failure-diagnostics
+          path: |
+            .e2e-artifacts/**/*.png
+            .e2e-artifacts/**/error-context.md
+            .e2e-artifacts/results.json
+          include-hidden-files: true
           retention-days: 7
