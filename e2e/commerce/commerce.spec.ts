@@ -55,6 +55,40 @@ async function openWorkspace(page: Page, productName: string): Promise<void> {
   }).toPass({ timeout: 30_000 });
 }
 
+/** Ships the current order without tracking after the client form survives hydration. */
+async function shipWithoutTracking(page: Page): Promise<void> {
+  const orderPath = new URL(page.url()).pathname;
+  const shipped = page.getByText("Shipped", { exact: true }).first();
+  await page.waitForLoadState("networkidle");
+
+  await expect(async () => {
+    // The action may commit just after the response wait expires. Observe the rendered persisted
+    // state before retrying so an already-completed shipment is never submitted twice.
+    if (await shipped.isVisible()) {
+      return;
+    }
+
+    await page.getByRole("button", { name: "Mark as shipped" }).click();
+    const submit = page.getByRole("button", { name: "Ship and notify" });
+    await expect(submit).toBeVisible({ timeout: 2_000 });
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === orderPath &&
+          response.request().method() === "POST" &&
+          response.ok(),
+        { timeout: 10_000 },
+      ),
+      submit.click(),
+    ]);
+  }).toPass({ timeout: 30_000 });
+
+  // The response or rendered status proves the write completed; reload so the final assertion
+  // reads persisted state rather than depending on the action's client-side router refresh.
+  await page.reload();
+  await expect(shipped).toBeVisible();
+}
+
 test.describe("checkout boundary @commerce", () => {
   test("client price tampering cannot change what Stripe is asked to charge", async ({ page }) => {
     await addToCartFromPdp(page, "street-deck-825");
@@ -333,9 +367,7 @@ test.describe("refund inventory @commerce", () => {
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await page.getByRole("link", { name: "Open full order" }).click();
     const initialNeedsActionCount = await readOrderNeedsActionCount(page);
-    await page.getByRole("button", { name: "Mark as shipped" }).click();
-    await page.getByRole("button", { name: "Ship and notify" }).click();
-    await expect(page.getByText("Shipped", { exact: true }).first()).toBeVisible();
+    await shipWithoutTracking(page);
 
     expect(
       await postWebhook(
@@ -473,9 +505,18 @@ test.describe("fulfillment @commerce", () => {
 
     // The paid delivery order enters the queue; scheduling then delivering completes it.
     await page.goto("/admin/deliveries");
+    const deliveryPath = new URL(page.url()).pathname;
     const scheduleRow = page.getByRole("row").filter({ hasText: email });
     await scheduleRow.getByRole("button", { name: "Schedule delivery" }).click();
+    const scheduleCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === deliveryPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
     await page.getByRole("button", { name: "Yes, schedule" }).click();
+    await scheduleCompleted;
+    await page.reload();
     await expect(
       page.getByRole("row").filter({ hasText: email }).getByRole("button", {
         name: "Mark as delivered",
@@ -486,7 +527,15 @@ test.describe("fulfillment @commerce", () => {
       .filter({ hasText: email })
       .getByRole("button", { name: "Mark as delivered" })
       .click();
+    const deliveryCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === deliveryPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
     await page.getByRole("button", { name: "Yes, delivered" }).click();
+    await deliveryCompleted;
+    await page.reload();
     await expect(page.getByRole("row").filter({ hasText: email })).toBeHidden();
   });
 });
