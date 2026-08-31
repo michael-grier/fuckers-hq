@@ -1,4 +1,5 @@
-import { expect, test } from "bun:test";
+import { afterEach, expect, test } from "bun:test";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { AddToCartButton } from "@/components/cart/add-to-cart-button";
@@ -24,12 +25,23 @@ const product: CatalogProduct = {
       reservedQty: 0,
       availableQty: 10,
     },
+    {
+      id: "b9dc5f73-c444-4c4e-b606-a645397c93d3",
+      name: '9"',
+      sku: "DATABASE-900",
+      priceCents: 9_200,
+      inventoryQty: 0,
+      reservedQty: 0,
+      availableQty: 0,
+    },
   ],
   images: [],
   minPriceCents: 8_900,
-  maxPriceCents: 8_900,
+  maxPriceCents: 9_200,
   totalInventoryQty: 10,
 };
+
+afterEach(cleanup);
 
 test("renders Add to cart as an enabled, clickable button", () => {
   const markup = renderToStaticMarkup(
@@ -74,4 +86,22 @@ test("shows the selected variant count only when stock is low", () => {
   const markup = renderToStaticMarkup(<VariantPicker product={lowStockProduct} />);
 
   expect(markup).toContain("Only 3 left");
+});
+
+test("mutes an out-of-stock variant without disabling selection", () => {
+  render(<VariantPicker product={product} />);
+
+  const soldOutVariant = screen.getByRole("button", { name: '9", out of stock' });
+  expect(soldOutVariant.className).toContain("bg-muted");
+  expect((soldOutVariant as HTMLButtonElement).disabled).toBe(false);
+  expect(soldOutVariant.getAttribute("aria-pressed")).toBe("false");
+
+  fireEvent.click(soldOutVariant);
+
+  expect(soldOutVariant.className).toContain("bg-muted-foreground");
+  expect(soldOutVariant.getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText("Out of stock")).toBeDefined();
+  expect((screen.getByRole("button", { name: "Add to cart" }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
 });

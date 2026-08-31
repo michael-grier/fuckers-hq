@@ -28,7 +28,10 @@ const e2eProducts = [
     subcategory: "bearings",
     shippingProfile: "softgood" as const,
     status: "active" as const,
-    variants: [{ name: "Set of 8", sku: "E2E-BEARINGS-BUDGET", priceCents: 500, inventoryQty: 8 }],
+    variants: [
+      { name: "Set of 8", sku: "E2E-BEARINGS-BUDGET", priceCents: 500, inventoryQty: 8 },
+      { name: "Ceramic", sku: "E2E-BEARINGS-CERAMIC", priceCents: 700, inventoryQty: 0 },
+    ],
   },
 ];
 
