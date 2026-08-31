@@ -92,6 +92,7 @@ describe("cart sidebar", () => {
     expect(markup).toContain("How do you want it?");
     expect(markup).toContain("Ship it");
     expect(markup).toContain("Local delivery");
+    expect(markup).toContain("We do not currently charge sales tax.");
     // Real radios keep arrow-key navigation working even though the control looks segmented.
     expect(markup).toContain('type="radio"');
     // The footer never carries the delivery details at rest; they live behind a disclosure that

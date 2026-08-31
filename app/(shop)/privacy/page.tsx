@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 
-import { PolicyDraftNotice } from "@/components/shop/policy-draft-notice";
 import {
   PolicyList,
   PolicyPage,
@@ -18,11 +17,9 @@ export default function PrivacyPage() {
   return (
     <PolicyPage
       description="What we collect, why we collect it, and who we share it with."
-      effectiveDate="August 12, 2026"
+      effectiveDate="August 31, 2026"
       title="Privacy policy."
     >
-      <PolicyDraftNotice />
-
       <PolicySection heading="Who we are">
         <PolicyParagraph>
           This store is operated by Tristan Hawkins ("we", "us") based in Calgary, Alberta, Canada.

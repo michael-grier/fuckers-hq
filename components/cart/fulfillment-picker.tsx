@@ -61,7 +61,9 @@ export function FulfillmentPicker({ deliveryArea, compact = false }: Fulfillment
             </div>
           </details>
         ) : (
-          <p className="text-muted-foreground text-xs">Rates and tax are calculated at checkout.</p>
+          <p className="text-muted-foreground text-xs">
+            Shipping is calculated at checkout. We do not currently charge sales tax.
+          </p>
         )}
       </fieldset>
     );
@@ -73,7 +75,7 @@ export function FulfillmentPicker({ deliveryArea, compact = false }: Fulfillment
       <div className="mt-3 space-y-3">
         <FulfillmentOption
           checked={!isDelivery}
-          description="We ship it to your address. Rates and tax are calculated at checkout."
+          description="We ship it to your address. Shipping is calculated at checkout, and sales tax is not currently charged."
           label="Ship it to me"
           name={groupName}
           onSelect={setFulfillmentMethod}

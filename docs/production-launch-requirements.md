@@ -24,7 +24,7 @@ on them.
 | Favicon and app icons | **Built** | `app/favicon.ico`, `app/icon.png`, `app/apple-icon.png` |
 | Shipment tracking emails | **Built** | `lib/email/order-shipped.tsx`, `lib/orders/shipping-carriers.ts` |
 | Local delivery fulfilment | **Built, disabled by default** | `lib/checkout/delivery.ts`, `DELIVERY_ENABLED` |
-| Policy and contact pages | **Built as unreviewed drafts** | `app/(shop)/{returns,shipping,privacy,terms,contact}` |
+| Policy and contact pages | **Built; policies published August 31, 2026** | `app/(shop)/{returns,shipping,privacy,terms,contact}` |
 | Product subcategory taxonomy | **Built, required on every product** | `lib/catalog/categories.ts`, migration `0011` |
 | Crew page content | **Not built** — empty state | `app/(shop)/crew/page.tsx` |
 | Videos page content | **Not built** — empty state | `app/(shop)/videos/page.tsx` |
@@ -149,12 +149,12 @@ half-configured deploy cannot offer delivery without saying where it applies.
 
 Checkout collects a Canada-only delivery address, charges nothing for delivery, and tells the
 customer the operator will contact them to arrange the drop-off. Stripe cannot restrict an address
-below country level, so the operator verifies each address is inside the area (Rocky View County,
-Alberta) when scheduling, and refunds out-of-area orders.
+below country level, so the operator verifies each address is within 40 km of Calgary city centre
+when scheduling, and refunds out-of-area orders.
 
 | Variable | Content |
 | --- | --- |
-| `DELIVERY_AREA_NAME` | Public name of the service area, e.g. `Rocky View County, Alberta` |
+| `DELIVERY_AREA_NAME` | Public name of the service area, e.g. `40 km of Calgary city centre` |
 | `DELIVERY_INSTRUCTIONS` | Optional note shown with the delivery option at checkout |
 
 If the brand declines, leave `DELIVERY_ENABLED=false` and the option never appears.
@@ -163,9 +163,9 @@ If the brand declines, leave `DELIVERY_ENABLED=false` and the option never appea
 
 ## 3. Policy and legal pages
 
-**The pages are built and linked from the footer. The copy is not approved and must not ship as
-is.** Stripe expects a storefront to publish these, and consumer protection law effectively requires
-the refund and contact information.
+**The pages are built, linked from the footer, and published with an effective date of August 31,
+2026.** The shipping, return, and tax wording reflects the launch configuration recorded in this
+document.
 
 | Page | Route |
 | --- | --- |
@@ -175,25 +175,17 @@ the refund and contact information.
 | Terms of Service | `/terms` |
 | Contact | `/contact` |
 
-### How the drafts are marked
+### Publication status
 
-Every brand-specific value is a visible `[BRACKETED]` placeholder — return window, who pays return
-shipping, processing times, jurisdiction, retention periods, and so on. The four policy pages also
-render `PolicyDraftNotice`, a callout stating the policy is a working draft and not yet binding.
+The brand approved the operating details used by the policy pages. The draft notice and the final
+bracketed placeholder were removed before publication. Search the policy routes for `[` when editing
+them so a new placeholder cannot ship by accident.
 
-**To publish:** replace every placeholder with confirmed values, have the brand approve the wording,
-then delete `components/shop/policy-draft-notice.tsx`. The compiler then points at each page that
-still renders it, so the notice cannot be left behind by accident.
+### Legal review
 
-Search for `[` across `app/(shop)/{returns,shipping,privacy,terms,contact}/page.tsx` to enumerate
-every outstanding value.
-
-### These are drafts written by a developer, not legal advice
-
-They are a reasonable starting point that reflects how this specific store actually operates, but
-the brand should have someone qualified read the final terms — particularly the assumption-of-risk
-and limitation-of-liability clauses in `/terms`, which are the ones that matter if someone is
-injured on a product they sold.
+The policies reflect how this store operates, but a lawyer has not reviewed them. The brand should
+have someone qualified read the assumption-of-risk and limitation-of-liability clauses in `/terms`.
+Those clauses matter if someone is injured while using a product from the store.
 
 ### The privacy policy describes this codebase specifically
 
@@ -592,8 +584,8 @@ the moment the branch moves.
 ### What is done on this branch
 
 - This requirements document
-- `/returns`, `/shipping`, `/privacy`, `/terms`, `/contact` pages, drafts marked per section 3
-- Shared shells: `components/shop/policy-page.tsx`, `components/shop/policy-draft-notice.tsx`
+- Published `/returns`, `/shipping`, `/privacy`, `/terms`, and `/contact` pages
+- Shared policy shell and question disclosures in `components/shop/policy-page.tsx`
 - Footer policy navigation in `components/shop/site-footer.tsx`
 - `STRIPE_TAX_ENABLED` defaults to `false` in `lib/env.ts` so a missing variable cannot enable tax
   collection
