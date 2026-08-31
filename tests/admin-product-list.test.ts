@@ -23,13 +23,13 @@ describe("summarizeProductStock", () => {
   test("reports the scarcest variant once it reaches the threshold", () => {
     const summary = summarizeProductStock([
       variant("S", 10),
-      variant("M", LOW_STOCK_THRESHOLD + 1, 2),
+      variant("M", LOW_STOCK_THRESHOLD + 1, 1),
       variant("L", 8),
     ]);
 
     expect(summary.lowStockVariant).toEqual({
       name: "M",
-      available: LOW_STOCK_THRESHOLD - 1,
+      available: LOW_STOCK_THRESHOLD,
     });
   });
 
