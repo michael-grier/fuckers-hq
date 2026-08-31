@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { NuqsTestingAdapter } from "nuqs/adapters/testing";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { CatalogFilters } from "@/components/shop/catalog-filters";
@@ -22,12 +22,20 @@ function renderCatalogFilters(searchParams: string): string {
   );
 }
 
-function mountCatalogFilters(searchParams: string, populated = populatedSubcategories): void {
+/** Mounts the live filters and records every URL update Apply commits. */
+function mountCatalogFilters(
+  searchParams: string,
+  populated = populatedSubcategories,
+): UrlUpdateEvent[] {
+  const updates: UrlUpdateEvent[] = [];
+
   render(
-    <NuqsTestingAdapter searchParams={searchParams}>
+    <NuqsTestingAdapter onUrlUpdate={(event) => updates.push(event)} searchParams={searchParams}>
       <CatalogFilters populatedSubcategories={populated} totalProducts={4} />
     </NuqsTestingAdapter>,
   );
+
+  return updates;
 }
 
 afterEach(cleanup);
@@ -163,13 +171,22 @@ describe("catalog filter subcategory availability", () => {
   });
 
   test("keeps an applied subcategory listed once its last product is gone", async () => {
-    mountCatalogFilters("?categories=hardgoods&subcategories=trucks", ["decks"]);
+    const updates = mountCatalogFilters("?categories=hardgoods&subcategories=trucks", ["decks"]);
 
     fireEvent.click(screen.getByRole("button", { name: /filters/i }));
     await screen.findByRole("dialog", { name: "Filters" });
 
     // Otherwise the filter stays applied in the URL with no checkbox left to switch it off.
     expect(screen.getByLabelText("Trucks").getAttribute("aria-checked")).toBe("true");
+
+    // Listing it is only half the fix; unchecking it has to actually leave the URL, or the
+    // shopper stays pinned to an empty result set.
+    fireEvent.click(screen.getByLabelText("Trucks"));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0].searchParams.getAll("subcategories")).toEqual([]);
+    expect(updates[0].searchParams.getAll("categories")).toEqual(["hardgoods"]);
   });
 
   test("drops the subcategory group entirely when a scoped category has no products", async () => {
