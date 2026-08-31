@@ -72,7 +72,8 @@ transition.
 - [ ] Browser Back and Forward restore catalog state.
 - [ ] A product page keeps price and quantity in one card, places Add to cart on a full-width row,
       hides ordinary inventory counts, shows `Only N left` for a selected variant with three or
-      fewer available units, and retains the out-of-stock warning.
+      fewer available units, visually mutes out-of-stock variants without disabling their selector,
+      and retains the out-of-stock warning after one is selected.
 - [ ] An unknown product slug returns the custom not-found page.
 
 ## 4. Cart

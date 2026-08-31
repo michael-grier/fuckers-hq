@@ -40,19 +40,33 @@ export function VariantPicker({ product }: VariantPickerProps) {
       <div className="space-y-3">
         <p className="font-semibold text-sm">Variant</p>
         <div className="flex flex-wrap gap-2">
-          {product.variants.map((variant) => (
-            <Button
-              key={variant.id}
-              onClick={() => {
-                setVariantId(variant.id);
-                setQuantity(1);
-              }}
-              type="button"
-              variant={variant.id === selectedVariant?.id ? "default" : "outline"}
-            >
-              {variant.name}
-            </Button>
-          ))}
+          {product.variants.map((variant) => {
+            const isSelected = variant.id === selectedVariant?.id;
+            const isOutOfStock = variant.availableQty <= 0;
+
+            return (
+              <Button
+                aria-label={isOutOfStock ? `${variant.name}, out of stock` : variant.name}
+                aria-pressed={isSelected}
+                className={
+                  isOutOfStock
+                    ? isSelected
+                      ? "bg-muted-foreground text-background hover:bg-muted-foreground/90 hover:text-background"
+                      : "border-muted bg-muted text-muted-foreground hover:bg-muted/80 hover:text-muted-foreground"
+                    : undefined
+                }
+                key={variant.id}
+                onClick={() => {
+                  setVariantId(variant.id);
+                  setQuantity(1);
+                }}
+                type="button"
+                variant={isSelected ? "default" : "outline"}
+              >
+                {variant.name}
+              </Button>
+            );
+          })}
         </div>
       </div>
       {selectedVariant ? (

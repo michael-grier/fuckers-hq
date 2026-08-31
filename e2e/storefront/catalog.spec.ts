@@ -101,6 +101,21 @@ test.describe("product page @smoke", () => {
     await expect(page.getByText("Only 3 left")).not.toBeVisible();
   });
 
+  test("an out-of-stock variant is muted but remains selectable", async ({ page }) => {
+    await page.goto("/products/e2e-budget-bearings");
+    const soldOutVariant = page.getByRole("button", { name: "Ceramic, out of stock" });
+
+    await expect(soldOutVariant).toBeEnabled();
+    await expect(soldOutVariant).toHaveAttribute("aria-pressed", "false");
+    await expect(soldOutVariant).toHaveClass(/bg-muted/);
+    await soldOutVariant.click();
+
+    await expect(soldOutVariant).toHaveAttribute("aria-pressed", "true");
+    await expect(soldOutVariant).toHaveClass(/bg-muted-foreground/);
+    await expect(page.getByText("Out of stock", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Add to cart" })).toBeDisabled();
+  });
+
   test("a sold-out product cannot be added to the cart", async ({ page }) => {
     await page.goto("/products/e2e-sold-out-deck");
     await expect(page.getByText("Out of stock", { exact: true })).toBeVisible();
