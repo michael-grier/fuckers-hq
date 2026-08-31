@@ -1256,14 +1256,6 @@
           "name": "orders_delivery_scheduled_requires_delivery",
           "value": "\"orders\".\"status\"::text <> 'delivery_scheduled' OR \"orders\".\"fulfillment_method\" = 'delivery'"
         },
-        "orders_delivery_review_method_consistent": {
-          "name": "orders_delivery_review_method_consistent",
-          "value": "(\n        \"orders\".\"fulfillment_method\" = 'delivery'\n        AND \"orders\".\"delivery_review_status\" IS NOT NULL\n      ) OR (\n        \"orders\".\"fulfillment_method\" = 'shipping'\n        AND \"orders\".\"delivery_review_status\"::text IS NULL\n      ) OR (\n        \"orders\".\"fulfillment_method\" = 'shipping'\n        AND \"orders\".\"delivery_review_status\"::text IN ('shipping_payment_received', 'shipping_payment_exception')\n      )"
-        },
-        "orders_delivery_scheduling_requires_approval": {
-          "name": "orders_delivery_scheduling_requires_approval",
-          "value": "\"orders\".\"status\"::text <> 'delivery_scheduled'\n        OR \"orders\".\"delivery_review_status\"::text = 'approved'"
-        },
         "orders_delivery_scheduled_at_required": {
           "name": "orders_delivery_scheduled_at_required",
           "value": "\"orders\".\"status\"::text NOT IN ('delivery_scheduled', 'fulfilled')\n        OR \"orders\".\"fulfillment_method\" <> 'delivery'\n        OR \"orders\".\"delivery_scheduled_at\" IS NOT NULL"

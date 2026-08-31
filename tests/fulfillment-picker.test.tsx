@@ -93,4 +93,14 @@ describe("local delivery cart controls", () => {
     expect(screen.getByText(/Add \$1\.00 more for free local delivery/)).toBeDefined();
     expect(screen.queryByText("Address review required")).toBeNull();
   });
+
+  test("offers local delivery at the minimum merchandise subtotal", () => {
+    useCartStore.setState({ lines: [{ ...deck, priceCents: 3_000 }] });
+
+    render(<FulfillmentPicker compact deliveryArea={deliveryArea} />);
+
+    expect(
+      (screen.getByRole("radio", { name: "Local delivery" }) as HTMLInputElement).disabled,
+    ).toBe(false);
+  });
 });

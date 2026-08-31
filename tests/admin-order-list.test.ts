@@ -44,6 +44,14 @@ describe("orderNeedsAction", () => {
     expect(orderNeedsAction(order({ deliveryReviewStatus: "approved" }))).toBe(false);
   });
 
+  test("flags shipping payment exceptions after an order leaves paid", () => {
+    expect(
+      orderNeedsAction(
+        order({ status: "refunded", deliveryReviewStatus: "shipping_payment_exception" }),
+      ),
+    ).toBe(true);
+  });
+
   test("flags refunded allocated stock regardless of fulfillment state", () => {
     expect(orderNeedsAction(order({ refundStatus: "partial" }))).toBe(true);
     expect(orderNeedsAction(order({ refundStatus: "full", status: "fulfilled" }))).toBe(true);

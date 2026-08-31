@@ -306,4 +306,19 @@ export function createDeliveryReviewRepository(database: Database): DeliveryRevi
   };
 }
 
-export const deliveryReviewRepository = createDeliveryReviewRepository(getDb());
+let defaultRepository: DeliveryReviewRepository | undefined;
+
+function getDefaultRepository(): DeliveryReviewRepository {
+  defaultRepository ??= createDeliveryReviewRepository(getDb());
+  return defaultRepository;
+}
+
+export const deliveryReviewRepository: DeliveryReviewRepository = {
+  approveDeliveryAddress: (orderId) => getDefaultRepository().approveDeliveryAddress(orderId),
+  prepareShippingPayment: (orderId, settings, now) =>
+    getDefaultRepository().prepareShippingPayment(orderId, settings, now),
+  linkShippingPaymentSession: (request, session, linkedAt) =>
+    getDefaultRepository().linkShippingPaymentSession(request, session, linkedAt),
+  markShippingPaymentCreationFailed: (request, failedAt) =>
+    getDefaultRepository().markShippingPaymentCreationFailed(request, failedAt),
+};

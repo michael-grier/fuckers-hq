@@ -93,9 +93,19 @@ test.describe("cart @smoke", () => {
 
     await dialog.getByRole("link", { name: "View cart" }).click();
     await expect(page).toHaveURL(/\/cart$/);
-    await expect(page.getByText("Address review required")).toBeVisible();
+    const cartPage = page.getByRole("main");
+    const acknowledgement = cartPage.getByRole("checkbox", {
+      name: /I understand that my address will be reviewed/,
+    });
+    await expect(cartPage.getByText("Address review required")).toBeVisible();
+    await expect(acknowledgement).toHaveAttribute("data-state", "checked");
+
+    await page.reload();
     await expect(
-      page.getByRole("checkbox", { name: /I understand that my address will be reviewed/ }),
-    ).toHaveAttribute("data-state", "checked");
+      cartPage.getByRole("checkbox", {
+        name: /I understand that my address will be reviewed/,
+      }),
+    ).toHaveAttribute("data-state", "unchecked");
+    await expect(cartPage.getByRole("button", { name: "Agree above to checkout" })).toBeDisabled();
   });
 });

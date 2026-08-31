@@ -24,15 +24,41 @@ export function createShippingPaymentRepository(database: Database): ShippingPay
           sql`select pg_advisory_xact_lock(hashtext(${payment.stripePaymentIntentId}))`,
         );
 
+        const reference = await tx.query.orderShippingPaymentRequests.findFirst({
+          columns: { orderId: true },
+          where: (requests, { eq }) => eq(requests.id, payment.requestId),
+        });
+
+        if (!reference) {
+          // Returning 500 makes Stripe retry while an operator investigates; a verified payment
+          // must never be acknowledged without a durable local record.
+          throw new DeliveryReviewError("Shipping-payment request was not found.");
+        }
+
+        // Delivery-review transactions lock the order before its request rows. Matching that order
+        // prevents an expired-session replacement from deadlocking with this paid webhook.
+        const [order] = await tx
+          .select()
+          .from(orders)
+          .where(eq(orders.id, reference.orderId))
+          .for("update");
+
+        if (!order) {
+          throw new DeliveryReviewError("Shipping-payment order was not found.");
+        }
+
         const [request] = await tx
           .select()
           .from(orderShippingPaymentRequests)
-          .where(eq(orderShippingPaymentRequests.id, payment.requestId))
+          .where(
+            and(
+              eq(orderShippingPaymentRequests.id, payment.requestId),
+              eq(orderShippingPaymentRequests.orderId, order.id),
+            ),
+          )
           .for("update");
 
         if (!request || request.generation !== payment.generation) {
-          // Returning 500 makes Stripe retry while an operator investigates; a verified payment
-          // must never be acknowledged without a durable local record.
           throw new DeliveryReviewError("Shipping-payment request was not found.");
         }
 
@@ -112,16 +138,6 @@ export function createShippingPaymentRepository(database: Database): ShippingPay
               inArray(orderEmailDeliveries.status, ["pending", "processing", "retry", "failed"]),
             ),
           );
-
-        const [order] = await tx
-          .select()
-          .from(orders)
-          .where(eq(orders.id, request.orderId))
-          .for("update");
-
-        if (!order) {
-          throw new DeliveryReviewError("Shipping-payment order was not found.");
-        }
 
         const paymentIsEligible =
           paymentState.refundStatus === "none" &&
@@ -216,4 +232,15 @@ export function createShippingPaymentRepository(database: Database): ShippingPay
   };
 }
 
-export const shippingPaymentRepository = createShippingPaymentRepository(getDb());
+let defaultRepository: ShippingPaymentEventWriter | undefined;
+
+function getDefaultRepository(): ShippingPaymentEventWriter {
+  defaultRepository ??= createShippingPaymentRepository(getDb());
+  return defaultRepository;
+}
+
+export const shippingPaymentRepository: ShippingPaymentEventWriter = {
+  recordPaidShippingPayment: (payment) => getDefaultRepository().recordPaidShippingPayment(payment),
+  closeShippingPayment: (reference, reason) =>
+    getDefaultRepository().closeShippingPayment(reference, reason),
+};

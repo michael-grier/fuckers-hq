@@ -48,6 +48,7 @@ mock.module("server-only", () => ({}));
 describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", () => {
   let adminClient: ReturnType<typeof postgres>;
   let client: ReturnType<typeof postgres>;
+  let scopedDatabaseUrl: string;
   let database: Database;
   let deliveryReview: DeliveryReviewRepository;
   let shippingPayments: ShippingPaymentEventWriter;
@@ -60,9 +61,10 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
 
     adminClient = postgres(unpooledTestDatabaseUrl, { max: 1, prepare: false });
     await adminClient.unsafe(`create schema "${schemaName}"`);
-    const scopedDatabaseUrl = new URL(unpooledTestDatabaseUrl);
-    scopedDatabaseUrl.searchParams.set("options", `-csearch_path=${schemaName}`);
-    client = postgres(scopedDatabaseUrl.toString(), { max: 10, prepare: false });
+    const scopedUrl = new URL(unpooledTestDatabaseUrl);
+    scopedUrl.searchParams.set("options", `-csearch_path=${schemaName}`);
+    scopedDatabaseUrl = scopedUrl.toString();
+    client = postgres(scopedDatabaseUrl, { max: 10, prepare: false });
 
     for (const statement of postgresTestSchema) {
       await client.unsafe(statement);
@@ -151,6 +153,40 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
     expect(await findOrder()).toMatchObject({ deliveryReviewStatus: "approved" });
   });
 
+  test("the expand-phase trigger preserves writes from the previous application version", async () => {
+    const legacyOrderId = "08f1ecaf-f50d-42d2-a9ec-2bdcf81b89b4";
+    await database.insert(orders).values({
+      id: legacyOrderId,
+      orderNumber: "FHQ-20260901-LEGACY01",
+      email: "legacy@example.com",
+      status: "paid",
+      inventoryStatus: "allocated",
+      fulfillmentMethod: "delivery",
+      deliveryReviewStatus: null,
+      stripeSessionId: "cs_test_legacy_delivery",
+      stripePaymentIntentId: "pi_test_legacy_delivery",
+      subtotalCents: 6000,
+      taxCents: 0,
+      shippingCents: 0,
+      totalCents: 6000,
+      currency: "cad",
+      shippingAddress: originalAddress,
+    });
+
+    expect(
+      await database.query.orders.findFirst({ where: eq(orders.id, legacyOrderId) }),
+    ).toMatchObject({ deliveryReviewStatus: "pending" });
+
+    await database
+      .update(orders)
+      .set({ status: "delivery_scheduled", deliveryScheduledAt: new Date() })
+      .where(eq(orders.id, legacyOrderId));
+
+    expect(
+      await database.query.orders.findFirst({ where: eq(orders.id, legacyOrderId) }),
+    ).toMatchObject({ deliveryReviewStatus: "approved" });
+  });
+
   test("concurrent shipping requests share one generation and queue one email", async () => {
     const now = new Date("2026-09-01T12:00:00.000Z");
     const [first, second] = await Promise.all([
@@ -180,6 +216,57 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
         idempotencyKey: `order-shipping-payment/${orderId}/1`,
       },
     ]);
+  });
+
+  test("a paid webhook locks the order before an expired request", async () => {
+    const request = await prepareLinkedRequest();
+    await database
+      .update(orderShippingPaymentRequests)
+      .set({ expiresAt: new Date("2026-09-01T11:59:00.000Z") })
+      .where(eq(orderShippingPaymentRequests.id, request.id));
+
+    const applicationName = `shipping_lock_${crypto.randomUUID()}`;
+    const paymentUrl = new URL(scopedDatabaseUrl);
+    paymentUrl.searchParams.set("application_name", applicationName);
+    const paymentClient = postgres(paymentUrl.toString(), { max: 1, prepare: false });
+    const paymentDatabase: Database = drizzle(paymentClient, {
+      schema: await import("@/lib/db/schema"),
+    });
+    const { createShippingPaymentRepository } = await import(
+      "@/lib/orders/shipping-payment-repository"
+    );
+    const paymentRepository = createShippingPaymentRepository(paymentDatabase);
+    let paymentPromise:
+      | ReturnType<ShippingPaymentEventWriter["recordPaidShippingPayment"]>
+      | undefined;
+
+    try {
+      await client.begin(async (blocker) => {
+        await blocker`select id from orders where id = ${orderId} for update`;
+        paymentPromise = paymentRepository.recordPaidShippingPayment(
+          paidShippingPayment(request.id, request.generation, "lock"),
+        );
+        await waitForBlockedApplication(applicationName);
+
+        // This succeeds only when the webhook has not taken the request lock while waiting for
+        // the order. The reverse order would deadlock against an expired-session replacement.
+        const lockedRequest = await blocker`
+          select id from order_shipping_payment_requests
+          where id = ${request.id}
+          for update nowait
+        `;
+        expect(lockedRequest).toHaveLength(1);
+      });
+
+      if (!paymentPromise) {
+        throw new Error("Shipping-payment lock test did not start its webhook transaction.");
+      }
+
+      await expect(paymentPromise).resolves.toEqual({ changed: true, orderId });
+    } finally {
+      await paymentPromise?.catch(() => undefined);
+      await paymentClient.end({ timeout: 5 });
+    }
   });
 
   test("a paid shipping Session converts fulfillment but preserves the original order facts", async () => {
@@ -329,6 +416,26 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       where: eq(orderShippingPaymentRequests.id, requestId),
     });
   }
+
+  async function waitForBlockedApplication(applicationName: string): Promise<void> {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const [activity] = await adminClient<{ blocked: boolean }[]>`
+        select exists (
+          select 1 from pg_stat_activity
+          where application_name = ${applicationName}
+            and wait_event_type = 'Lock'
+        ) as blocked
+      `;
+
+      if (activity?.blocked) {
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+
+    throw new Error("Shipping-payment webhook did not wait on the locked order.");
+  }
 });
 
 const settings = {
@@ -351,6 +458,8 @@ const postgresTestSchema = [
     created_at timestamptz not null default now(), expires_at timestamptz not null,
     completed_at timestamptz
   )`,
+  // Cross-column order constraints are deliberately deferred until the previous production
+  // writer can no longer create delivery orders without review state.
   `create table orders (
     id uuid primary key default gen_random_uuid(), order_number text not null unique,
     email text not null, status text not null, inventory_status text not null,
@@ -360,17 +469,25 @@ const postgresTestSchema = [
     refund_status text not null default 'none', refunded_cents integer not null default 0,
     dispute_status text not null default 'none', subtotal_cents integer not null,
     tax_cents integer not null, shipping_cents integer not null, total_cents integer not null,
-    currency text not null, shipping_address jsonb, created_at timestamptz not null default now(),
-    constraint orders_delivery_review_method_consistent check (
-      (fulfillment_method = 'delivery' and delivery_review_status is not null)
-      or (fulfillment_method = 'shipping' and delivery_review_status is null)
-      or (fulfillment_method = 'shipping' and delivery_review_status in (
-        'shipping_payment_received', 'shipping_payment_exception'
-      ))
-    )
+    currency text not null, shipping_address jsonb, created_at timestamptz not null default now()
   )`,
+  `create function set_legacy_delivery_review_status() returns trigger as $$
+  begin
+    if new.fulfillment_method = 'delivery' and new.delivery_review_status is null then
+      new.delivery_review_status := case when new.status = 'paid' then 'pending' else 'approved' end;
+    elsif new.fulfillment_method = 'delivery' and new.status = 'delivery_scheduled'
+      and new.delivery_review_status = 'pending' then
+      new.delivery_review_status := 'approved';
+    end if;
+    return new;
+  end;
+  $$ language plpgsql`,
+  `create trigger orders_legacy_delivery_review_status
+    before insert or update of fulfillment_method, status, delivery_review_status on orders
+    for each row execute function set_legacy_delivery_review_status()`,
   `create table order_shipping_payment_requests (
-    id uuid primary key default gen_random_uuid(), order_id uuid not null references orders(id),
+    id uuid primary key default gen_random_uuid(),
+    order_id uuid not null references orders(id) on delete cascade,
     generation integer not null default 1, status text not null default 'provisioning',
     amount_cents integer not null,
     tax_cents integer, total_cents integer, currency text not null, stripe_session_id text unique,
@@ -379,7 +496,27 @@ const postgresTestSchema = [
     expires_at timestamptz not null, paid_at timestamptz, refund_status text not null default 'none',
     refunded_cents integer not null default 0, dispute_status text not null default 'none',
     last_error_code text, created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(), unique (order_id, generation)
+    updated_at timestamptz not null default now(), unique (order_id, generation),
+    constraint order_shipping_payment_requests_generation_positive check (generation > 0),
+    constraint order_shipping_payment_requests_amount_nonnegative check (amount_cents >= 0),
+    constraint order_shipping_payment_requests_tax_nonnegative
+      check (tax_cents is null or tax_cents >= 0),
+    constraint order_shipping_payment_requests_total_nonnegative
+      check (total_cents is null or total_cents >= 0),
+    constraint order_shipping_payment_requests_refunded_nonnegative check (refunded_cents >= 0),
+    constraint order_shipping_payment_requests_refund_not_above_total
+      check (total_cents is null or refunded_cents <= total_cents),
+    constraint order_shipping_payment_requests_paid_state_consistent check ((
+      status = 'paid' and stripe_session_id is not null and stripe_payment_intent_id is not null
+      and tax_cents is not null and total_cents is not null and shipping_address is not null
+      and paid_at is not null
+    ) or (
+      status <> 'paid' and stripe_payment_intent_id is null and tax_cents is null
+      and total_cents is null and shipping_address is null and paid_at is null
+      and refund_status = 'none' and refunded_cents = 0 and dispute_status = 'none'
+    )),
+    constraint order_shipping_payment_requests_linked_state_has_session
+      check (status not in ('pending', 'paid', 'expired') or stripe_session_id is not null)
   )`,
   `create table order_email_deliveries (
     id uuid primary key default gen_random_uuid(), order_id uuid not null references orders(id),
