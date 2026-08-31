@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import { getDb } from "@/lib/db/client";
-import { orders, stripePaymentEvents } from "@/lib/db/schema";
+import { orderShippingPaymentRequests, orders, stripePaymentEvents } from "@/lib/db/schema";
 import { returnOrderItemsToStock } from "@/lib/orders/order-inventory-repository";
 import {
   derivePaymentLifecycleState,
@@ -31,7 +31,70 @@ export function createPaymentLifecycleRepository(database: Database): PaymentLif
         });
 
         if (!order) {
-          return { changed: insertedEvents.length === 1, orderId: null };
+          const shippingPayment = await tx.query.orderShippingPaymentRequests.findFirst({
+            where: (requests, { eq }) =>
+              eq(requests.stripePaymentIntentId, update.stripePaymentIntentId),
+          });
+
+          if (!shippingPayment) {
+            return { changed: insertedEvents.length === 1, orderId: null };
+          }
+
+          if (shippingPayment.totalCents === null) {
+            throw new Error("Recorded shipping payment is missing its total.");
+          }
+
+          const events = await tx
+            .select()
+            .from(stripePaymentEvents)
+            .where(eq(stripePaymentEvents.stripePaymentIntentId, update.stripePaymentIntentId));
+          const state = derivePaymentLifecycleState(
+            shippingPayment.totalCents,
+            shippingPayment.currency,
+            events.map(toPaymentLifecycleUpdate),
+          );
+          const shippingPaymentStateChanged =
+            shippingPayment.refundStatus !== state.refundStatus ||
+            shippingPayment.refundedCents !== state.refundedCents ||
+            shippingPayment.disputeStatus !== state.disputeStatus;
+
+          if (shippingPaymentStateChanged) {
+            await tx
+              .update(orderShippingPaymentRequests)
+              .set({
+                refundStatus: state.refundStatus,
+                refundedCents: state.refundedCents,
+                disputeStatus: state.disputeStatus,
+                updatedAt: new Date(),
+              })
+              .where(eq(orderShippingPaymentRequests.id, shippingPayment.id));
+          }
+
+          const shippingIsEligible =
+            state.refundStatus === "none" &&
+            (state.disputeStatus === "none" || state.disputeStatus === "won");
+          const shippingOrder = await tx.query.orders.findFirst({
+            columns: { fulfillmentMethod: true, deliveryReviewStatus: true },
+            where: (orders, { eq }) => eq(orders.id, shippingPayment.orderId),
+          });
+          const nextReviewStatus =
+            shippingIsEligible && shippingOrder?.fulfillmentMethod === "shipping"
+              ? "shipping_payment_received"
+              : "shipping_payment_exception";
+          const orderStateChanged = shippingOrder?.deliveryReviewStatus !== nextReviewStatus;
+
+          if (orderStateChanged) {
+            await tx
+              .update(orders)
+              .set({ deliveryReviewStatus: nextReviewStatus })
+              .where(eq(orders.id, shippingPayment.orderId));
+          }
+
+          return {
+            changed:
+              insertedEvents.length === 1 || shippingPaymentStateChanged || orderStateChanged,
+            orderId: shippingPayment.orderId,
+          };
         }
 
         const events = await tx

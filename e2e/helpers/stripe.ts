@@ -72,16 +72,40 @@ export async function startCheckoutFromCart(page: Page): Promise<string> {
   return match[0];
 }
 
-export type SessionTokens = { pendingCheckoutToken: string; reservationToken: string };
+export type SessionTokens = {
+  pendingCheckoutToken: string;
+  reservationToken: string;
+  fulfillmentMethod: "shipping" | "delivery";
+};
 
 /** Retrieves the real session's metadata tokens, which the webhook events must carry. */
 export async function getSessionTokens(sessionId: string): Promise<SessionTokens> {
   const session = await getStripe().checkout.sessions.retrieve(sessionId);
-  const { pendingCheckoutToken, reservationToken } = session.metadata ?? {};
-  if (!pendingCheckoutToken || !reservationToken) {
+  const { pendingCheckoutToken, reservationToken, fulfillmentMethod } = session.metadata ?? {};
+  if (
+    !pendingCheckoutToken ||
+    !reservationToken ||
+    (fulfillmentMethod !== "shipping" && fulfillmentMethod !== "delivery")
+  ) {
     throw new Error(`Session ${sessionId} is missing checkout metadata tokens.`);
   }
-  return { pendingCheckoutToken, reservationToken };
+  return { pendingCheckoutToken, reservationToken, fulfillmentMethod };
+}
+
+export async function getShippingPaymentTokens(sessionId: string): Promise<{
+  requestId: string;
+  generation: number;
+  amountCents: number;
+}> {
+  const session = await getStripe().checkout.sessions.retrieve(sessionId);
+  const requestId = session.metadata?.shippingPaymentRequestId;
+  const generation = Number(session.metadata?.shippingPaymentGeneration);
+
+  if (!requestId || !Number.isSafeInteger(generation) || !session.amount_subtotal) {
+    throw new Error(`Session ${sessionId} is missing shipping-payment metadata.`);
+  }
+
+  return { requestId, generation, amountCents: session.amount_subtotal };
 }
 
 type CheckoutEventOptions = {
@@ -91,6 +115,8 @@ type CheckoutEventOptions = {
   subtotalCents: number;
   email: string;
   paymentStatus?: "paid" | "unpaid";
+  /** Defaults to the regular synthetic shipping charge; local delivery passes zero. */
+  shippingCents?: number;
 };
 
 /** A signed checkout.session.* event body ready to POST to the webhook route. */
@@ -102,7 +128,7 @@ export function buildSignedCheckoutEvent(
     | "checkout.session.expired",
   options: CheckoutEventOptions,
 ): { payload: string; signature: string } {
-  const shippingCents = 1_500;
+  const shippingCents = options.shippingCents ?? 1_500;
   const payload = JSON.stringify({
     id: `evt_e2e_${Date.now().toString(36)}`,
     object: "event",
@@ -115,7 +141,7 @@ export function buildSignedCheckoutEvent(
         mode: "payment",
         payment_status: options.paymentStatus ?? "paid",
         payment_intent: `pi_e2e_${options.tokens.reservationToken.slice(0, 12)}`,
-        metadata: { ...options.tokens, fulfillmentMethod: "shipping" },
+        metadata: options.tokens,
         customer_details: { email: options.email },
         amount_subtotal: options.subtotalCents,
         amount_total: options.subtotalCents + shippingCents,
@@ -142,6 +168,66 @@ export function buildSignedCheckoutEvent(
     payload,
     secret: requireWebhookSecret(),
   });
+  return { payload, signature };
+}
+
+type ShippingPaymentEventOptions = {
+  eventId: string;
+  sessionId: string;
+  requestId: string;
+  generation: number;
+  amountCents: number;
+  email: string;
+};
+
+/** A signed paid event for the supplemental Checkout Session created from an admin decision. */
+export function buildSignedShippingPaymentEvent(options: ShippingPaymentEventOptions): {
+  payload: string;
+  signature: string;
+} {
+  const payload = JSON.stringify({
+    id: options.eventId,
+    object: "event",
+    type: "checkout.session.completed",
+    created: Math.floor(Date.now() / 1000),
+    data: {
+      object: {
+        id: options.sessionId,
+        object: "checkout.session",
+        mode: "payment",
+        payment_status: "paid",
+        payment_intent: `pi_e2e_shipping_${options.requestId.slice(0, 12)}`,
+        metadata: {
+          checkoutKind: "order_shipping_payment",
+          shippingPaymentRequestId: options.requestId,
+          shippingPaymentGeneration: options.generation.toString(),
+        },
+        customer_details: { email: options.email },
+        amount_subtotal: options.amountCents,
+        amount_total: options.amountCents,
+        currency: "cad",
+        total_details: { amount_tax: 0, amount_shipping: 0 },
+        shipping_cost: null,
+        collected_information: {
+          shipping_details: {
+            name: "E2E Shipping Customer",
+            address: {
+              line1: "456 Shipping Avenue",
+              city: "Airdrie",
+              state: "AB",
+              postal_code: "T4A 0A1",
+              country: "CA",
+            },
+          },
+        },
+      },
+    },
+  });
+  const signature = getStripe().webhooks.generateTestHeaderString({
+    payload,
+    secret: requireWebhookSecret(),
+  });
+
   return { payload, signature };
 }
 

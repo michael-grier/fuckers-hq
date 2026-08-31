@@ -1,12 +1,16 @@
 import "server-only";
 
+import { and, eq } from "drizzle-orm";
+
 import { getDb } from "@/lib/db/client";
+import { orderShippingPaymentRequests } from "@/lib/db/schema";
 import { deliverDeliveryScheduled } from "@/lib/email/deliver-delivery-scheduled";
 import {
   type ConfirmationEmailDelivery,
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
 import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
+import { deliverShippingPaymentRequest } from "@/lib/email/deliver-shipping-payment-request";
 import type { OrderEmailRef } from "@/lib/email/order-email-delivery";
 import { getResend } from "@/lib/email/resend";
 import { requireEnv } from "@/lib/env";
@@ -18,10 +22,16 @@ import { resolveOrderTracking } from "@/lib/orders/shipping-carriers";
  * the outbox retries it; it never mutates order state.
  */
 export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string): Promise<string> {
-  const order = await getDb().query.orders.findFirst({
+  const database = getDb();
+  const order = await database.query.orders.findFirst({
     where: (orders, { eq }) => eq(orders.id, ref.orderId),
     with: {
       items: true,
+      shippingPaymentRequests: {
+        where: (requests, { eq }) => eq(requests.status, "paid"),
+        orderBy: (requests, { asc }) => [asc(requests.paidAt)],
+        limit: 1,
+      },
     },
   });
 
@@ -33,6 +43,44 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
     from: requireEnv("EMAIL_FROM"),
     supportEmail: requireEnv("SUPPORT_EMAIL"),
   };
+
+  if (ref.kind === "shipping_payment_request") {
+    const generation = Number(idempotencyKey.split("/").at(-1));
+
+    if (!Number.isSafeInteger(generation) || generation <= 0) {
+      throw new Error("Shipping-payment email has an invalid generation key.");
+    }
+
+    const request = await database.query.orderShippingPaymentRequests.findFirst({
+      where: and(
+        eq(orderShippingPaymentRequests.orderId, order.id),
+        eq(orderShippingPaymentRequests.generation, generation),
+        eq(orderShippingPaymentRequests.status, "pending"),
+      ),
+    });
+
+    if (!request?.checkoutUrl) {
+      throw new Error("Shipping-payment email has no active Checkout link.");
+    }
+
+    return deliverShippingPaymentRequest(
+      {
+        orderId: order.id,
+        idempotencyKey,
+        recipientEmail: order.email,
+        order: {
+          orderNumber: order.orderNumber,
+          amountCents: request.amountCents,
+          currency: request.currency,
+          checkoutUrl: request.checkoutUrl,
+          expiresAt: request.expiresAt,
+        },
+      },
+      config,
+      getResend().emails,
+    );
+  }
+
   if (ref.kind === "delivery_scheduled") {
     // Built entirely from the order record, so a later configuration change can never make this
     // notification undeliverable or claim a service area the order was not placed under.
@@ -75,7 +123,9 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
             variantName: item.variantNameSnapshot,
             quantity: item.quantity,
           })),
-          shippingAddressLines: getShippingAddressLines(order.shippingAddress),
+          shippingAddressLines: getShippingAddressLines(
+            order.shippingPaymentRequests[0]?.shippingAddress ?? order.shippingAddress,
+          ),
           tracking,
         },
       },

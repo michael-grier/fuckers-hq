@@ -266,6 +266,7 @@ const postgresTestSchema = [
     status text not null,
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
+    delivery_review_status text,
     delivery_scheduled_at timestamptz,
     shipped_at timestamptz,
     tracking_carrier text,

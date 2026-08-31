@@ -98,8 +98,16 @@ transition.
 - [ ] At phone widths the cart occupies the viewport width; at tablet and desktop widths it is
       capped and leaves the overlay visible.
 - [ ] With delivery configured, the fulfillment picker offers Ship it and Local delivery in both
-      the cart sidebar and `/cart`, shows the delivery area details, and the choice persists with
-      the cart across reloads.
+      the cart sidebar and `/cart` for merchandise subtotals of at least $30.
+- [ ] Selecting Local delivery expands the Address review required warning inside the choice on
+      both cart surfaces. It names the configured area, explains the shipping-payment or refund
+      fallback, and includes the required acknowledgement checkbox.
+- [ ] Checkout stays disabled until the acknowledgement is checked. Switching to shipping removes
+      the requirement. Returning to delivery requires the checkbox again after a reload.
+- [ ] A cart below $30 shows how much more is needed and does not allow Local delivery to be
+      selected. Raising the subtotal to $30 or more enables it.
+- [ ] The fulfillment choice persists with the cart across reloads, but the acknowledgement does
+      not persist.
 - [ ] With delivery unconfigured, the picker does not render and checkout uses shipping.
 - [ ] Reloading the page preserves the cart.
 - [ ] Cancelling hosted Checkout returns to `/cart` without clearing purchase intent.
@@ -117,6 +125,10 @@ transition.
 - [ ] A local-delivery checkout shows free delivery naming the configured area instead of shipping
       rates, and still collects the customer's address.
 - [ ] Requesting the delivery method while delivery is not configured is rejected server-side.
+- [ ] Sending a local-delivery request without the address-review acknowledgement is rejected
+      before inventory is reserved or Stripe is called.
+- [ ] Sending a local-delivery request whose current database-priced merchandise subtotal is below
+      $30 is rejected before inventory is reserved or Stripe is called.
 - [ ] Tax behavior matches `STRIPE_TAX_ENABLED` and the Stripe sandbox configuration.
 - [ ] Starting Checkout increases the selected variant's reserved quantity and reduces its
       available quantity without changing on-hand inventory.
@@ -161,13 +173,65 @@ Fulfillment for a shipping order:
 
 Fulfillment for a local-delivery order (requires the delivery configuration from section 2):
 
-- [ ] The paid order appears in the `/admin/deliveries` queue, oldest first, alongside the
-      configured delivery area.
+- [ ] The paid order appears in the Orders page's **Needs action** filter with an **Address
+      review** badge. It does not appear in `/admin/deliveries` yet.
+- [ ] Selecting the row shows the amber address-review summary and **Review full order** link in
+      the queue preview.
+- [ ] The full order shows the customer's address, a Google Maps search link, and the two explicit
+      decisions: **Approve local delivery** and **Request shipping payment**.
+- [ ] Attempting the delivery-scheduling action directly is rejected until the address is
+      approved.
+- [ ] Confirm **Approve local delivery**. The Needs action count decreases and the order appears in
+      `/admin/deliveries`, oldest first, alongside the configured delivery area.
 - [ ] Scheduling the delivery moves the order to `delivery_scheduled` and delivers exactly one
       `delivery_scheduled` email.
 - [ ] Marking it delivered moves the order to `fulfilled` without sending another email.
 - [ ] Each step offers only the single valid next transition; a shipping order is never offered
       delivery steps and vice versa.
+
+Repeat with a fresh paid local-delivery order whose address is outside the free area:
+
+- [ ] Confirm **Request shipping payment**. The two-click confirmation clearly says it will email
+      the customer before creating anything.
+- [ ] The order changes to **Awaiting shipping payment** without entering either fulfillment
+      queue. The panel shows the persisted regular shipping rate, “plus applicable tax” before
+      payment, the link expiry, and the payment-request email state.
+- [ ] The shipping-payment email arrives once, explains why shipping is required, links to Stripe,
+      offers cancellation for a refund, and names the base shipping charge without claiming a
+      final tax amount.
+- [ ] **Open payment link** and **Copy link** expose the same current Stripe Checkout URL. Stripe
+      collects the allowed shipping address and shows exactly one shipping line with no promotion
+      code field.
+- [ ] Cancel Stripe Checkout. `/order/shipping-payment/cancelled` says the original order is
+      unchanged and the emailed link remains usable until expiry.
+- [ ] Reopen the emailed link and pay with the successful sandbox card. Stripe redirects to the
+      dedicated shipping-payment success page, not the original order success page.
+- [ ] Exactly one existing order is updated; no second order or inventory change is created. Its
+      method becomes shipping, it enters **To ship**, and its review badge reads **Shipping paid**.
+- [ ] The original checkout subtotal, delivery charge, tax, total, and original address remain
+      unchanged. The supplemental shipping base, Stripe tax, total, payment references, refund
+      state, and collected shipping address appear separately.
+- [ ] Replaying the supplemental `checkout.session.completed` event does not change the order,
+      payment record, outbox, or inventory a second time.
+- [ ] Marking the converted order shipped uses the address collected by the supplemental Checkout
+      and sends one normal shipping email.
+
+Shipping-payment recovery and cancellation:
+
+- [ ] Let a fresh payment link expire. The expiration webhook returns the order to **Address
+      review**; the expired link cannot be reused.
+- [ ] Request shipping again. A new generation and email idempotency key are created while the
+      expired request remains in order history.
+- [ ] Temporarily fault the Stripe Session call after the request commits, retry from the full
+      order, and confirm the same persisted idempotency key converges on one Checkout Session.
+- [ ] Partially refund the supplemental shipping payment in Stripe. The original order and
+      inventory financials stay unchanged, the order becomes **Shipping payment issue**, and
+      shipping is blocked until an operator reconciles the extra payment in Stripe.
+- [ ] For a customer who declines shipping, refund the original order in Stripe. Confirm the usual
+      refund/inventory workflow applies; do not manually rewrite the original order total.
+- [ ] The automated Postgres suite covers the impractical late-event case: payment on an older
+      generation after a replacement link exists is retained as a blocking exception rather than
+      discarded or applied silently.
 
 Refund inventory:
 
@@ -344,8 +408,9 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 
 ## 9. Order Email Delivery Recovery
 
-Confirmation, `delivery_scheduled`, and `shipped` emails all flow through the same durable outbox;
-a delivery failure never rolls back the paid order or the fulfillment transition that queued it.
+Confirmation, shipping-payment request, `delivery_scheduled`, and `shipped` emails all flow through
+the same durable outbox; a delivery failure never rolls back the paid order, payment link, or the
+fulfillment transition that queued it.
 Non-terminal failures defer the email to the retry cron; after the attempt limit the delivery
 becomes `Needs attention`, which the cron no longer picks up and only the admin retry action can
 deliver. Perform this check only with a test recipient and sandbox

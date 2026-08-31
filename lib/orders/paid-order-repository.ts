@@ -150,6 +150,8 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
             // Taken from the pending checkout the server wrote at reservation time, not from the
             // Stripe Session metadata that round-tripped through the browser and Stripe.
             fulfillmentMethod: pendingCheckout.fulfillmentMethod,
+            deliveryReviewStatus:
+              pendingCheckout.fulfillmentMethod === "delivery" ? "pending" : null,
             stripeSessionId: checkout.stripeSessionId,
             stripePaymentIntentId: checkout.stripePaymentIntentId,
             refundStatus: paymentState.refundStatus,

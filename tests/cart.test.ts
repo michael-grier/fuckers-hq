@@ -41,7 +41,12 @@ const bearings: CartDisplayLine = {
 };
 
 beforeEach(() => {
-  useCartStore.setState({ isCartOpen: false, lines: [] });
+  useCartStore.setState({
+    deliveryAddressReviewAcknowledged: false,
+    fulfillmentMethod: "shipping",
+    isCartOpen: false,
+    lines: [],
+  });
   storage.clear();
 });
 
@@ -67,6 +72,18 @@ describe("cart store", () => {
 
     expect(useCartStore.getState().isCartOpen).toBe(false);
     expect(storage.getItem("fuckers-hq-cart")).not.toContain("isCartOpen");
+  });
+
+  test("keeps delivery acknowledgement session-only and clears it when shipping is selected", () => {
+    useCartStore.getState().setFulfillmentMethod("delivery");
+    useCartStore.getState().setDeliveryAddressReviewAcknowledged(true);
+
+    expect(useCartStore.getState().deliveryAddressReviewAcknowledged).toBe(true);
+    expect(storage.getItem("fuckers-hq-cart")).not.toContain("deliveryAddressReviewAcknowledged");
+
+    useCartStore.getState().setFulfillmentMethod("shipping");
+
+    expect(useCartStore.getState().deliveryAddressReviewAcknowledged).toBe(false);
   });
 
   test("updates quantities, removes lines, and clears the cart", () => {
@@ -171,10 +188,13 @@ describe("cart store", () => {
   test("builds checkout intent without display snapshot fields", () => {
     useCartStore.getState().addLine({ ...deck, quantity: 2 });
 
-    expect(toCheckoutRequest(useCartStore.getState().lines, "request-123", "delivery")).toEqual({
+    expect(
+      toCheckoutRequest(useCartStore.getState().lines, "request-123", "delivery", true),
+    ).toEqual({
       requestId: "request-123",
       items: [{ variantId: deck.variantId, quantity: 2 }],
       fulfillmentMethod: "delivery",
+      deliveryAddressReviewAcknowledged: true,
     });
   });
 

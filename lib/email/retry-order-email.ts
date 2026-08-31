@@ -14,6 +14,7 @@ const emailLabels: Record<OrderEmailKind, string> = {
   confirmation: "Confirmation",
   delivery_scheduled: "Delivery notification",
   shipped: "Shipping notification",
+  shipping_payment_request: "Shipping payment request",
 };
 
 export async function retryOrderEmailForAdmin(

@@ -38,6 +38,7 @@ export function toCheckoutRequest(
   lines: CartDisplayLine[],
   requestId: string,
   fulfillmentMethod: CartFulfillmentMethod,
+  deliveryAddressReviewAcknowledged = false,
 ): CheckoutRequest {
   return {
     requestId,
@@ -46,5 +47,6 @@ export function toCheckoutRequest(
       quantity,
     })),
     fulfillmentMethod,
+    ...(fulfillmentMethod === "delivery" ? { deliveryAddressReviewAcknowledged } : {}),
   };
 }

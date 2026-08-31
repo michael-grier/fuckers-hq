@@ -13,6 +13,10 @@ import {
   planInventoryAllocation,
   resolveOrderItemSnapshots,
 } from "@/lib/orders/create-paid-order";
+import type {
+  PaidShippingPaymentData,
+  ShippingPaymentEventWriter,
+} from "@/lib/orders/delivery-review";
 import {
   derivePaymentLifecycleState,
   type PaymentLifecycleUpdate,
@@ -21,12 +25,14 @@ import {
 import {
   constructVerifiedStripeEvent,
   parsePaidCheckoutData,
+  parsePaidShippingPaymentData,
   parsePaymentLifecycleUpdate,
   processStripeEvent,
   StripeWebhookSignatureError,
 } from "@/lib/webhooks/stripe";
 
 const variantId = "3f5277e9-b73f-4a94-9bc8-5f9d06f9f5d6";
+const shippingPaymentRequestId = "2c428c31-5462-42cc-8e0d-cebf749c046d";
 
 function makeCheckoutSession(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -65,6 +71,25 @@ function makeCheckoutSession(overrides: Record<string, unknown> = {}): Record<st
     },
     ...overrides,
   };
+}
+
+function makeShippingPaymentSession(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return makeCheckoutSession({
+    id: "cs_test_shipping_payment",
+    payment_intent: "pi_test_shipping_payment",
+    metadata: {
+      checkoutKind: "order_shipping_payment",
+      shippingPaymentRequestId,
+      shippingPaymentGeneration: "2",
+    },
+    amount_subtotal: 2000,
+    amount_total: 2100,
+    total_details: { amount_shipping: 0, amount_tax: 100 },
+    shipping_cost: null,
+    ...overrides,
+  });
 }
 
 function makeRefundEvent(
@@ -270,7 +295,79 @@ describe("Stripe payment lifecycle parsing", () => {
   });
 });
 
+describe("shipping payment Session parsing", () => {
+  test("maps the supplemental amount, tax, payment identity, generation, and address", () => {
+    expect(parsePaidShippingPaymentData(makeShippingPaymentSession())).toMatchObject({
+      requestId: shippingPaymentRequestId,
+      generation: 2,
+      stripeSessionId: "cs_test_shipping_payment",
+      stripePaymentIntentId: "pi_test_shipping_payment",
+      subtotalCents: 2000,
+      taxCents: 100,
+      totalCents: 2100,
+      currency: "cad",
+      shippingAddress: {
+        name: "Test Skater",
+        address: { city: "Calgary", country: "CA" },
+      },
+    });
+  });
+});
+
 describe("Stripe event processing", () => {
+  test("routes supplemental payment and expiration events without creating another order", async () => {
+    let paidPayment: PaidShippingPaymentData | null = null;
+    const closures: string[] = [];
+    const shippingWriter: ShippingPaymentEventWriter = {
+      recordPaidShippingPayment: async (payment) => {
+        paidPayment = payment;
+        return { changed: true, orderId: "order_shipping" };
+      },
+      closeShippingPayment: async (reference, reason) => {
+        closures.push(`${reason}:${reference.generation}`);
+        return { changed: true, orderId: "order_shipping" };
+      },
+    };
+    let originalOrderWrites = 0;
+    const originalWriter = {
+      createPaidOrder: async () => {
+        originalOrderWrites += 1;
+        return { created: true, orderId: "wrong_order" };
+      },
+    };
+
+    await expect(
+      processStripeEvent(
+        {
+          type: "checkout.session.completed",
+          data: { object: makeShippingPaymentSession() },
+        },
+        originalWriter,
+        undefined,
+        undefined,
+        shippingWriter,
+      ),
+    ).resolves.toEqual({
+      handled: true,
+      shippingPaymentChanged: true,
+      orderId: "order_shipping",
+    });
+    expect(paidPayment).toMatchObject({ requestId: shippingPaymentRequestId, generation: 2 });
+    expect(originalOrderWrites).toBe(0);
+
+    await processStripeEvent(
+      {
+        type: "checkout.session.expired",
+        data: { object: makeShippingPaymentSession({ payment_status: "unpaid" }) },
+      },
+      originalWriter,
+      undefined,
+      undefined,
+      shippingWriter,
+    );
+    expect(closures).toEqual(["expired:2"]);
+  });
+
   test("ignores unrelated events and keeps unpaid Sessions reserved", async () => {
     let writes = 0;
     const reservationTransitions: string[] = [];

@@ -472,12 +472,40 @@ describe("local delivery checkout", () => {
     expect(params.metadata?.fulfillmentMethod).toBe("shipping");
   });
 
-  test("refuses a delivery request while delivery is switched off", async () => {
+  test("requires address-review acknowledgement before reserving stock", async () => {
     let repositoryCalled = false;
 
     await expect(
       createHostedCheckout(
         { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "delivery" },
+        deliverySettings,
+        {
+          repository: makeRepository({
+            reserveCheckout: async () => {
+              repositoryCalled = true;
+              throw new Error("Unexpected reservation call.");
+            },
+          }),
+          sessions: { create: async () => ({ id: "cs_unused", url: null }) },
+          createToken: () => "unused-token",
+        },
+      ),
+    ).rejects.toThrow();
+
+    expect(repositoryCalled).toBe(false);
+  });
+
+  test("refuses a delivery request while delivery is switched off", async () => {
+    let repositoryCalled = false;
+
+    await expect(
+      createHostedCheckout(
+        {
+          requestId,
+          items: [{ variantId, quantity: 1 }],
+          fulfillmentMethod: "delivery",
+          deliveryAddressReviewAcknowledged: true,
+        },
         { ...settings, allowedCountries: [...settings.allowedCountries] },
         {
           repository: makeRepository({
@@ -515,7 +543,12 @@ describe("local delivery checkout", () => {
     });
 
     await createHostedCheckout(
-      { requestId, items: [{ variantId, quantity: 1 }], fulfillmentMethod: "delivery" },
+      {
+        requestId,
+        items: [{ variantId, quantity: 1 }],
+        fulfillmentMethod: "delivery",
+        deliveryAddressReviewAcknowledged: true,
+      },
       deliverySettings,
       {
         repository,

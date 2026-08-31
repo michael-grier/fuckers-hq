@@ -21,6 +21,7 @@ export type CheckoutRequest = {
     quantity: number;
   }>;
   fulfillmentMethod: CartFulfillmentMethod;
+  deliveryAddressReviewAcknowledged?: boolean;
 };
 
 export type AddCartLineInput = Omit<CartDisplayLine, "quantity"> & {

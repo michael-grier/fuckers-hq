@@ -37,6 +37,7 @@ function makeState(overrides: Partial<OrderFulfillmentState> = {}): OrderFulfill
     refundStatus: "none",
     disputeStatus: "none",
     fulfillmentMethod: "shipping",
+    deliveryReviewStatus: null,
     ...overrides,
   };
 }
@@ -280,7 +281,11 @@ describe("order fulfillment transitions", () => {
   test("blocks fulfillment while a paid order has an inventory exception", async () => {
     const shipping = makeBlockedRepository(makeState({ inventoryStatus: "exception" }));
     const deliveryBlocked = makeBlockedRepository(
-      makeState({ inventoryStatus: "exception", fulfillmentMethod: "delivery" }),
+      makeState({
+        inventoryStatus: "exception",
+        fulfillmentMethod: "delivery",
+        deliveryReviewStatus: "approved",
+      }),
     );
 
     await expect(applyOrderFulfillmentTransition(orderId, "ship", shipping)).rejects.toEqual(
@@ -294,6 +299,34 @@ describe("order fulfillment transitions", () => {
     ).rejects.toEqual(
       new OrderFulfillmentError(
         "Resolve the inventory exception before fulfilling this order.",
+        "invalid_status",
+      ),
+    );
+  });
+
+  test("blocks delivery scheduling until the address is approved", async () => {
+    const unreviewed = makeBlockedRepository(
+      makeState({ fulfillmentMethod: "delivery", deliveryReviewStatus: "pending" }),
+    );
+
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "schedule_delivery", unreviewed),
+    ).rejects.toEqual(
+      new OrderFulfillmentError(
+        "Approve this delivery address before scheduling the order.",
+        "invalid_status",
+      ),
+    );
+  });
+
+  test("blocks converted shipping until its supplemental payment is eligible", async () => {
+    const paymentPending = makeBlockedRepository(
+      makeState({ deliveryReviewStatus: "shipping_payment_pending" }),
+    );
+
+    await expect(applyOrderFulfillmentTransition(orderId, "ship", paymentPending)).rejects.toEqual(
+      new OrderFulfillmentError(
+        "Resolve the shipping-payment review before marking this order as shipped.",
         "invalid_status",
       ),
     );

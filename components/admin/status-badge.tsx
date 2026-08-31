@@ -71,6 +71,22 @@ const disputeStatusLabels: Record<Order["disputeStatus"], string> = {
   prevented: "Dispute prevented",
 };
 
+const deliveryReviewStatusStyles: Record<NonNullable<Order["deliveryReviewStatus"]>, string> = {
+  pending: "border-amber-300 bg-amber-50 text-amber-900",
+  approved: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  shipping_payment_pending: "border-sky-200 bg-sky-50 text-sky-900",
+  shipping_payment_received: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  shipping_payment_exception: "border-red-200 bg-red-50 text-red-800",
+};
+
+const deliveryReviewStatusLabels: Record<NonNullable<Order["deliveryReviewStatus"]>, string> = {
+  pending: "Address review",
+  approved: "Delivery approved",
+  shipping_payment_pending: "Awaiting shipping payment",
+  shipping_payment_received: "Shipping paid",
+  shipping_payment_exception: "Shipping payment issue",
+};
+
 function formatStatus(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
@@ -151,6 +167,18 @@ export function DisputeStatusBadge({ status }: { status: Order["disputeStatus"] 
   return (
     <Badge className={disputeStatusStyles[status]} variant="outline">
       {disputeStatusLabels[status]}
+    </Badge>
+  );
+}
+
+export function DeliveryReviewStatusBadge({
+  status,
+}: {
+  status: NonNullable<Order["deliveryReviewStatus"]>;
+}) {
+  return (
+    <Badge className={deliveryReviewStatusStyles[status]} variant="outline">
+      {deliveryReviewStatusLabels[status]}
     </Badge>
   );
 }

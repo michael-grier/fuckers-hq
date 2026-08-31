@@ -70,4 +70,32 @@ test.describe("cart @smoke", () => {
       page.getByRole("main").getByRole("heading", { name: /Street Deck 8\.25/ }),
     ).toBeVisible();
   });
+
+  test("local delivery requires the address-review agreement in the sidebar and cart page", async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.DELIVERY_ENABLED !== "true" || !process.env.DELIVERY_AREA_NAME,
+      "Local delivery is not configured in this environment.",
+    );
+
+    await addStreetDeckToCart(page);
+    const dialog = page.getByRole("dialog");
+    await dialog.getByText("Local delivery", { exact: true }).click();
+
+    await expect(dialog.getByText("Address review required")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Agree above to checkout" })).toBeDisabled();
+
+    await dialog
+      .getByRole("checkbox", { name: /I understand that my address will be reviewed/ })
+      .click();
+    await expect(dialog.getByRole("button", { name: "Checkout" })).toBeEnabled();
+
+    await dialog.getByRole("link", { name: "View cart" }).click();
+    await expect(page).toHaveURL(/\/cart$/);
+    await expect(page.getByText("Address review required")).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: /I understand that my address will be reviewed/ }),
+    ).toHaveAttribute("data-state", "checked");
+  });
 });

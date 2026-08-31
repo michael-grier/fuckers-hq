@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gte, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { orderEmailDeliveries, orderItems, orders, productVariants } from "@/lib/db/schema";
@@ -62,6 +62,12 @@ export const adminOrderRepository: OrderFulfillmentRepository &
             eq(orders.inventoryStatus, "allocated"),
             ne(orders.refundStatus, "full"),
             inArray(orders.disputeStatus, ["none", "won"]),
+            transition === "ship"
+              ? or(
+                  isNull(orders.deliveryReviewStatus),
+                  eq(orders.deliveryReviewStatus, "shipping_payment_received"),
+                )
+              : eq(orders.deliveryReviewStatus, "approved"),
           ),
         )
         .returning({ id: orders.id });
@@ -97,6 +103,7 @@ export const adminOrderRepository: OrderFulfillmentRepository &
         refundStatus: true,
         disputeStatus: true,
         fulfillmentMethod: true,
+        deliveryReviewStatus: true,
       },
       where: (orders, { eq }) => eq(orders.id, orderId),
     });

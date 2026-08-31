@@ -65,8 +65,21 @@ export const checkoutSchema = z
     // Absent means shipping so a client that predates the fulfillment choice keeps working
     // unchanged.
     fulfillmentMethod: fulfillmentMethodSchema.default("shipping"),
+    deliveryAddressReviewAcknowledged: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((checkout, context) => {
+    if (
+      checkout.fulfillmentMethod === "delivery" &&
+      checkout.deliveryAddressReviewAcknowledged !== true
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Local delivery requires address-review acknowledgement.",
+        path: ["deliveryAddressReviewAcknowledged"],
+      });
+    }
+  });
 
 export const checkoutResponseSchema = z
   .object({

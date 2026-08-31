@@ -169,6 +169,21 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     });
   });
 
+  test("rejects a delivery subtotal below the minimum before reserving inventory", async () => {
+    await insertVariant(database, variantId, 1, 2_900);
+
+    await expect(
+      reserve(checkoutRepository, variantId, "10000000-0000-4000-8000-00000000000c", "delivery"),
+    ).rejects.toThrow("merchandise subtotal of at least $30.00");
+
+    expect(await variantStock(database, variantId)).toEqual({
+      inventoryQty: 1,
+      reservedQty: 0,
+    });
+    expect(await database.$count(inventoryReservations)).toBe(0);
+    expect(await database.$count(pendingCheckouts)).toBe(0);
+  });
+
   test("refuses to replay a checkout request under a different fulfillment method", async () => {
     await insertVariant(database, variantId, 2);
 
@@ -523,13 +538,18 @@ function getDatabaseErrorCode(error: unknown): string | null {
   return "cause" in error ? getDatabaseErrorCode(error.cause) : null;
 }
 
-async function insertVariant(database: Database, id: string, inventoryQty: number): Promise<void> {
+async function insertVariant(
+  database: Database,
+  id: string,
+  inventoryQty: number,
+  priceCents = 8_900,
+): Promise<void> {
   await database.insert(productVariants).values({
     id,
     productId,
     name: id === variantId ? '8.25"' : '8.5"',
     sku: id === variantId ? "DECK-825" : "DECK-850",
-    priceCents: 8900,
+    priceCents,
     inventoryQty,
   });
 }
@@ -703,6 +723,7 @@ const postgresTestSchema = [
     status text not null,
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
+    delivery_review_status text,
     delivery_scheduled_at timestamptz,
     shipped_at timestamptz,
     tracking_carrier text,

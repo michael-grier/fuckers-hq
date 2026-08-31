@@ -93,6 +93,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
         status: "paid",
         inventoryStatus: "allocated",
         fulfillmentMethod: "delivery",
+        deliveryReviewStatus: "approved",
         stripeSessionId: "cs_test_delivery",
         stripePaymentIntentId: "pi_test_delivery",
         subtotalCents: 8900,
@@ -246,6 +247,18 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
       idempotencyKey: `order-delivery-scheduled/${deliveryOrderId}`,
     });
   });
+
+  test("does not schedule an unreviewed delivery", async () => {
+    await database
+      .update(orders)
+      .set({ deliveryReviewStatus: "pending" })
+      .where(eq(orders.id, deliveryOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(deliveryOrderId, "schedule_delivery", new Date(), null),
+    ).resolves.toBe(false);
+    expect(await findDeliveries(deliveryOrderId)).toHaveLength(0);
+  });
 });
 
 // Mirrors the production DDL for only the tables this transition touches. Enum columns are declared
@@ -258,6 +271,7 @@ const postgresTestSchema = [
     status text not null,
     inventory_status text not null,
     fulfillment_method text not null default 'shipping',
+    delivery_review_status text,
     delivery_scheduled_at timestamptz,
     shipped_at timestamptz,
     tracking_carrier text,
@@ -283,6 +297,17 @@ const postgresTestSchema = [
     ),
     constraint orders_delivery_scheduled_requires_delivery check (
       status <> 'delivery_scheduled' or fulfillment_method = 'delivery'
+    ),
+    constraint orders_delivery_review_method_consistent check (
+      (fulfillment_method = 'delivery' and delivery_review_status is not null)
+      or (fulfillment_method = 'shipping' and delivery_review_status is null)
+      or (
+        fulfillment_method = 'shipping'
+        and delivery_review_status in ('shipping_payment_received', 'shipping_payment_exception')
+      )
+    ),
+    constraint orders_delivery_scheduling_requires_approval check (
+      status <> 'delivery_scheduled' or delivery_review_status = 'approved'
     ),
     constraint orders_delivery_scheduled_at_required check (
       status not in ('delivery_scheduled', 'fulfilled')

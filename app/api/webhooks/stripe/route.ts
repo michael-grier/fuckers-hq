@@ -9,6 +9,7 @@ import { requireEnv } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
 import { paidOrderRepository } from "@/lib/orders/paid-order-repository";
 import { paymentLifecycleRepository } from "@/lib/orders/payment-lifecycle-repository";
+import { shippingPaymentRepository } from "@/lib/orders/shipping-payment-repository";
 import { getStripe } from "@/lib/stripe";
 import { constructVerifiedStripeEvent, processStripeEvent } from "@/lib/webhooks/stripe";
 
@@ -38,6 +39,7 @@ export async function POST(request: Request): Promise<Response> {
       paidOrderRepository,
       paymentLifecycleRepository,
       reservationEventRepository,
+      shippingPaymentRepository,
     );
 
     await sendConfirmationAfterOrderCommit(

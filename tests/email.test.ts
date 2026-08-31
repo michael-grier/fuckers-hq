@@ -9,6 +9,7 @@ import {
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
 import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
+import { deliverShippingPaymentRequest } from "@/lib/email/deliver-shipping-payment-request";
 import { DeliveryScheduledEmail, type DeliveryScheduledView } from "@/lib/email/delivery-scheduled";
 import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
 import {
@@ -21,6 +22,10 @@ import {
 import { OrderEmailDeliveryError } from "@/lib/email/order-email-transport";
 import { OrderShippedEmail, type OrderShippedView } from "@/lib/email/order-shipped";
 import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
+import {
+  ShippingPaymentRequestEmail,
+  type ShippingPaymentRequestView,
+} from "@/lib/email/shipping-payment-request";
 import { getShippingAddressLines } from "@/lib/orders/shipping-address";
 import {
   getShippingCarrierLabel,
@@ -77,6 +82,14 @@ const deliveryScheduledView: DeliveryScheduledView = {
   totalCents: 8900,
   items: [{ productName: "Database Deck", variantName: '8.25"', quantity: 1 }],
   deliveryAddressLines: ["Test Skater", "123 Test Street", "Calgary, AB T1T 1T1", "CA"],
+};
+
+const shippingPaymentView: ShippingPaymentRequestView = {
+  orderNumber: "FHQ-20260713-ABC12345",
+  amountCents: 2200,
+  currency: "cad",
+  checkoutUrl: "https://checkout.stripe.test/shipping",
+  expiresAt: new Date("2026-09-01T18:00:00.000Z"),
 };
 
 describe("order confirmation template", () => {
@@ -367,7 +380,7 @@ describe("delivery-scheduled template", () => {
 });
 
 describe("delivery confirmation template", () => {
-  test("shows the address as a drop-off with the arranging note", async () => {
+  test("shows the address as a drop-off with the manual review fallback", async () => {
     const html = await render(
       createElement(OrderConfirmationEmail, {
         order: {
@@ -385,7 +398,9 @@ describe("delivery confirmation template", () => {
     expect(html).toContain("Delivery");
     expect(html).toContain("Free");
     expect(html).not.toContain("Pickup");
-    expect(html).toContain("arrange a delivery time");
+    expect(html).toContain("manually confirm");
+    expect(html).toContain("regular shipping");
+    expect(html).toContain("full refund");
     expect(html).not.toContain("Shipping to");
   });
 
@@ -405,8 +420,51 @@ describe("delivery confirmation template", () => {
     // The receipt still goes out, and still tells the customer this is a delivery order rather
     // than silently omitting every fulfillment detail.
     expect(html).toContain("Delivering to");
-    expect(html).toContain("arrange a delivery time");
+    expect(html).toContain("manually confirm");
     expect(html).not.toContain("Shipping to");
+  });
+});
+
+describe("shipping payment request email", () => {
+  test("renders the base charge, secure link, expiry, and cancellation option", async () => {
+    const html = await render(
+      createElement(ShippingPaymentRequestEmail, {
+        order: shippingPaymentView,
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(html).toContain("outside our free delivery area");
+    expect(html).toContain("$22.00");
+    expect(html).toContain("applicable tax");
+    expect(html).toContain("https://checkout.stripe.test/shipping");
+    expect(html).toContain("support@example.com");
+    expect(html).toContain("refund the original order");
+  });
+
+  test("uses the generation-specific outbox key at the provider boundary", async () => {
+    let idempotencyKey: string | undefined;
+
+    await deliverShippingPaymentRequest(
+      {
+        orderId: delivery.orderId,
+        idempotencyKey: `order-shipping-payment/${delivery.orderId}/2`,
+        recipientEmail: delivery.recipientEmail,
+        order: shippingPaymentView,
+      },
+      {
+        from: "Fuckers Skateboards <orders@example.com>",
+        supportEmail: "support@example.com",
+      },
+      {
+        send: async (_input, options) => {
+          idempotencyKey = options.idempotencyKey;
+          return { data: { id: "email_shipping" }, error: null, headers: null };
+        },
+      },
+    );
+
+    expect(idempotencyKey).toBe(`order-shipping-payment/${delivery.orderId}/2`);
   });
 });
 

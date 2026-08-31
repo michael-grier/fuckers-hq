@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import {
+  DeliveryReviewStatusBadge,
   DisputeStatusBadge,
   OrderInventoryStatusBadge,
   OrderRestockRequiredBadge,
@@ -78,6 +79,10 @@ export function OrderListRow({ order, isSelected }: OrderListRowProps) {
             <OrderRestockRequiredBadge />
           ) : orderNeedsAction(order) && order.inventoryStatus === "exception" ? (
             <OrderInventoryStatusBadge status={order.inventoryStatus} />
+          ) : order.deliveryReviewStatus === "pending" ||
+            order.deliveryReviewStatus === "shipping_payment_pending" ||
+            order.deliveryReviewStatus === "shipping_payment_exception" ? (
+            <DeliveryReviewStatusBadge status={order.deliveryReviewStatus} />
           ) : (
             <OrderStatusBadge status={order.status} />
           )}

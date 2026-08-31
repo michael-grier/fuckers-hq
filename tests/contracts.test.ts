@@ -54,8 +54,16 @@ describe("checkout contract", () => {
         requestId,
         items: [{ variantId, quantity: 2 }],
         fulfillmentMethod: "delivery",
+        deliveryAddressReviewAcknowledged: true,
       }).fulfillmentMethod,
     ).toBe("delivery");
+    expect(
+      checkoutSchema.safeParse({
+        requestId,
+        items: [{ variantId, quantity: 2 }],
+        fulfillmentMethod: "delivery",
+      }).success,
+    ).toBe(false);
     expect(() =>
       checkoutSchema.parse({
         requestId,

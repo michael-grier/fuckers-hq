@@ -7,6 +7,7 @@ import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inve
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
 import {
+  DeliveryReviewStatusBadge,
   DisputeStatusBadge,
   FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
@@ -36,7 +37,11 @@ export type PeekableOrder = NonNullable<Awaited<ReturnType<typeof getAdminOrderB
  * Presentational only — the container owns layout, scrolling, and dismissal.
  */
 export function OrderPeek({ order }: { order: PeekableOrder }) {
-  const shippingAddressLines = getShippingAddressLines(order.shippingAddress);
+  const fulfillmentAddress =
+    order.fulfillmentMethod === "shipping" && order.shippingPaymentRequest?.shippingAddress
+      ? order.shippingPaymentRequest.shippingAddress
+      : order.shippingAddress;
+  const shippingAddressLines = getShippingAddressLines(fulfillmentAddress);
   const canFulfill = isOrderFulfillmentEligible(order);
   const nextTransition = resolveNextFulfillmentTransition(order);
   const delivery = order.confirmationDelivery;
@@ -52,6 +57,9 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
         <div className="flex flex-wrap items-center gap-2">
           <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
           <FulfillmentMethodBadge method={order.fulfillmentMethod} />
+          {order.deliveryReviewStatus ? (
+            <DeliveryReviewStatusBadge status={order.deliveryReviewStatus} />
+          ) : null}
           {needsInventoryReturn ? (
             <OrderRestockRequiredBadge />
           ) : (
@@ -76,11 +84,44 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href={`/admin/orders/${order.id}` as Route} prefetch={false}>
-              Open full order
+              {order.deliveryReviewStatus === "pending" ? "Review full order" : "Open full order"}
             </Link>
           </Button>
         </div>
       </div>
+
+      {order.deliveryReviewStatus === "pending" ||
+      order.deliveryReviewStatus === "shipping_payment_pending" ||
+      order.deliveryReviewStatus === "shipping_payment_exception" ? (
+        <div
+          className={
+            order.deliveryReviewStatus === "shipping_payment_exception"
+              ? "bg-red-50 p-4 text-red-950"
+              : "bg-amber-50 p-4 text-amber-950"
+          }
+        >
+          <p className="flex items-center gap-2 font-semibold text-sm">
+            <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+            {order.deliveryReviewStatus === "pending"
+              ? "Address review required"
+              : order.deliveryReviewStatus === "shipping_payment_pending"
+                ? "Waiting for shipping payment"
+                : "Shipping payment needs attention"}
+          </p>
+          <p className="mt-1.5 text-xs leading-5 opacity-80">
+            {order.deliveryReviewStatus === "pending"
+              ? "Check the customer address and choose free local delivery or regular shipping."
+              : order.deliveryReviewStatus === "shipping_payment_pending"
+                ? "Do not fulfill until Stripe records the supplemental shipping charge."
+                : "Reconcile the supplemental charge or refund in Stripe before fulfillment."}
+          </p>
+          {order.deliveryReviewStatus === "pending" && shippingAddressLines.length > 0 ? (
+            <address className="mt-2 not-italic text-xs leading-5">
+              {shippingAddressLines.join(", ")}
+            </address>
+          ) : null}
+        </div>
+      ) : null}
 
       {needsInventoryReturn ? (
         <div className="border-red-600 border-y-2 bg-red-50 p-4 text-red-950">
@@ -198,7 +239,7 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-wide">
             Confirmation email
           </h3>
-          {delivery && delivery.status !== "sent" ? (
+          {delivery && delivery.status !== "sent" && delivery.status !== "cancelled" ? (
             <RetryOrderEmailButton kind="confirmation" orderId={order.id} />
           ) : null}
         </div>

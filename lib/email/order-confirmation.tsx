@@ -112,8 +112,9 @@ export function OrderConfirmationEmail({ order, supportEmail }: OrderConfirmatio
               ))}
               {order.isLocalDelivery ? (
                 <Text style={styles.deliveryNote}>
-                  Hold tight — we'll contact you at this email address to arrange a delivery time
-                  once your order is ready.
+                  We will manually confirm that this address is in our free local delivery area. If
+                  it is outside the area, we will email a secure link for the regular shipping
+                  charge. You can also cancel for a full refund.
                 </Text>
               ) : null}
             </Section>

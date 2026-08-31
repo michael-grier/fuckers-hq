@@ -23,6 +23,11 @@ const emailCopy: Record<OrderEmailKind, { confirm: string; confirmLabel: string;
     confirmLabel: "Yes, resend",
     idle: "Resend shipping email",
   },
+  shipping_payment_request: {
+    confirm: "Retry the shipping payment request email?",
+    confirmLabel: "Yes, retry",
+    idle: "Retry payment request email",
+  },
 };
 
 export function RetryOrderEmailButton({

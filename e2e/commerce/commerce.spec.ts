@@ -4,7 +4,9 @@ import {
   addToCartFromPdp,
   buildSignedCheckoutEvent,
   buildSignedRefundEvent,
+  buildSignedShippingPaymentEvent,
   getSessionTokens,
+  getShippingPaymentTokens,
   postWebhook,
   readCartVariantId,
   resilientPost,
@@ -154,6 +156,40 @@ test.describe("checkout boundary @commerce", () => {
     expect(response.status()).toBe(400);
   });
 
+  test("delivery checkout rejects a missing acknowledgement and a subtotal below $30", async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.DELIVERY_ENABLED !== "true" || !process.env.DELIVERY_AREA_NAME,
+      "Local delivery is not configured in this environment.",
+    );
+
+    await addToCartFromPdp(page, "street-deck-825");
+    const deckVariantId = await readCartVariantId(page);
+    const missingAcknowledgement = await resilientPost(page.request, "/api/checkout", {
+      data: {
+        requestId: crypto.randomUUID(),
+        items: [{ variantId: deckVariantId, quantity: 1 }],
+        fulfillmentMethod: "delivery",
+      },
+    });
+    expect(missingAcknowledgement.status()).toBe(400);
+
+    await page.evaluate(() => window.localStorage.removeItem("fuckers-hq-cart"));
+    await page.reload();
+    await addToCartFromPdp(page, "e2e-budget-bearings");
+    const budgetVariantId = await readCartVariantId(page);
+    const belowMinimum = await resilientPost(page.request, "/api/checkout", {
+      data: {
+        requestId: crypto.randomUUID(),
+        items: [{ variantId: budgetVariantId, quantity: 1 }],
+        fulfillmentMethod: "delivery",
+        deliveryAddressReviewAcknowledged: true,
+      },
+    });
+    expect(belowMinimum.status()).toBe(400);
+  });
+
   test("the same requestId converges on one checkout session", async ({ page }) => {
     await addToCartFromPdp(page, "e2e-budget-bearings");
     const variantId = await readCartVariantId(page);
@@ -182,6 +218,80 @@ test.describe("checkout boundary @commerce", () => {
 });
 
 test.describe("paid-order webhook @commerce", () => {
+  test("an admin review converts an out-of-area delivery after supplemental payment", async ({
+    page,
+  }) => {
+    test.skip(
+      process.env.DELIVERY_ENABLED !== "true" || !process.env.DELIVERY_AREA_NAME,
+      "Local delivery is not configured in this environment.",
+    );
+    test.setTimeout(120_000);
+    const email = `e2e-delivery-review-${runId}@example.com`;
+
+    await addToCartFromPdp(page, "street-deck-825");
+    const cart = page.getByRole("dialog");
+    await cart.getByText("Local delivery", { exact: true }).click();
+    await cart
+      .getByRole("checkbox", { name: /I understand that my address will be reviewed/ })
+      .click();
+    const originalSessionId = await startCheckoutFromCart(page);
+    const originalTokens = await getSessionTokens(originalSessionId);
+    const originalPayment = buildSignedCheckoutEvent("checkout.session.completed", {
+      sessionId: originalSessionId,
+      tokens: originalTokens,
+      subtotalCents: 8_900,
+      shippingCents: 0,
+      email,
+    });
+    expect(await postWebhook(page.request, originalPayment)).toBe(200);
+
+    await page.goto(`/admin/orders?filter=needs-action&q=${encodeURIComponent(email)}`);
+    const orderRow = page.getByRole("link", { name: /FHQ-/ });
+    await expect(orderRow).toHaveCount(1);
+    await expect(orderRow.getByText("Address review", { exact: true })).toBeVisible();
+    await orderRow.click();
+    await expect(page.getByText("Address review required", { exact: true })).toBeVisible();
+    await page.getByRole("link", { name: "Review full order" }).click();
+
+    await expect(page.getByRole("heading", { name: "Review this delivery address" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /Check address in Google Maps/ })).toBeVisible();
+    await page.getByRole("button", { name: "Request shipping payment" }).click();
+    await page.getByRole("button", { name: "Create and email link" }).click();
+
+    await expect(page.getByRole("heading", { name: "Waiting for shipping payment" })).toBeVisible({
+      timeout: 30_000,
+    });
+    const checkoutUrl = await page
+      .getByRole("link", { name: /Open payment link/ })
+      .getAttribute("href");
+    const shippingSessionId = checkoutUrl?.match(/cs_test_[A-Za-z0-9]+/)?.[0];
+
+    if (!shippingSessionId) {
+      throw new Error(`Shipping payment URL had no Session id: ${checkoutUrl}`);
+    }
+
+    const shippingTokens = await getShippingPaymentTokens(shippingSessionId);
+    const shippingPayment = buildSignedShippingPaymentEvent({
+      eventId: `evt_e2e_shipping_payment_${runId}`,
+      sessionId: shippingSessionId,
+      ...shippingTokens,
+      email,
+    });
+    expect(await postWebhook(page.request, shippingPayment)).toBe(200);
+    expect(await postWebhook(page.request, shippingPayment)).toBe(200);
+
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "Shipping payment received" })).toBeVisible();
+    await expect(page.getByText("Original subtotal", { exact: true })).toBeVisible();
+    await expect(page.getByText("Supplemental shipping paid", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeVisible();
+
+    await page.goto(`/admin/orders?filter=to-ship&q=${encodeURIComponent(email)}`);
+    await expect(page.getByRole("link", { name: /FHQ-/ })).toHaveCount(1);
+    await openWorkspace(page, "Street Deck 8.25");
+    await expect((await variantRow(page, "DECK-STREET-825")).onHand).toHaveValue("11");
+  });
+
   test("a signed paid event creates exactly one order, once, with inventory converted", async ({
     page,
   }) => {
@@ -289,6 +399,7 @@ test.describe("paid-order webhook @commerce", () => {
       tokens: {
         pendingCheckoutToken: "e2e-forged-pending-token",
         reservationToken: "e2e-forged-reservation",
+        fulfillmentMethod: "shipping",
       },
       subtotalCents: 8_900,
       email: `e2e-forged-${runId}@example.com`,
@@ -456,6 +567,7 @@ test.describe("fulfillment @commerce", () => {
       sessionId,
       tokens,
       subtotalCents: 3_400,
+      shippingCents: 0,
       email,
     });
     expect(await postWebhook(page.request, event)).toBe(200);
@@ -487,13 +599,14 @@ test.describe("fulfillment @commerce", () => {
     test.setTimeout(120_000);
     const email = `e2e-deliver-${runId}@example.com`;
 
-    await addToCartFromPdp(page, "e2e-budget-bearings");
+    await addToCartFromPdp(page, "precision-bearings");
     const variantId = await readCartVariantId(page);
     const response = await resilientPost(page.request, "/api/checkout", {
       data: {
         requestId: crypto.randomUUID(),
         items: [{ variantId, quantity: 1 }],
         fulfillmentMethod: "delivery",
+        deliveryAddressReviewAcknowledged: true,
       },
     });
     expect(response.status()).toBe(200);
@@ -503,12 +616,22 @@ test.describe("fulfillment @commerce", () => {
     const event = buildSignedCheckoutEvent("checkout.session.completed", {
       sessionId,
       tokens,
-      subtotalCents: 500,
+      subtotalCents: 3_400,
       email,
     });
     expect(await postWebhook(page.request, event)).toBe(200);
 
-    // The paid delivery order enters the queue; scheduling then delivering completes it.
+    // Paid local orders stay out of the delivery queue until an admin approves the address.
+    await page.goto(`/admin/orders?filter=needs-action&q=${encodeURIComponent(email)}`);
+    const reviewOrder = page.getByRole("link", { name: /FHQ-/ });
+    await expect(reviewOrder).toHaveCount(1);
+    await reviewOrder.click();
+    await page.getByRole("link", { name: "Review full order" }).click();
+    await page.getByRole("button", { name: "Approve local delivery" }).click();
+    await page.getByRole("button", { name: "Yes, approve" }).click();
+    await expect(page.getByRole("heading", { name: "Local delivery approved" })).toBeVisible();
+
+    // Once approved, scheduling and delivering the order completes it.
     await page.goto("/admin/deliveries");
     const deliveryPath = new URL(page.url()).pathname;
     const scheduleRow = page.getByRole("row").filter({ hasText: email });

@@ -5,13 +5,17 @@ import { revalidatePath } from "next/cache";
 import type { ActionResult } from "@/lib/actions/result";
 import { validationFailure } from "@/lib/actions/result";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { parseAllowedShippingCountries } from "@/lib/checkout/shipping";
 import type { OrderEmailKind } from "@/lib/db/schema";
 import { attemptOrderEmailDelivery } from "@/lib/email/order-email-delivery";
 import { orderEmailDeliveryRepository } from "@/lib/email/order-email-delivery-repository";
 import { retryOrderEmailForAdmin } from "@/lib/email/retry-order-email";
 import { sendOrderEmail } from "@/lib/email/send-order-email";
+import { env, requireEnv } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
 import { adminOrderRepository } from "@/lib/orders/admin-order-repository";
+import { DeliveryReviewError, requestOrderShippingPayment } from "@/lib/orders/delivery-review";
+import { deliveryReviewRepository } from "@/lib/orders/delivery-review-repository";
 import {
   applyOrderFulfillmentTransition,
   OrderFulfillmentError,
@@ -27,6 +31,7 @@ import {
   OrderInventoryReturnError,
   returnRefundedOrderInventory,
 } from "@/lib/orders/return-order-inventory";
+import { getStripe } from "@/lib/stripe";
 import {
   adminOrderIdSchema,
   markOrderShippedSchema,
@@ -40,6 +45,7 @@ const fulfillmentEmailOperations: Record<OrderEmailKind, string> = {
   confirmation: "email.confirmation",
   delivery_scheduled: "email.delivery-scheduled",
   shipped: "email.shipped",
+  shipping_payment_request: "email.shipping-payment-request",
 };
 
 /**
@@ -158,6 +164,108 @@ export async function scheduleOrderDelivery(input: unknown): Promise<ActionResul
 
 export async function markOrderDelivered(input: unknown): Promise<ActionResult> {
   return runOrderIdTransition(input, "delivered", "admin.mark-order-delivered");
+}
+
+function revalidateOrderWorkflows(orderId: string): void {
+  revalidatePath("/admin");
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin/deliveries");
+  revalidatePath(`/admin/orders/${orderId}`);
+}
+
+/** Records the operator's manual decision that a delivery address is inside the free area. */
+export async function approveOrderDeliveryAddress(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = adminOrderIdSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  const result = await deliveryReviewRepository.approveDeliveryAddress(parsed.data.orderId);
+
+  if (result === "not_found") {
+    return { success: false, message: "Order not found." };
+  }
+
+  if (result === "invalid_status") {
+    return {
+      success: false,
+      message: "This order is no longer eligible for local-delivery approval.",
+    };
+  }
+
+  revalidateOrderWorkflows(parsed.data.orderId);
+  return { success: true, data: undefined };
+}
+
+/** Creates the durable supplemental Checkout link, then attempts its outbox email after commit. */
+export async function requestOrderShippingCharge(
+  input: unknown,
+): Promise<ActionResult<{ checkoutUrl: string }>> {
+  await requireAdmin();
+
+  const parsed = adminOrderIdSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  let checkoutUrl: string;
+
+  try {
+    const result = await requestOrderShippingPayment(
+      parsed.data.orderId,
+      {
+        appUrl: requireEnv("NEXT_PUBLIC_APP_URL"),
+        allowedCountries: parseAllowedShippingCountries(env.SHIPPING_ALLOWED_COUNTRIES),
+        taxEnabled: env.STRIPE_TAX_ENABLED,
+      },
+      {
+        repository: deliveryReviewRepository,
+        sessions: getStripe().checkout.sessions,
+      },
+    );
+    checkoutUrl = result.checkoutUrl;
+  } catch (error) {
+    captureServerException(error, {
+      area: "admin",
+      operation: "admin.request-order-shipping-charge",
+    });
+
+    return {
+      success: false,
+      message:
+        error instanceof DeliveryReviewError
+          ? error.message
+          : "The shipping payment link could not be created. No email was sent.",
+    };
+  }
+
+  try {
+    const attempt = await attemptOrderEmailDelivery(
+      { orderId: parsed.data.orderId, kind: "shipping_payment_request" },
+      orderEmailDeliveryRepository,
+      sendOrderEmail,
+      { force: true },
+    );
+
+    if (attempt.status === "failed") {
+      captureServerException(attempt.error, {
+        area: "email",
+        operation: "email.shipping-payment-request",
+      });
+    }
+  } catch (error) {
+    captureServerException(error, {
+      area: "email",
+      operation: "email.shipping-payment-request",
+    });
+  }
+
+  revalidateOrderWorkflows(parsed.data.orderId);
+  return { success: true, data: { checkoutUrl } };
 }
 
 export async function retryOrderInventoryAllocation(input: unknown): Promise<ActionResult> {

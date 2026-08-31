@@ -20,6 +20,7 @@ type FilterableOrder = Pick<
   | "refundStatus"
   | "disputeStatus"
   | "fulfillmentMethod"
+  | "deliveryReviewStatus"
 > & {
   confirmationDeliveryStatus: OrderEmailDelivery["status"] | null;
 };
@@ -34,10 +35,16 @@ export function orderNeedsAction(order: FilterableOrder): boolean {
   }
 
   if (order.status !== "paid") {
-    return false;
+    return order.deliveryReviewStatus === "shipping_payment_exception";
   }
 
-  return order.inventoryStatus === "exception" || order.confirmationDeliveryStatus === "failed";
+  return (
+    order.inventoryStatus === "exception" ||
+    order.confirmationDeliveryStatus === "failed" ||
+    order.deliveryReviewStatus === "pending" ||
+    order.deliveryReviewStatus === "shipping_payment_pending" ||
+    order.deliveryReviewStatus === "shipping_payment_exception"
+  );
 }
 
 // Delivery orders have their own queue at /admin/deliveries, so they must not appear in a
@@ -46,6 +53,8 @@ export function orderNeedsAction(order: FilterableOrder): boolean {
 function isAwaitingShipment(order: FilterableOrder): boolean {
   return (
     order.fulfillmentMethod === "shipping" &&
+    (order.deliveryReviewStatus === null ||
+      order.deliveryReviewStatus === "shipping_payment_received") &&
     order.inventoryStatus === "allocated" &&
     isOrderFulfillmentEligible(order)
   );

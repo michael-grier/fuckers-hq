@@ -11,6 +11,12 @@ import type {
   PaidOrderWriter,
 } from "@/lib/orders/create-paid-order";
 import type {
+  PaidShippingPaymentData,
+  ShippingPaymentEventReference,
+  ShippingPaymentEventWriter,
+} from "@/lib/orders/delivery-review";
+import { shippingPaymentMetadataSchema } from "@/lib/orders/delivery-review";
+import type {
   PaymentLifecycleUpdate,
   PaymentLifecycleWriter,
   RecordPaymentLifecycleResult,
@@ -129,6 +135,7 @@ export type StripeWebhookResult =
   | { handled: false }
   | ({ handled: true } & CreatePaidOrderResult)
   | { handled: true; reservationChanged: boolean }
+  | { handled: true; shippingPaymentChanged: boolean; orderId: string | null }
   | ({ handled: true; paymentUpdated: true } & RecordPaymentLifecycleResult);
 
 export class StripeWebhookSignatureError extends Error {
@@ -216,6 +223,63 @@ export function parseReservationEventData(input: unknown): ReservationEventData 
   };
 }
 
+const shippingPaymentReferenceSchema = z
+  .object({
+    id: z.string().min(1),
+    metadata: z.record(z.string(), z.string()).nullable(),
+  })
+  .passthrough();
+
+export function parseShippingPaymentReference(
+  input: unknown,
+): ShippingPaymentEventReference | null {
+  const session = shippingPaymentReferenceSchema.safeParse(input);
+
+  if (!session.success) {
+    return null;
+  }
+
+  const metadata = shippingPaymentMetadataSchema.safeParse(session.data.metadata);
+
+  if (!metadata.success) {
+    return null;
+  }
+
+  return {
+    requestId: metadata.data.shippingPaymentRequestId,
+    generation: metadata.data.shippingPaymentGeneration,
+    stripeSessionId: session.data.id,
+  };
+}
+
+export function parsePaidShippingPaymentData(input: unknown): PaidShippingPaymentData | null {
+  const session = paidCheckoutSessionSchema.parse(input);
+  const metadata = shippingPaymentMetadataSchema.parse(session.metadata);
+
+  if (session.payment_status === "unpaid") {
+    return null;
+  }
+
+  const stripePaymentIntentId = getPaymentIntentId(session.payment_intent);
+  const shippingAddress = session.collected_information?.shipping_details;
+
+  if (!stripePaymentIntentId || !shippingAddress) {
+    throw new Error("Paid shipping Checkout Session is missing payment or address details.");
+  }
+
+  return {
+    requestId: metadata.shippingPaymentRequestId,
+    generation: metadata.shippingPaymentGeneration,
+    stripeSessionId: session.id,
+    stripePaymentIntentId,
+    subtotalCents: session.amount_subtotal,
+    taxCents: session.total_details?.amount_tax ?? 0,
+    totalCents: session.amount_total,
+    currency: session.currency,
+    shippingAddress,
+  };
+}
+
 export function parsePaymentLifecycleUpdate(event: StripeEventLike): PaymentLifecycleUpdate | null {
   const isDisputeEvent =
     event.type === "charge.dispute.created" ||
@@ -267,7 +331,47 @@ export async function processStripeEvent(
   writer: PaidOrderWriter,
   paymentLifecycleWriter?: PaymentLifecycleWriter,
   reservationWriter?: ReservationEventWriter,
+  shippingPaymentWriter?: ShippingPaymentEventWriter,
 ): Promise<StripeWebhookResult> {
+  const shippingPaymentReference = parseShippingPaymentReference(event.data.object);
+
+  if (
+    shippingPaymentReference &&
+    (event.type === "checkout.session.completed" ||
+      event.type === "checkout.session.async_payment_succeeded")
+  ) {
+    if (!shippingPaymentWriter) {
+      throw new Error("Shipping-payment persistence is not configured.");
+    }
+
+    const payment = parsePaidShippingPaymentData(event.data.object);
+
+    if (!payment) {
+      return { handled: true, shippingPaymentChanged: false, orderId: null };
+    }
+
+    const result = await shippingPaymentWriter.recordPaidShippingPayment(payment);
+
+    return { handled: true, shippingPaymentChanged: result.changed, orderId: result.orderId };
+  }
+
+  if (
+    shippingPaymentReference &&
+    (event.type === "checkout.session.expired" ||
+      event.type === "checkout.session.async_payment_failed")
+  ) {
+    if (!shippingPaymentWriter) {
+      throw new Error("Shipping-payment persistence is not configured.");
+    }
+
+    const result = await shippingPaymentWriter.closeShippingPayment(
+      shippingPaymentReference,
+      event.type === "checkout.session.expired" ? "expired" : "async_payment_failed",
+    );
+
+    return { handled: true, shippingPaymentChanged: result.changed, orderId: result.orderId };
+  }
+
   if (event.type === "checkout.session.completed") {
     const checkout = parsePaidCheckoutData(event.data.object);
 

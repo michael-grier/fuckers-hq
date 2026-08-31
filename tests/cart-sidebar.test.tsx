@@ -75,7 +75,7 @@ describe("cart sidebar", () => {
     expect(header).toContain("sm:pr-14");
   });
 
-  test("offers delivery as a compact segmented control, details not inflating the footer", () => {
+  test("offers delivery as a compact control with the warning hidden until selected", () => {
     const markup = renderToStaticMarkup(
       <Sheet>
         <CartSidebarContent
@@ -93,13 +93,14 @@ describe("cart sidebar", () => {
     expect(markup).toContain("Ship it");
     expect(markup).toContain("Local delivery");
     expect(markup).toContain("We do not currently charge sales tax.");
+    expect(markup).toContain("Add $30.00 more for free local delivery");
     // Real radios keep arrow-key navigation working even though the control looks segmented.
     expect(markup).toContain('type="radio"');
-    // The footer never carries the delivery details at rest; they live behind a disclosure that
-    // only appears once delivery is chosen. Zustand serves its initial state to SSR, so that
-    // selected branch is only reachable in a browser, not in static markup.
-    expect(markup).not.toContain("Rocky View County, Alberta");
+    // Zustand serves its empty initial cart to SSR, so the minimum helper names the area while the
+    // longer warning and store-specific instructions wait for a browser selection.
+    expect(markup).toContain("Rocky View County, Alberta");
     expect(markup).not.toContain("Ring the buzzer.");
+    expect(markup).not.toContain("Address review required");
   });
 
   test("omits the picker entirely when delivery is not configured", () => {
