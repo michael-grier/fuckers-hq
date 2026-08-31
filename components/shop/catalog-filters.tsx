@@ -6,6 +6,7 @@ import { useTransition } from "react";
 
 import { CatalogFilterPopover } from "@/components/shop/catalog-filter-popover";
 import { Input } from "@/components/ui/input";
+import type { ProductSubcategory } from "@/lib/catalog/categories";
 import type { CatalogFilterUpdate } from "@/lib/catalog/filter-staging";
 import {
   type CatalogSort,
@@ -16,10 +17,13 @@ import {
 } from "@/lib/catalog/search-params";
 
 type CatalogFiltersProps = {
+  // Resolved on the server from the whole active catalogue, so the panel never offers a
+  // subcategory nothing is filed under.
+  populatedSubcategories: ProductSubcategory[];
   totalProducts: number;
 };
 
-export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
+export function CatalogFilters({ populatedSubcategories, totalProducts }: CatalogFiltersProps) {
   const [isPending, startTransition] = useTransition();
   const [filters, setFilters] = useQueryStates(catalogSearchParamParsers, {
     ...catalogFilterUrlOptions,
@@ -69,6 +73,7 @@ export function CatalogFilters({ totalProducts }: CatalogFiltersProps) {
               appliedSubcategories={appliedTaxonomy.subcategories}
               isPending={isPending}
               onApply={applyTaxonomyFilters}
+              populatedSubcategories={populatedSubcategories}
               scopedCategory={appliedTaxonomy.scopedCategory}
             />
             <label className="flex min-w-0 items-center gap-2 text-sm">

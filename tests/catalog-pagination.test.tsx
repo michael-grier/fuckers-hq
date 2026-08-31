@@ -147,5 +147,8 @@ describe("catalog pagination", () => {
 
     expect(catalog.totalProducts).toBe(0);
     expect(catalog.totalPages).toBe(1);
+    // The filter panel is built from this list, so narrowing the grid — here to nothing — must
+    // not remove the checkboxes that would widen it again.
+    expect(catalog.populatedSubcategories).toEqual(["decks"]);
   });
 });

@@ -26,14 +26,31 @@ type CatalogFilterPopoverProps = {
   appliedSubcategories: ProductSubcategory[];
   isPending: boolean;
   onApply: (update: CatalogFilterUpdate) => Promise<void>;
+  populatedSubcategories: ProductSubcategory[];
   scopedCategory: ProductCategory | null;
 };
+
+/**
+ * The subcategory checkboxes to show under a category: the ones the catalogue has products in,
+ * plus any already applied. An applied filter stays listed even once its last product is gone,
+ * so it can be unchecked here rather than only through Clear.
+ */
+function visibleSubcategoryOptions(
+  category: ProductCategory,
+  populatedSubcategories: ProductSubcategory[],
+  appliedSubcategories: ProductSubcategory[],
+) {
+  return getProductSubcategoryOptions(category).filter(
+    ({ value }) => populatedSubcategories.includes(value) || appliedSubcategories.includes(value),
+  );
+}
 
 export function CatalogFilterPopover({
   appliedCategories,
   appliedSubcategories,
   isPending,
   onApply,
+  populatedSubcategories,
   scopedCategory,
 }: CatalogFilterPopoverProps) {
   const [open, setOpen] = useState(false);
@@ -44,6 +61,12 @@ export function CatalogFilterPopover({
 
   // The locked view scope never counts toward the active-selection total.
   const activeCount = appliedCategories.length + appliedSubcategories.length;
+
+  // A scoped view offers subcategories only; if the scope holds no products, there is nothing
+  // to check and the panel says so instead of showing a bare row of buttons.
+  const scopedSubcategoryOptions = scopedCategory
+    ? visibleSubcategoryOptions(scopedCategory, populatedSubcategories, appliedSubcategories)
+    : [];
 
   function handleOpenChange(nextOpen: boolean) {
     if (nextOpen) {
@@ -117,11 +140,11 @@ export function CatalogFilterPopover({
       >
         {scopedCategory ? (
           <SubcategoryFieldset
-            category={scopedCategory}
             legend="Subcategories"
             onToggle={(subcategory, checked) =>
               setStaged((current) => toggleStagedSubcategory(current, subcategory, checked))
             }
+            options={scopedSubcategoryOptions}
             stagedSubcategories={staged.subcategories}
           />
         ) : (
@@ -144,17 +167,24 @@ export function CatalogFilterPopover({
               .filter((category) => staged.categories.includes(category.value))
               .map((category) => (
                 <SubcategoryFieldset
-                  category={category.value}
                   key={category.value}
                   legend={`${category.label} subcategories`}
                   onToggle={(subcategory, checked) =>
                     setStaged((current) => toggleStagedSubcategory(current, subcategory, checked))
                   }
+                  options={visibleSubcategoryOptions(
+                    category.value,
+                    populatedSubcategories,
+                    appliedSubcategories,
+                  )}
                   stagedSubcategories={staged.subcategories}
                 />
               ))}
           </>
         )}
+        {scopedCategory && scopedSubcategoryOptions.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No filters available for this category.</p>
+        ) : null}
         <div className="flex items-center justify-between gap-2 border-t pt-3">
           <Button
             disabled={isPending}
@@ -184,21 +214,27 @@ export function CatalogFilterPopover({
   );
 }
 
+// Renders nothing when the category has no offerable subcategories, so the panel never shows a
+// heading with no checkboxes under it.
 function SubcategoryFieldset({
-  category,
   legend,
   onToggle,
+  options,
   stagedSubcategories,
 }: {
-  category: ProductCategory;
   legend: string;
   onToggle: (subcategory: ProductSubcategory, checked: boolean) => void;
+  options: ReadonlyArray<{ label: string; value: ProductSubcategory }>;
   stagedSubcategories: ProductSubcategory[];
 }) {
+  if (options.length === 0) {
+    return null;
+  }
+
   return (
     <fieldset className="space-y-2">
       <legend className="mb-2 font-semibold text-sm">{legend}</legend>
-      {getProductSubcategoryOptions(category).map((subcategory) => (
+      {options.map((subcategory) => (
         <FilterCheckbox
           checked={stagedSubcategories.includes(subcategory.value)}
           id={`catalog-filter-subcategory-${subcategory.value}`}
