@@ -51,10 +51,27 @@ test("renders Add to cart as an enabled, clickable button", () => {
   expect(markup).not.toContain(' disabled=""');
 });
 
-test("keeps the quantity control and Add to cart button within separate columns at every size", () => {
+test("uses the stock-count space for quantity and hides ordinary availability counts", () => {
   const markup = renderToStaticMarkup(<VariantPicker product={product} />);
 
-  expect(markup).toContain(
-    'class="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3 sm:gap-4"',
-  );
+  expect(markup).toContain('class="flex items-center justify-between gap-4"');
+  expect(markup).toContain(">Quantity</span>");
+  expect(markup).toContain('aria-label="Quantity for 8.25&quot;"');
+  expect(markup).not.toContain("10 available");
+  expect(markup).not.toContain("Only 10 left");
+});
+
+test("shows the selected variant count only when stock is low", () => {
+  const lowStockProduct = {
+    ...product,
+    variants: product.variants.map((variant) => ({
+      ...variant,
+      inventoryQty: 3,
+      availableQty: 3,
+    })),
+  };
+
+  const markup = renderToStaticMarkup(<VariantPicker product={lowStockProduct} />);
+
+  expect(markup).toContain("Only 3 left");
 });

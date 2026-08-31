@@ -1,7 +1,5 @@
 import type { AdminProductStatusFilter } from "@/lib/admin/search-params";
-
-/** A variant at or below this available quantity is surfaced as low stock. */
-export const lowStockThreshold = 3;
+import { LOW_STOCK_THRESHOLD } from "@/lib/catalog/stock";
 
 type StockVariant = {
   name: string;
@@ -34,7 +32,7 @@ export function summarizeProductStock(variants: readonly StockVariant[]): Produc
     totalAvailable,
     isOutOfStock: totalAvailable <= 0,
     lowStockVariant:
-      totalAvailable > 0 && scarcest.available <= lowStockThreshold ? scarcest : null,
+      totalAvailable > 0 && scarcest.available <= LOW_STOCK_THRESHOLD ? scarcest : null,
   };
 }
 
