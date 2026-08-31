@@ -77,9 +77,9 @@ export default function ShippingPage() {
 
         <PolicyQuestion question="Will I receive tracking?">
           <PolicyParagraph>
-            When your order ships, we email the carrier and tracking number with a link to the
-            carrier's tracking page when one is available. If that email has not arrived within 5
-            business days of ordering, check your spam folder and contact us.
+            We use Canada Post for every standard shipping order. When your order ships, we email
+            the tracking number with a link to Canada Post's tracking page. If that email has not
+            arrived within 5 business days of ordering, check your spam folder and contact us.
           </PolicyParagraph>
         </PolicyQuestion>
 
