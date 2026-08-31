@@ -70,7 +70,9 @@ transition.
 - [ ] Legacy `decks` and `apparel` category URLs redirect to their canonical replacements while
       retaining search, sort, and page state.
 - [ ] Browser Back and Forward restore catalog state.
-- [ ] A product page shows the correct variants, prices, and availability.
+- [ ] A product page keeps price and quantity in one card, hides ordinary inventory counts, shows
+      `Only N left` for a selected variant with three or fewer available units, and retains the
+      out-of-stock warning.
 - [ ] An unknown product slug returns the custom not-found page.
 
 ## 4. Cart

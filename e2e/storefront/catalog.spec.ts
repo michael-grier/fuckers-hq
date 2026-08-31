@@ -86,11 +86,24 @@ test.describe("product page @smoke", () => {
     }).toPass({ timeout: 15_000 });
     await page.getByRole("button", { name: '8.25"' }).click();
     await expect(page.getByText("$89.00")).toBeVisible();
+    await expect(page.getByText("Quantity", { exact: true })).toBeVisible();
+    await expect(page.getByText("12 available")).not.toBeVisible();
+    await expect(page.getByText("Only 12 left")).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Add to cart" })).toBeEnabled();
+  });
+
+  test("shows the count only for the selected low-stock variant", async ({ page }) => {
+    await page.goto("/products/canvas-coach-jacket");
+    await expect(page.getByText("Only 3 left")).not.toBeVisible();
+    await page.getByRole("button", { name: "XL" }).click();
+    await expect(page.getByText("Only 3 left")).toBeVisible();
+    await page.getByRole("button", { name: "Medium" }).click();
+    await expect(page.getByText("Only 3 left")).not.toBeVisible();
   });
 
   test("a sold-out product cannot be added to the cart", async ({ page }) => {
     await page.goto("/products/e2e-sold-out-deck");
+    await expect(page.getByText("Out of stock", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Add to cart" })).toBeDisabled();
   });
 });

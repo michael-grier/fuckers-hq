@@ -3,9 +3,9 @@ import { describe, expect, test } from "bun:test";
 import {
   countProductsByStatus,
   filterAdminProducts,
-  lowStockThreshold,
   summarizeProductStock,
 } from "@/lib/admin/product-list";
+import { LOW_STOCK_THRESHOLD } from "@/lib/catalog/stock";
 
 function variant(name: string, inventoryQty: number, reservedQty = 0) {
   return { name, inventoryQty, reservedQty };
@@ -23,11 +23,14 @@ describe("summarizeProductStock", () => {
   test("reports the scarcest variant once it reaches the threshold", () => {
     const summary = summarizeProductStock([
       variant("S", 10),
-      variant("M", lowStockThreshold + 1, 2),
+      variant("M", LOW_STOCK_THRESHOLD + 1, 2),
       variant("L", 8),
     ]);
 
-    expect(summary.lowStockVariant).toEqual({ name: "M", available: lowStockThreshold - 1 });
+    expect(summary.lowStockVariant).toEqual({
+      name: "M",
+      available: LOW_STOCK_THRESHOLD - 1,
+    });
   });
 
   test("treats a fully reserved product as out of stock, not low stock", () => {
