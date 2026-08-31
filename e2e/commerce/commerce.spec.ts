@@ -55,8 +55,8 @@ async function openWorkspace(page: Page, productName: string): Promise<void> {
   }).toPass({ timeout: 30_000 });
 }
 
-/** Ships the current order without tracking after the client form survives hydration. */
-async function shipWithoutTracking(page: Page): Promise<void> {
+/** Ships the current order after the client form survives hydration. */
+async function shipOrder(page: Page, trackingNumber?: string): Promise<void> {
   const orderPath = new URL(page.url()).pathname;
   const shipped = page.getByText("Shipped", { exact: true }).first();
   await page.waitForLoadState("networkidle");
@@ -68,9 +68,14 @@ async function shipWithoutTracking(page: Page): Promise<void> {
       return;
     }
 
-    await page.getByRole("button", { name: "Mark as shipped" }).click();
     const submit = page.getByRole("button", { name: "Ship and notify" });
-    await expect(submit).toBeVisible({ timeout: 2_000 });
+    if (!(await submit.isVisible())) {
+      await page.getByRole("button", { name: "Mark as shipped" }).click();
+      await expect(submit).toBeVisible({ timeout: 2_000 });
+    }
+    if (trackingNumber) {
+      await page.getByLabel("Tracking number").fill(trackingNumber);
+    }
     await Promise.all([
       page.waitForResponse(
         (response) =>
@@ -87,6 +92,9 @@ async function shipWithoutTracking(page: Page): Promise<void> {
   // reads persisted state rather than depending on the action's client-side router refresh.
   await page.reload();
   await expect(shipped).toBeVisible();
+  if (trackingNumber) {
+    await expect(page.getByText(trackingNumber)).toBeVisible();
+  }
 }
 
 test.describe("checkout boundary @commerce", () => {
@@ -367,7 +375,7 @@ test.describe("refund inventory @commerce", () => {
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await page.getByRole("link", { name: "Open full order" }).click();
     const initialNeedsActionCount = await readOrderNeedsActionCount(page);
-    await shipWithoutTracking(page);
+    await shipOrder(page);
 
     expect(
       await postWebhook(
@@ -467,10 +475,7 @@ test.describe("fulfillment @commerce", () => {
     ).toBeVisible();
     await expect(page.getByLabel("Tracking number")).toHaveAttribute("aria-invalid", "true");
 
-    await page.getByLabel("Tracking number").fill("CX473124829CA");
-    await page.getByRole("button", { name: "Ship and notify" }).click();
-    await expect(page.getByText("Shipped", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("CX473124829CA")).toBeVisible();
+    await shipOrder(page, "CX473124829CA");
     await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeHidden();
   });
 
