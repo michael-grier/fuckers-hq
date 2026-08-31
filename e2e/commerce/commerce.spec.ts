@@ -252,11 +252,23 @@ test.describe("paid-order webhook @commerce", () => {
     await orderRow.click();
     await expect(page.getByText("Address review required", { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Review full order" }).click();
+    await expect(page).toHaveURL(/\/admin\/orders\/[0-9a-f-]+$/);
+    const orderPath = new URL(page.url()).pathname;
 
     await expect(page.getByRole("heading", { name: "Review this delivery address" })).toBeVisible();
     await expect(page.getByRole("link", { name: /Check address in Google Maps/ })).toBeVisible();
     await page.getByRole("button", { name: "Request shipping payment" }).click();
+    const shippingRequestCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === orderPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+      { timeout: 60_000 },
+    );
     await page.getByRole("button", { name: "Create and email link" }).click();
+    await shippingRequestCompleted;
+    // Read the committed request and Checkout URL, independent of the client refresh timing.
+    await page.reload();
 
     await expect(page.getByRole("heading", { name: "Waiting for shipping payment" })).toBeVisible({
       timeout: 30_000,
