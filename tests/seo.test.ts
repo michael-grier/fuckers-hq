@@ -39,7 +39,7 @@ describe("buildSitemap", () => {
     expect(urls).toContain("https://fuckersskateboards.com/");
     expect(urls).toContain("https://fuckersskateboards.com/products");
     expect(urls).toContain("https://fuckersskateboards.com/products/flame-logo-tee-black");
-    expect(sitemap.every((entry) => entry.url.startsWith(baseUrl))).toBe(true);
+    expect(sitemap.every((entry) => new URL(entry.url).origin === baseUrl)).toBe(true);
 
     const product = sitemap.find((entry) => entry.url.endsWith("/flame-logo-tee-black"));
     expect(product?.lastModified).toBe(updatedAt);
