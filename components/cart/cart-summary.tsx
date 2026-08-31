@@ -6,7 +6,7 @@ import { formatMoney } from "@/lib/money";
 
 type CartSummaryProps = {
   isDeliveryAvailable?: boolean;
-  /** Sidebar variant: no card chrome, and tax detail is deferred to Stripe's own page. */
+  /** Sidebar variant omits card chrome and the separate tax row to stay compact. */
   compact?: boolean;
 };
 
@@ -48,7 +48,7 @@ export function CartSummary({ isDeliveryAvailable = false, compact = false }: Ca
         </div>
         <div className="flex justify-between gap-4">
           <dt className="text-muted-foreground">Tax</dt>
-          <dd className="font-bold">Calculated by Stripe</dd>
+          <dd className="font-bold">Not currently charged</dd>
         </div>
       </dl>
     </aside>

@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { PageHeader } from "@/components/shop/page-header";
@@ -5,8 +6,7 @@ import { PageHeader } from "@/components/shop/page-header";
 type PolicyPageProps = {
   title: string;
   description: string;
-  // Omitted by the contact page, which has no effective date. On the policy pages this
-  // stays a placeholder until the brand approves final wording; see PolicyDraftNotice.
+  // The contact page is not a policy and has no effective date.
   effectiveDate?: string;
   children: ReactNode;
 };
@@ -48,5 +48,26 @@ export function PolicyParagraph({ children }: { children: ReactNode }) {
 export function PolicyList({ children }: { children: ReactNode }) {
   return (
     <ul className="list-disc space-y-2 pl-5 text-muted-foreground leading-relaxed">{children}</ul>
+  );
+}
+
+/** Groups policy answers into one bordered question list. */
+export function PolicyQuestions({ children }: { children: ReactNode }) {
+  return <div className="divide-y border-y">{children}</div>;
+}
+
+/** Uses native details so every answer works with a keyboard without client-side JavaScript. */
+export function PolicyQuestion({ question, children }: { question: string; children: ReactNode }) {
+  return (
+    <details className="group py-6" open>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-sm font-grotesk font-semibold text-xl outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-4 sm:text-2xl">
+        <span>{question}</span>
+        <Plus
+          aria-hidden="true"
+          className="size-5 shrink-0 text-accent transition-transform group-open:rotate-45"
+        />
+      </summary>
+      <div className="mt-3 max-w-2xl space-y-3">{children}</div>
+    </details>
   );
 }

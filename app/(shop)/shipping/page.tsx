@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
-import { PolicyDraftNotice } from "@/components/shop/policy-draft-notice";
 import {
-  PolicyList,
   PolicyPage,
   PolicyParagraph,
-  PolicySection,
+  PolicyQuestion,
+  PolicyQuestions,
 } from "@/components/shop/policy-page";
+import { resolveDeliveryArea } from "@/lib/checkout/delivery";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
@@ -15,83 +15,93 @@ export const metadata: Metadata = {
 };
 
 export default function ShippingPage() {
+  const deliveryArea = resolveDeliveryArea(env);
+
   return (
     <PolicyPage
       description="Where we ship, what it costs, and when to expect your order."
-      effectiveDate="August 12, 2026"
+      effectiveDate="August 31, 2026"
       title="Shipping & delivery."
     >
-      <PolicyDraftNotice />
-
-      <PolicySection heading="Where we ship">
-        <PolicyParagraph>
-          We currently ship within Canada only. Shippable countries are enforced at checkout, so you
-          will see an error if your address is outside our delivery area.
-        </PolicyParagraph>
-      </PolicySection>
-
-      <PolicySection heading="Shipping costs">
-        <PolicyParagraph>Shipping is a flat $20 CAD per order.</PolicyParagraph>
-      </PolicySection>
-
-      <PolicySection heading="Processing time">
-        <PolicyParagraph>
-          We pack and ship orders within 3-5 business days. We do not ship on weekends or holidays.
-          During product drops, processing may take longer — we will note this on the site when it
-          applies.
-        </PolicyParagraph>
-      </PolicySection>
-
-      <PolicySection heading="Delivery estimates">
-        <PolicyParagraph>Once shipped, delivery typically takes:</PolicyParagraph>
-        <PolicyList>
-          <li>Within Canada: 3-7 business days</li>
-        </PolicyList>
-        <PolicyParagraph>
-          These are estimates from the carrier, not guarantees. Weather, customs, and carrier delays
-          are outside our control.
-        </PolicyParagraph>
-      </PolicySection>
-
-      <PolicySection heading="Tracking">
-        <PolicyParagraph>
-          When your order ships we email you a shipping notice with the carrier and tracking number,
-          linked to the carrier's tracking page where one is available. If you have not received
-          that email within 5 business days of ordering, check your spam folder and then contact us.
-        </PolicyParagraph>
-      </PolicySection>
-
-      {/* Gated on the same server flag checkout uses, so a store with delivery off never
-          advertises it here; see docs/production-launch-requirements.md §2. */}
-      {env.DELIVERY_ENABLED ? (
-        <PolicySection heading="Local delivery">
+      <PolicyQuestions>
+        <PolicyQuestion question="Where do you ship?">
           <PolicyParagraph>
-            Orders within Rockyview County, Alberta are eligible for local delivery. We will contact
-            you to schedule a time and place. Delivery orders are not shipped and are not charged
-            shipping.
+            We currently ship within Canada only. Checkout will not accept an address outside
+            Canada.
           </PolicyParagraph>
-        </PolicySection>
-      ) : null}
+        </PolicyQuestion>
 
-      <PolicySection heading="Incorrect addresses and undeliverable packages">
-        <PolicyParagraph>
-          Please double-check your shipping address at checkout. We ship to the address as entered.
-          If a package is returned to us as undeliverable, we will refund the order minus shipping
-          costs, or reship it once you cover shipping again.
-        </PolicyParagraph>
-        <PolicyParagraph>
-          We are not responsible for packages marked delivered by the carrier but reported missing.
-          If this happens, file a claim with the carrier and contact us so we can help where
-          possible.
-        </PolicyParagraph>
-      </PolicySection>
+        {deliveryArea ? (
+          <PolicyQuestion question="Do I qualify for free local delivery?">
+            <PolicyParagraph>
+              Free local delivery is available within {deliveryArea.areaName}. Choose Local delivery
+              in your cart and enter the delivery address at checkout. We confirm that the address
+              is inside the delivery area, then contact you to arrange a delivery time.
+            </PolicyParagraph>
+            <PolicyParagraph>
+              If the address is outside the delivery area, we refund the order so you can place it
+              again with standard shipping.
+            </PolicyParagraph>
+            {deliveryArea.instructions ? (
+              <PolicyParagraph>{deliveryArea.instructions}</PolicyParagraph>
+            ) : null}
+          </PolicyQuestion>
+        ) : null}
 
-      <PolicySection heading="Lost or delayed orders">
-        <PolicyParagraph>
-          If tracking has not updated in 10 business days, email
-          {env.SUPPORT_EMAIL} with your order number and we will investigate with the carrier.
-        </PolicyParagraph>
-      </PolicySection>
+        <PolicyQuestion question="What does standard shipping cost?">
+          <PolicyParagraph>
+            Shipping cost depends on the items in your order. The exact charge is shown at checkout
+            before you pay.
+          </PolicyParagraph>
+        </PolicyQuestion>
+
+        <PolicyQuestion question="Do you charge sales tax?">
+          <PolicyParagraph>We do not currently charge sales tax at checkout.</PolicyParagraph>
+        </PolicyQuestion>
+
+        <PolicyQuestion question="When will my order ship?">
+          <PolicyParagraph>
+            We pack and ship orders within 3 to 5 business days. We do not ship on weekends or
+            holidays. Product drops may take longer, and we will note that on the site when it
+            applies.
+          </PolicyParagraph>
+        </PolicyQuestion>
+
+        <PolicyQuestion question="How long does delivery take?">
+          <PolicyParagraph>
+            Standard shipping within Canada usually takes 3 to 7 business days after dispatch.
+            Carrier estimates are not guarantees. Weather and carrier delays are outside our
+            control.
+          </PolicyParagraph>
+        </PolicyQuestion>
+
+        <PolicyQuestion question="Will I receive tracking?">
+          <PolicyParagraph>
+            We use Canada Post for every standard shipping order. When your order ships, we email
+            the tracking number with a link to Canada Post's tracking page. If that email has not
+            arrived within 5 business days of ordering, check your spam folder and contact us.
+          </PolicyParagraph>
+        </PolicyQuestion>
+
+        <PolicyQuestion question="What happens if my address is wrong or the package is returned?">
+          <PolicyParagraph>
+            Double-check your shipping address at checkout. We ship to the address you enter. If a
+            package returns to us as undeliverable, we refund the order minus shipping costs, or
+            resend it after you pay shipping again.
+          </PolicyParagraph>
+          <PolicyParagraph>
+            We are not responsible for packages the carrier marks delivered but you report missing.
+            File a claim with the carrier and contact us so we can help where possible.
+          </PolicyParagraph>
+        </PolicyQuestion>
+
+        <PolicyQuestion question="What should I do if tracking stops updating?">
+          <PolicyParagraph>
+            If tracking has not updated in 10 business days, email {env.SUPPORT_EMAIL} with your
+            order number. We will investigate with the carrier.
+          </PolicyParagraph>
+        </PolicyQuestion>
+      </PolicyQuestions>
     </PolicyPage>
   );
 }

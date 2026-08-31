@@ -62,5 +62,7 @@ describe("cart page", () => {
     expect(markup).toContain("How do you want it?");
     expect(markup).toContain("Local delivery");
     expect(markup).toContain("Rocky View County, Alberta");
+    expect(markup).toContain("sales tax is not currently charged");
+    expect(markup).toContain("Not currently charged");
   });
 });

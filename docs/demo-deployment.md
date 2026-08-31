@@ -158,7 +158,7 @@ source maps are enabled.
 | `SHIPPING_ALLOWED_COUNTRIES` | Comma-separated ISO alpha-2 codes, e.g. `CA,US` | No |
 | `SHIPPING_FREE_THRESHOLD_CENTS` | Nonnegative integer cents | No |
 | `DELIVERY_ENABLED` | `true` to offer local delivery at checkout; defaults to `false` | No |
-| `DELIVERY_AREA_NAME` | Service area shown at checkout, e.g. `Rocky View County, Alberta` | No |
+| `DELIVERY_AREA_NAME` | Service area shown at checkout, e.g. `40 km of Calgary city centre` | No |
 | `DELIVERY_INSTRUCTIONS` | Optional extra note shown with the delivery option | No |
 
 For Preview, add only the Clerk development publishable and secret keys if authenticated preview
@@ -248,7 +248,8 @@ Before real customers use the site, create or rotate to:
 
 1. A dedicated production Neon branch/project with reviewed migrations and backup/restore policy.
 2. Stripe live keys, live Tax/shipping settings, and a separate live webhook secret.
-3. A Clerk production instance and new admin user IDs; development users cannot be migrated.
+3. A Clerk production instance and new admin user IDs; development users cannot be migrated. Have
+   each production admin sign in and confirm `/admin` loads against the production instance.
 4. A production R2 custom domain and least-privilege production bucket credentials.
 5. A verified Resend sending domain and production API key.
 6. A production Sentry project/environment and scoped source-map token.
