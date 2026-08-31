@@ -374,8 +374,6 @@ after.**
   and social handle.
 - **Videos page** — still an empty-state placeholder. Needs the list of videos with titles and
   YouTube or Vimeo URLs.
-- **Policy page copy** — the pages exist but every bracketed value is unconfirmed. See
-  [section 3](#3-policy-and-legal-pages).
 - **SEO metadata** — site title and meta description.
 - **Footer social links** — confirm the existing Instagram and YouTube accounts are correct, and
   whether TikTok or Facebook should be added.
@@ -456,7 +454,7 @@ product images are `unoptimized`, so there are no `remotePatterns` to update.
 | Clerk | Tristan | Developer is a collaborator. |
 | Vercel | Developer | Transfer to the brand within roughly two months of launch. |
 | Cloudflare DNS and R2 | Developer | Transfer the account resources and restore developer collaborator access within roughly two months of launch. |
-| Resend | Developer | Transfer to a brand-owned account within roughly two months of launch; re-verify the sending domain if Resend issues account-specific DKIM records. |
+| Resend | Developer | Add Tristan as an Admin of the existing team, rotate the production API key, and remove the developer after test delivery succeeds. |
 | Sentry | Developer | No transfer planned; it is developer tooling rather than a customer-facing account. |
 
 Neon's existing ownership arrangement was already settled and does not change as part of this
@@ -465,6 +463,19 @@ handoff.
 The Vercel, Cloudflare, and Resend transfers are operational work, not a copy-only handoff. Schedule
 them one provider at a time, rotate credentials where ownership changes, redeploy, and verify the
 affected production path before moving to the next provider.
+
+For Resend, preserve the existing team and its verified sending domain. Invite Tristan as an Admin,
+confirm he can manage billing, domains, and API keys, then create a new sending-only API key limited
+to the production domain. Replace `RESEND_API_KEY` in Vercel, redeploy, send a test confirmation,
+and revoke the old key. The developer can leave the Resend team after those checks pass.
+
+If the brand uses a new Resend team instead, follow Resend's
+[domain transfer](https://resend.com/docs/dashboard/domains/manage-domains#transfer-a-domain-between-teams)
+or [domain claim](https://resend.com/docs/dashboard/domains/claim) process. Verify ownership when a
+claim is required, publish the exact SPF-related and DKIM records shown by the destination team, and
+wait for the domain to become verified before changing the application key. Recent owner activity
+can block a claim; contact Resend support if that happens. This application does not receive Resend
+webhooks, so there is no Resend webhook secret to rotate.
 
 ---
 
