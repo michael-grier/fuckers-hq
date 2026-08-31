@@ -627,8 +627,19 @@ test.describe("fulfillment @commerce", () => {
     await expect(reviewOrder).toHaveCount(1);
     await reviewOrder.click();
     await page.getByRole("link", { name: "Review full order" }).click();
+    await expect(page).toHaveURL(/\/admin\/orders\/[0-9a-f-]+$/);
+    const orderPath = new URL(page.url()).pathname;
     await page.getByRole("button", { name: "Approve local delivery" }).click();
+    const approvalCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === orderPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
     await page.getByRole("button", { name: "Yes, approve" }).click();
+    await approvalCompleted;
+    // Read the committed decision instead of depending on the server action's router refresh.
+    await page.reload();
     await expect(page.getByRole("heading", { name: "Local delivery approved" })).toBeVisible();
 
     // Once approved, scheduling and delivering the order completes it.
