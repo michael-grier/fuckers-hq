@@ -2,6 +2,10 @@ import "server-only";
 
 import { asc } from "drizzle-orm";
 
+import {
+  getPopulatedProductSubcategories,
+  type ProductSubcategory,
+} from "@/lib/catalog/categories";
 import { getDb } from "@/lib/db/client";
 import { env } from "@/lib/env";
 
@@ -51,6 +55,11 @@ export type CatalogPageResult = {
   pageSize: number;
   totalPages: number;
   totalProducts: number;
+  /**
+   * Subcategories held by the whole active catalogue, not by this page. The filter panel offers
+   * these, so narrowing the results must never remove the checkbox that would widen them again.
+   */
+  populatedSubcategories: ProductSubcategory[];
 };
 
 const PAGE_SIZE = 12;
@@ -132,6 +141,7 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
       pageSize: PAGE_SIZE,
       totalPages: 1,
       totalProducts: 0,
+      populatedSubcategories: [],
     };
   }
 
@@ -162,6 +172,7 @@ export async function getCatalogPage(params: CatalogSearchParams): Promise<Catal
     pageSize: PAGE_SIZE,
     totalPages,
     totalProducts: sorted.length,
+    populatedSubcategories: getPopulatedProductSubcategories(activeProducts),
   };
 }
 

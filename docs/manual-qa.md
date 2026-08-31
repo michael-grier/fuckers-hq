@@ -66,6 +66,12 @@ transition.
 - [ ] Crew and Videos are reachable from desktop and mobile navigation.
 - [ ] Product images load and remain centered at mobile and desktop widths.
 - [ ] Search and sort refresh the catalog, update the URL, and reset pagination to page one.
+- [ ] The Filters panel lists only subcategories the catalog has active products in, and keeps an
+      already-applied subcategory listed so it can still be unchecked.
+- [ ] Manual only: deactivate every product in one category, open that category's scoped view, and
+      confirm the Filters panel shows `No filters available for this category.` rather than an
+      empty subcategory group. The e2e suite cannot assert this, because specs must not assume the
+      catalog holds only seed data; `tests/catalog-filter-popover.test.tsx` covers the branch.
 - [ ] Shop navigation category links are limited to Hardgoods, Softgoods, and Accessories.
 - [ ] Legacy `decks` and `apparel` category URLs redirect to their canonical replacements while
       retaining search, sort, and page state.

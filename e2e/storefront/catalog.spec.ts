@@ -53,6 +53,23 @@ test.describe("storefront @smoke", () => {
     await expect(page.locator("article h2").first()).toHaveText("E2E Sold Out Deck");
   });
 
+  test("the filter panel offers only subcategories the catalog stocks", async ({ page }) => {
+    await page.goto("/products");
+    // Same hydration-race guard as the search spec: the trigger does nothing before hydration.
+    await expect(async () => {
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      await expect(page.getByRole("dialog", { name: "Filters" })).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 15_000 });
+
+    await page.getByRole("checkbox", { name: "Hardgoods" }).click();
+
+    // The seeds file hardgoods under decks and bearings only. Trucks is part of the fixed
+    // taxonomy but holds no products, so offering it would only ever return an empty grid.
+    await expect(page.getByRole("checkbox", { name: "Decks" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Bearings" })).toBeVisible();
+    await expect(page.getByRole("checkbox", { name: "Trucks" })).toHaveCount(0);
+  });
+
   test("legacy category URLs redirect to their canonical category and keep other params", async ({
     page,
   }) => {

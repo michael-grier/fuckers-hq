@@ -117,6 +117,33 @@ export function isValidProductTaxonomyPair(category: string, subcategory: string
   );
 }
 
+/**
+ * The subcategories the given products actually occupy, in canonical option order.
+ *
+ * The taxonomy is fixed and far larger than the catalogue, so a filter UI built from the full
+ * list offers subcategories that can only ever return an empty grid.
+ */
+export function getPopulatedProductSubcategories(
+  products: ReadonlyArray<{ category: string | null; subcategory: string | null }>,
+): ProductSubcategory[] {
+  const populated = new Set<ProductSubcategory>();
+
+  for (const { category, subcategory } of products) {
+    // The pair is validated rather than the subcategory alone, because the filters match on both:
+    // a row whose subcategory does not belong to its category is unreachable either way.
+    if (
+      category &&
+      subcategory &&
+      isProductSubcategory(subcategory) &&
+      isValidProductTaxonomyPair(category, subcategory)
+    ) {
+      populated.add(subcategory);
+    }
+  }
+
+  return productSubcategoryValues.filter((value) => populated.has(value));
+}
+
 export function getProductCategoryLabel(category: string | null): string {
   if (!category || !isProductCategory(category)) {
     return "Uncategorized";

@@ -5,6 +5,7 @@ import {
   getCanonicalCatalogCategoryUrl,
   getCatalogHeading,
   getLegacyProductCategoryAlias,
+  getPopulatedProductSubcategories,
   getProductCategoryForSubcategory,
   getProductCategoryLabel,
   getProductSubcategoryLabel,
@@ -352,6 +353,25 @@ describe("catalog subcategory contract", () => {
     expect(isValidProductTaxonomyPair("hardgoods", "t-shirts")).toBe(false);
     expect(isValidProductTaxonomyPair("apparel", "t-shirts")).toBe(false);
     expect(isValidProductTaxonomyPair("hardgoods", "unknown")).toBe(false);
+  });
+
+  test("reduces a product set to the subcategories it occupies, in canonical order", () => {
+    expect(
+      getPopulatedProductSubcategories([
+        { category: "accessories", subcategory: "magnets" },
+        { category: "hardgoods", subcategory: "decks" },
+        { category: "softgoods", subcategory: "t-shirts" },
+        // Duplicates collapse.
+        { category: "hardgoods", subcategory: "decks" },
+        // Neither an unfiled product nor an unknown value contributes an option.
+        { category: "hardgoods", subcategory: null },
+        { category: null, subcategory: null },
+        { category: "hardgoods", subcategory: "skateboards" },
+        // A mismatched pair is unreachable through the filters, so it offers nothing either.
+        { category: "softgoods", subcategory: "decks" },
+      ]),
+    ).toEqual(["decks", "t-shirts", "magnets"]);
+    expect(getPopulatedProductSubcategories([])).toEqual([]);
   });
 });
 

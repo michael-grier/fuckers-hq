@@ -1,32 +1,48 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { NuqsTestingAdapter } from "nuqs/adapters/testing";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { CatalogFilters } from "@/components/shop/catalog-filters";
+import type { ProductSubcategory } from "@/lib/catalog/categories";
 import {
   toCatalogFilterUpdate,
   toggleStagedCategory,
   toggleStagedSubcategory,
 } from "@/lib/catalog/filter-staging";
 
+// What the current catalogue is filed under: a small slice of the much larger fixed taxonomy.
+const populatedSubcategories: ProductSubcategory[] = ["decks", "t-shirts", "stickers", "magnets"];
+
 function renderCatalogFilters(searchParams: string): string {
   return renderToStaticMarkup(
     <NuqsTestingAdapter searchParams={searchParams}>
-      <CatalogFilters totalProducts={4} />
+      <CatalogFilters populatedSubcategories={populatedSubcategories} totalProducts={4} />
     </NuqsTestingAdapter>,
   );
+}
+
+/** Mounts the live filters and records every URL update Apply commits. */
+function mountCatalogFilters(
+  searchParams: string,
+  populated = populatedSubcategories,
+): UrlUpdateEvent[] {
+  const updates: UrlUpdateEvent[] = [];
+
+  render(
+    <NuqsTestingAdapter onUrlUpdate={(event) => updates.push(event)} searchParams={searchParams}>
+      <CatalogFilters populatedSubcategories={populated} totalProducts={4} />
+    </NuqsTestingAdapter>,
+  );
+
+  return updates;
 }
 
 afterEach(cleanup);
 
 describe("catalog filter popover accessibility", () => {
   test("exposes the open popover as a dialog named Filters", async () => {
-    render(
-      <NuqsTestingAdapter searchParams="">
-        <CatalogFilters totalProducts={4} />
-      </NuqsTestingAdapter>,
-    );
+    mountCatalogFilters("");
 
     // The content is portalled and mounts only once open, so the name has to be asserted
     // against the live DOM rather than server-rendered markup.
@@ -41,11 +57,7 @@ describe("catalog filter popover accessibility", () => {
   });
 
   test("moves focus down and up the panel with the arrow keys", async () => {
-    render(
-      <NuqsTestingAdapter searchParams="">
-        <CatalogFilters totalProducts={4} />
-      </NuqsTestingAdapter>,
-    );
+    mountCatalogFilters("");
 
     fireEvent.click(screen.getByRole("button", { name: /filters/i }));
 
@@ -66,11 +78,7 @@ describe("catalog filter popover accessibility", () => {
   });
 
   test("swallows the arrow keys so the page behind the popover does not scroll", async () => {
-    render(
-      <NuqsTestingAdapter searchParams="">
-        <CatalogFilters totalProducts={4} />
-      </NuqsTestingAdapter>,
-    );
+    mountCatalogFilters("");
 
     fireEvent.click(screen.getByRole("button", { name: /filters/i }));
 
@@ -145,6 +153,50 @@ describe("catalog filter staging", () => {
       categories: null,
       subcategories: ["decks"],
     });
+  });
+});
+
+describe("catalog filter subcategory availability", () => {
+  test("offers only the subcategories the catalogue has products in", async () => {
+    mountCatalogFilters("");
+
+    fireEvent.click(screen.getByRole("button", { name: /filters/i }));
+    await screen.findByRole("dialog", { name: "Filters" });
+    fireEvent.click(screen.getByLabelText("Hardgoods"));
+
+    expect(screen.getByLabelText("Decks")).toBeDefined();
+    // Nothing is filed under these, so checking one could only ever return an empty grid.
+    expect(screen.queryByLabelText("Trucks")).toBeNull();
+    expect(screen.queryByLabelText("Wheels")).toBeNull();
+  });
+
+  test("keeps an applied subcategory listed once its last product is gone", async () => {
+    const updates = mountCatalogFilters("?categories=hardgoods&subcategories=trucks", ["decks"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /filters/i }));
+    await screen.findByRole("dialog", { name: "Filters" });
+
+    // Otherwise the filter stays applied in the URL with no checkbox left to switch it off.
+    expect(screen.getByLabelText("Trucks").getAttribute("aria-checked")).toBe("true");
+
+    // Listing it is only half the fix; unchecking it has to actually leave the URL, or the
+    // shopper stays pinned to an empty result set.
+    fireEvent.click(screen.getByLabelText("Trucks"));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+
+    await waitFor(() => expect(updates).toHaveLength(1));
+    expect(updates[0].searchParams.getAll("subcategories")).toEqual([]);
+    expect(updates[0].searchParams.getAll("categories")).toEqual(["hardgoods"]);
+  });
+
+  test("drops the subcategory group entirely when a scoped category has no products", async () => {
+    mountCatalogFilters("?category=hardgoods", ["t-shirts"]);
+
+    fireEvent.click(screen.getByRole("button", { name: /filters/i }));
+    await screen.findByRole("dialog", { name: "Filters" });
+
+    expect(screen.queryByRole("group", { name: "Subcategories" })).toBeNull();
+    expect(screen.getByText("No filters available for this category.")).toBeDefined();
   });
 });
 
