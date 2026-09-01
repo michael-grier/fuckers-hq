@@ -134,6 +134,7 @@ source maps are enabled.
 | Variable | Value/source | Sensitive |
 | --- | --- | --- |
 | `DATABASE_URL` | Neon pooled demo-branch URL | Yes |
+| `PRODUCTION_NEON_ENDPOINT_ID` | The same branch's `ep-...` endpoint ID | No; a team policy may still hide it |
 | `STRIPE_SECRET_KEY` | Stripe sandbox `sk_test_...` | Yes |
 | `STRIPE_WEBHOOK_SECRET` | Add after registering the deployed endpoint | Yes |
 | `STRIPE_TAX_ENABLED` | `false` unless sandbox Tax is configured | No |

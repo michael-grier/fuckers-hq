@@ -47,6 +47,14 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # The migration URL is intentionally direct while Vercel uses a pooled URL. Both hostnames
+      # carry the same non-secret endpoint ID, which catches a dev/production branch mix-up.
+      - name: Verify production database target
+        run: bun run db:verify-production-target --required
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          PRODUCTION_NEON_ENDPOINT_ID: ${{ vars.PRODUCTION_NEON_ENDPOINT_ID }}
+
       # A failing or aborting migration — including a guarded backfill that refuses to guess and
       # names the offending rows — fails this job, which blocks the deploy job below. Fix forward
       # per docs/migrations/README.md, then re-run the workflow; the migrator is idempotent.

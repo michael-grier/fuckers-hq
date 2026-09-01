@@ -15,6 +15,14 @@ const optionalSecret = z.preprocess(
   z.string().min(16).optional(),
 );
 
+const optionalNeonEndpointId = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z
+    .string()
+    .regex(/^ep-[a-z0-9-]+$/)
+    .optional(),
+);
+
 const optionalIntegerString = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.coerce.number().int().nonnegative().optional(),
@@ -33,6 +41,9 @@ const defaultFalseBooleanString = z.preprocess(
 
 const envSchema = z.object({
   DATABASE_URL: optionalString,
+  // This non-secret identifier lets production verify a write-only DATABASE_URL without
+  // exposing its credentials. Pooled and direct URLs share the same Neon endpoint ID.
+  PRODUCTION_NEON_ENDPOINT_ID: optionalNeonEndpointId,
   STRIPE_SECRET_KEY: optionalString,
   STRIPE_WEBHOOK_SECRET: optionalString,
   // Tax collection is opt-in: a missing flag must never cause the store to collect tax the
