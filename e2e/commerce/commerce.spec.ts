@@ -300,7 +300,8 @@ test.describe("paid-order webhook @commerce", () => {
     );
     await page.getByRole("button", { name: "Create and email link" }).click();
     await shippingRequestCompleted;
-    // Read the committed request and Checkout URL, independent of the client refresh timing.
+    await expect(page.getByRole("status")).toContainText("Shipping payment link ready");
+    // Read the committed request and Checkout URL after the client has handled the action response.
     await page.reload();
 
     await expect(page.getByRole("heading", { name: "Waiting for shipping payment" })).toBeVisible({

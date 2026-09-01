@@ -405,8 +405,20 @@ export const orders = pgTable(
       "orders_delivery_scheduled_requires_delivery",
       sql`${table.status}::text <> 'delivery_scheduled' OR ${table.fulfillmentMethod} = 'delivery'`,
     ),
-    // Production migrates before it deploys this writer. Cross-column review constraints must be
-    // added in a follow-up migration after the previous version can no longer write null states.
+    // Cast the review enum to text so a fresh database can create the enum in migration 0016 and
+    // add these checks later in the same migrator transaction.
+    check(
+      "orders_delivery_review_method_consistent",
+      sql`(${table.fulfillmentMethod}::text = 'delivery' AND ${table.deliveryReviewStatus} IS NOT NULL)
+        OR (${table.fulfillmentMethod}::text = 'shipping' AND ${table.deliveryReviewStatus} IS NULL)
+        OR (${table.fulfillmentMethod}::text = 'shipping'
+          AND ${table.deliveryReviewStatus}::text IN ('shipping_payment_received', 'shipping_payment_exception'))`,
+    ),
+    check(
+      "orders_delivery_scheduling_requires_approval",
+      sql`${table.status}::text <> 'delivery_scheduled'
+        OR ${table.deliveryReviewStatus}::text = 'approved'`,
+    ),
     // The timestamp survives drop-off so the admin history keeps how long the order waited.
     // Covers `fulfilled` as well, so a delivery order cannot reach its terminal state without the
     // scheduling step that told the customer to expect it. The application already enforces the
