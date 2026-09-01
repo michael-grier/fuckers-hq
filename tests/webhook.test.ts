@@ -234,6 +234,18 @@ describe("paid Checkout Session parsing", () => {
     });
   });
 
+  test("preserves a paid order when Stripe omits both address sources", () => {
+    const checkout = makeCheckoutSession({
+      customer_details: { email: "skater@example.com", address: null },
+      collected_information: null,
+    });
+
+    expect(parsePaidCheckoutData(checkout)).toMatchObject({
+      shippingAddress: null,
+      destinationProvince: null,
+    });
+  });
+
   test("preserves a paid order when Stripe omits a valid Canadian province", () => {
     const checkout = makeCheckoutSession({
       collected_information: {

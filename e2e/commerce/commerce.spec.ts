@@ -80,9 +80,12 @@ async function shipOrder(page: Page, trackingNumber?: string): Promise<void> {
       await expect(submit).toBeVisible({ timeout: 2_000 });
     }
     if (trackingNumber) {
+      // A previous validation attempt can close and reset the form. Restore the carrier before
+      // filling its tracking number so the input is enabled on every retry.
+      await page.getByLabel("Carrier").selectOption("canada_post");
       await page.getByLabel("Tracking number").fill(trackingNumber);
     }
-    await Promise.all([
+    const [response] = await Promise.all([
       page.waitForResponse(
         (response) =>
           new URL(response.url()).pathname === orderPath &&
@@ -92,6 +95,7 @@ async function shipOrder(page: Page, trackingNumber?: string): Promise<void> {
       ),
       submit.click(),
     ]);
+    await response.finished();
   }).toPass({ timeout: 30_000 });
 
   // The response or rendered status proves the write completed; reload so the final assertion
@@ -643,6 +647,11 @@ test.describe("fulfillment @commerce", () => {
       email,
     });
     expect(await postWebhook(page.request, event)).toBe(200);
+    const readOrderState = () =>
+      getDb().query.orders.findFirst({
+        columns: { deliveryReviewStatus: true, status: true },
+        where: eq(orders.email, email),
+      });
 
     // Paid local orders stay out of the delivery queue until an admin approves the address.
     await page.goto(`/admin/orders?filter=needs-action&q=${encodeURIComponent(email)}`);
@@ -651,33 +660,23 @@ test.describe("fulfillment @commerce", () => {
     await reviewOrder.click();
     await page.getByRole("link", { name: "Review full order" }).click();
     await expect(page).toHaveURL(/\/admin\/orders\/[0-9a-f-]+$/);
-    const orderPath = new URL(page.url()).pathname;
     await page.getByRole("button", { name: "Approve local delivery" }).click();
-    const approvalCompleted = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === orderPath &&
-        response.request().method() === "POST" &&
-        response.ok(),
-    );
     await page.getByRole("button", { name: "Yes, approve" }).click();
-    await approvalCompleted;
-    // Read the committed decision instead of depending on the server action's router refresh.
+    await expect
+      .poll(async () => (await readOrderState())?.deliveryReviewStatus, { timeout: 15_000 })
+      .toBe("approved");
+    // Reload only after persistence, rather than racing the server action's streamed response.
     await page.reload();
     await expect(page.getByRole("heading", { name: "Local delivery approved" })).toBeVisible();
 
     // Once approved, scheduling and delivering the order completes it.
     await page.goto("/admin/deliveries");
-    const deliveryPath = new URL(page.url()).pathname;
     const scheduleRow = page.getByRole("row").filter({ hasText: email });
     await scheduleRow.getByRole("button", { name: "Schedule delivery" }).click();
-    const scheduleCompleted = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === deliveryPath &&
-        response.request().method() === "POST" &&
-        response.ok(),
-    );
     await page.getByRole("button", { name: "Yes, schedule" }).click();
-    await scheduleCompleted;
+    await expect
+      .poll(async () => (await readOrderState())?.status, { timeout: 15_000 })
+      .toBe("delivery_scheduled");
     await page.reload();
     await expect(
       page.getByRole("row").filter({ hasText: email }).getByRole("button", {
@@ -689,14 +688,10 @@ test.describe("fulfillment @commerce", () => {
       .filter({ hasText: email })
       .getByRole("button", { name: "Mark as delivered" })
       .click();
-    const deliveryCompleted = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname === deliveryPath &&
-        response.request().method() === "POST" &&
-        response.ok(),
-    );
     await page.getByRole("button", { name: "Yes, delivered" }).click();
-    await deliveryCompleted;
+    await expect
+      .poll(async () => (await readOrderState())?.status, { timeout: 15_000 })
+      .toBe("fulfilled");
     await page.reload();
     await expect(page.getByRole("row").filter({ hasText: email })).toBeHidden();
   });

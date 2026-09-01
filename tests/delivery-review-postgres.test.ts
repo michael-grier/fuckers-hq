@@ -304,6 +304,26 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
     ]);
   });
 
+  test("a converted order clears a province not supported by the final shipping address", async () => {
+    const request = await prepareLinkedRequest();
+    const payment = {
+      ...paidShippingPayment(request.id, request.generation, "unknown-province"),
+      shippingAddress: {
+        ...shippingAddress,
+        address: { ...shippingAddress.address, state: "Saskatchewan" },
+      },
+      destinationProvince: null,
+    };
+
+    await shippingPayments.recordPaidShippingPayment(payment);
+
+    expect(await findOrder()).toMatchObject({
+      fulfillmentMethod: "shipping",
+      deliveryReviewStatus: "shipping_payment_received",
+      destinationProvince: null,
+    });
+  });
+
   test("a paid shipping Session preserves an already-sent request email", async () => {
     const request = await prepareLinkedRequest();
     const deliveredAt = new Date("2026-09-01T12:01:00.000Z");

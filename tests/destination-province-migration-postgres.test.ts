@@ -93,7 +93,22 @@ describe.skipIf(!testDatabaseUrl)("destination province migration with real Post
         join pg_namespace as namespaces on namespaces.oid = constraints.connamespace
         where constraints.conname = 'orders_destination_province_valid'
           and namespaces.nspname = current_schema()
-      `;
+    `;
     expect([...constraints]).toEqual([{ conname: "orders_destination_province_valid" }]);
+
+    let constraintError: unknown;
+    try {
+      await client`
+        update orders
+        set destination_province = 'XX'
+        where id = '00000000-0000-4000-8000-000000000001'
+      `;
+    } catch (error) {
+      constraintError = error;
+    }
+    expect(constraintError).toMatchObject({
+      code: "23514",
+      constraint_name: "orders_destination_province_valid",
+    });
   }, 30_000);
 });

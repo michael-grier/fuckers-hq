@@ -129,7 +129,11 @@ transition.
       before inventory is reserved or Stripe is called.
 - [ ] Sending a local-delivery request whose current database-priced merchandise subtotal is below
       $30 is rejected before inventory is reserved or Stripe is called.
-- [ ] Tax behavior matches `STRIPE_TAX_ENABLED` and the Stripe sandbox configuration.
+- [ ] With `STRIPE_TAX_ENABLED=false`, Checkout shows no tax for merchandise or shipping.
+- [ ] Manual only: in a Stripe sandbox with a Canadian test registration, set
+      `STRIPE_TAX_ENABLED=true` and complete a taxable order with standard shipping. Confirm
+      Checkout calculates tax on both merchandise and shipping, then restore the setting. The
+      deterministic e2e suite cannot control the Stripe account's test-registration state.
 - [ ] Starting Checkout increases the selected variant's reserved quantity and reduces its
       available quantity without changing on-hand inventory.
 - [ ] Submit the same sandbox Checkout request twice with the same request UUID and identical cart
@@ -161,8 +165,9 @@ Restore the product price and inventory after these checks.
 - [ ] On-hand and reserved inventory both decreased by exactly the purchased quantity, leaving the
       correct available quantity.
 - [ ] The confirmation email arrives once and contains the same persisted snapshots and totals.
-- [ ] Stripe sends no separate successful-payment receipt; the branded confirmation is the only
-      customer email for the sale.
+- [ ] Manual only: run `./scripts/configure-stripe-small-supplier.sh` and confirm the live Stripe
+      Dashboard has **Successful payments** turned off. A sandbox payment does not prove this
+      setting because Stripe does not send its automatic customer emails in sandbox mode.
 - [ ] The order detail shows the confirmation delivery as `Sent` with one attempt.
 
 Fulfillment for a shipping order:
