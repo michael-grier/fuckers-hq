@@ -154,39 +154,51 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
     expect(await findOrder()).toMatchObject({ deliveryReviewStatus: "approved" });
   });
 
-  test("the expand-phase trigger preserves writes from the previous application version", async () => {
-    const legacyOrderId = "08f1ecaf-f50d-42d2-a9ec-2bdcf81b89b4";
-    await database.insert(orders).values({
-      id: legacyOrderId,
-      orderNumber: "FHQ-20260901-LEGACY01",
-      email: "legacy@example.com",
-      status: "paid",
-      inventoryStatus: "allocated",
-      fulfillmentMethod: "delivery",
-      deliveryReviewStatus: null,
-      stripeSessionId: "cs_test_legacy_delivery",
-      stripePaymentIntentId: "pi_test_legacy_delivery",
-      subtotalCents: 6000,
-      taxCents: 0,
-      shippingCents: 0,
-      totalCents: 6000,
-      currency: "cad",
-      shippingAddress: originalAddress,
-      destinationProvince: "AB",
+  test.each([
+    [
+      "a delivery order without review state",
+      "delivery",
+      "paid",
+      null,
+      "orders_delivery_review_method_consistent",
+    ],
+    [
+      "an ordinary shipping order with review state",
+      "shipping",
+      "paid",
+      "pending",
+      "orders_delivery_review_method_consistent",
+    ],
+    [
+      "an unapproved scheduled delivery",
+      "delivery",
+      "delivery_scheduled",
+      "pending",
+      "orders_delivery_scheduling_requires_approval",
+    ],
+  ] as const)("rejects %s", async (_name, fulfillmentMethod, status, reviewStatus, expectedConstraint) => {
+    const id = crypto.randomUUID();
+    let constraintError: unknown;
+
+    try {
+      await client`
+          insert into orders (
+            id, order_number, email, status, inventory_status, fulfillment_method,
+            delivery_review_status, stripe_session_id, subtotal_cents, tax_cents,
+            shipping_cents, total_cents, currency
+          ) values (
+            ${id}, ${`FHQ-${id}`}, 'contract@example.com', ${status}, 'allocated',
+            ${fulfillmentMethod}, ${reviewStatus}, ${`cs_${id}`}, 6000, 0, 0, 6000, 'cad'
+          )
+        `;
+    } catch (error) {
+      constraintError = error;
+    }
+
+    expect(constraintError).toMatchObject({
+      code: "23514",
+      constraint_name: expectedConstraint,
     });
-
-    expect(
-      await database.query.orders.findFirst({ where: eq(orders.id, legacyOrderId) }),
-    ).toMatchObject({ deliveryReviewStatus: "pending" });
-
-    await database
-      .update(orders)
-      .set({ status: "delivery_scheduled", deliveryScheduledAt: new Date() })
-      .where(eq(orders.id, legacyOrderId));
-
-    expect(
-      await database.query.orders.findFirst({ where: eq(orders.id, legacyOrderId) }),
-    ).toMatchObject({ deliveryReviewStatus: "approved" });
   });
 
   test("concurrent shipping requests share one generation and queue one email", async () => {
@@ -483,8 +495,6 @@ const postgresTestSchema = [
     created_at timestamptz not null default now(), expires_at timestamptz not null,
     completed_at timestamptz
   )`,
-  // Cross-column order constraints are deliberately deferred until the previous production
-  // writer can no longer create delivery orders without review state.
   `create table orders (
     id uuid primary key default gen_random_uuid(), order_number text not null unique,
     email text not null, status text not null, inventory_status text not null,
@@ -495,22 +505,19 @@ const postgresTestSchema = [
     dispute_status text not null default 'none', subtotal_cents integer not null,
     tax_cents integer not null, shipping_cents integer not null, total_cents integer not null,
     currency text not null, shipping_address jsonb, destination_province text,
-    created_at timestamptz not null default now()
+    created_at timestamptz not null default now(),
+    constraint orders_delivery_review_method_consistent check (
+      (fulfillment_method = 'delivery' and delivery_review_status is not null)
+      or (fulfillment_method = 'shipping' and delivery_review_status is null)
+      or (
+        fulfillment_method = 'shipping'
+        and delivery_review_status in ('shipping_payment_received', 'shipping_payment_exception')
+      )
+    ),
+    constraint orders_delivery_scheduling_requires_approval check (
+      status <> 'delivery_scheduled' or delivery_review_status = 'approved'
+    )
   )`,
-  `create function set_legacy_delivery_review_status() returns trigger as $$
-  begin
-    if new.fulfillment_method = 'delivery' and new.delivery_review_status is null then
-      new.delivery_review_status := case when new.status = 'paid' then 'pending' else 'approved' end;
-    elsif new.fulfillment_method = 'delivery' and new.status = 'delivery_scheduled'
-      and new.delivery_review_status = 'pending' then
-      new.delivery_review_status := 'approved';
-    end if;
-    return new;
-  end;
-  $$ language plpgsql`,
-  `create trigger orders_legacy_delivery_review_status
-    before insert or update of fulfillment_method, status, delivery_review_status on orders
-    for each row execute function set_legacy_delivery_review_status()`,
   `create table order_shipping_payment_requests (
     id uuid primary key default gen_random_uuid(),
     order_id uuid not null references orders(id) on delete cascade,

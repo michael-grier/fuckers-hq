@@ -199,6 +199,11 @@ Migration `0017_quiet_viper.sql` adds the nullable destination province used for
 reporting and backfills valid codes from stored Stripe addresses. Review the
 [deployment and rollback notes](docs/migrations/0017-destination-province.md) before applying it.
 
+Migration `0018_delivery-review-contract.sql` validates the order review-state contract, then removes
+the temporary trigger that supported the pre-manual-review writer during deployment. Review the
+[audit, deployment, and rollback notes](docs/migrations/0016-manual-delivery-review.md) before
+applying it.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:
