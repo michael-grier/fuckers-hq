@@ -83,6 +83,21 @@ Full detail lives in the [architecture document](docs/architecture.md) and the o
 For the temporary public sandbox deployment and Git-based release setup, follow the
 [Vercel demo deployment runbook](docs/demo-deployment.md).
 
+### Stripe Small-Supplier Launch Setup
+
+Before accepting live payments while the business is not registered to collect sales tax, run the
+dashboard wizard:
+
+```bash
+./scripts/configure-stripe-small-supplier.sh
+```
+
+It checks the live account for active or pending Stripe Tax locations and customer-facing account
+tax IDs, then disables Stripe's successful-payment email so the branded Resend confirmation is the
+only successful-payment email. The wizard makes no API calls, captures no values, and never reads
+or writes secrets. It does not determine whether the business must register; take that question to
+the accountant.
+
 ### Git Worktrees
 
 `.env.local` is gitignored, so a new `git worktree` checkout starts without one. Next.js only
