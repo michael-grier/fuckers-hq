@@ -204,10 +204,11 @@ network or linkage failures remain `provisioning` for reconciliation.
 Stripe expiration and asynchronous-payment-failure events release reservations exactly once.
 Unpaid completion keeps inventory in `awaiting_payment` until Stripe reports success or failure.
 The authenticated `/api/cron/inventory-reservations` job runs every 30 minutes, which lets Neon
-scale to zero between invocations while limiting overdue inventory holds to one scheduled interval.
-It claims at most 20 due records with leases, recovers stale provisioning through the original
-idempotent request, and retrieves overdue Sessions before converting or releasing stock. It never
-releases an open Session from the local clock alone.
+scale to zero between invocations. Under normal load, overdue inventory holds wait at most one
+scheduled interval; each run claims at most 20 due records, so a larger backlog can take additional
+intervals to drain. The job uses leases, recovers stale provisioning through the original idempotent
+request, and retrieves overdue Sessions before converting or releasing stock. It never releases an
+open Session from the local clock alone.
 
 Migration `0005_daffy_skullbuster` adds reservation state, normalized reservation lines, and
 `product_variants.reserved_qty`. Review the
