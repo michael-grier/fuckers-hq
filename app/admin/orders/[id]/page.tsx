@@ -2,12 +2,13 @@ import { AlertTriangle } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
+import { DeliveryReviewPanel } from "@/components/admin/delivery-review-panel";
 import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-button";
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
 import {
+  DeliveryReviewStatusBadge,
   DisputeStatusBadge,
   FulfillmentMethodBadge,
   OrderInventoryStatusBadge,
@@ -24,7 +25,11 @@ import {
   formatOptionalAdminDate,
 } from "@/lib/admin/format";
 import { getAdminOrderById } from "@/lib/admin/queries";
-import type { OrderEmailDelivery, OrderEmailKind } from "@/lib/db/schema";
+import type {
+  OrderEmailDelivery,
+  OrderEmailKind,
+  OrderShippingPaymentRequest,
+} from "@/lib/db/schema";
 import { formatMoney } from "@/lib/money";
 import { resolveNextFulfillmentTransition } from "@/lib/orders/order-fulfillment";
 import { isOrderFulfillmentEligible } from "@/lib/orders/payment-lifecycle";
@@ -46,7 +51,11 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
     notFound();
   }
 
-  const shippingAddressLines = getShippingAddressLines(order.shippingAddress);
+  const fulfillmentAddress =
+    order.fulfillmentMethod === "shipping" && order.shippingPaymentRequest?.shippingAddress
+      ? order.shippingPaymentRequest.shippingAddress
+      : order.shippingAddress;
+  const shippingAddressLines = getShippingAddressLines(fulfillmentAddress);
   const isDelivery = order.fulfillmentMethod === "delivery";
   const nextTransition = resolveNextFulfillmentTransition(order);
   const tracking = resolveOrderTracking(order);
@@ -68,6 +77,9 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             </h1>
             <OrderStatusBadge fulfillmentMethod={order.fulfillmentMethod} status={order.status} />
             <FulfillmentMethodBadge method={order.fulfillmentMethod} />
+            {order.deliveryReviewStatus ? (
+              <DeliveryReviewStatusBadge status={order.deliveryReviewStatus} />
+            ) : null}
             {needsInventoryReturn ? (
               <OrderRestockRequiredBadge />
             ) : (
@@ -96,6 +108,21 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           ) : null}
         </div>
       </div>
+
+      {order.deliveryReviewStatus ? (
+        <DeliveryReviewPanel
+          addressLines={shippingAddressLines}
+          orderId={order.id}
+          paymentDelivery={order.shippingPaymentDelivery}
+          paymentRequest={order.shippingPaymentRequest}
+          status={order.deliveryReviewStatus}
+        />
+      ) : null}
+
+      {order.shippingPaymentRequests.length > 1 ||
+      order.deliveryReviewStatus === "shipping_payment_exception" ? (
+        <ShippingPaymentHistory requests={order.shippingPaymentRequests} />
+      ) : null}
 
       {needsInventoryReturn ? (
         <section
@@ -249,6 +276,17 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         orderId={order.id}
       />
 
+      {order.shippingPaymentRequest || order.shippingPaymentDelivery ? (
+        <EmailDeliverySection
+          delivery={order.shippingPaymentDelivery}
+          emptyMessage="No shipping payment request email is queued for this order."
+          heading="Shipping payment request email"
+          id="shipping-payment-delivery"
+          kind="shipping_payment_request"
+          orderId={order.id}
+        />
+      ) : null}
+
       {isDelivery ? (
         <EmailDeliverySection
           delivery={order.deliveryScheduledDelivery}
@@ -315,6 +353,18 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               label="Payment Intent"
               value={order.stripePaymentIntentId ?? "Not recorded"}
             />
+            {order.shippingPaymentRequest ? (
+              <>
+                <ReferenceRow
+                  label="Shipping Checkout Session"
+                  value={order.shippingPaymentRequest.stripeSessionId ?? "Not created"}
+                />
+                <ReferenceRow
+                  label="Shipping Payment Intent"
+                  value={order.shippingPaymentRequest.stripePaymentIntentId ?? "Not paid"}
+                />
+              </>
+            ) : null}
           </dl>
         </section>
 
@@ -323,7 +373,10 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
             Totals
           </h2>
           <dl className="mt-4 space-y-3 text-sm">
-            <TotalRow label="Subtotal" value={formatMoney(order.subtotalCents, order.currency)} />
+            <TotalRow
+              label="Original subtotal"
+              value={formatMoney(order.subtotalCents, order.currency)}
+            />
             <TotalRow label="Shipping" value={formatMoney(order.shippingCents, order.currency)} />
             <TotalRow label="Tax" value={formatMoney(order.taxCents, order.currency)} />
             <div className="flex items-center justify-between border-t pt-3 font-bold text-base">
@@ -335,6 +388,27 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
               label="Net paid"
               value={formatMoney(order.totalCents - order.refundedCents, order.currency)}
             />
+            {order.shippingPaymentRequest?.totalCents !== null &&
+            order.shippingPaymentRequest?.totalCents !== undefined ? (
+              <>
+                <TotalRow
+                  label="Supplemental shipping paid"
+                  value={formatMoney(
+                    order.shippingPaymentRequest.totalCents,
+                    order.shippingPaymentRequest.currency,
+                  )}
+                />
+                {order.shippingPaymentRequest.refundedCents > 0 ? (
+                  <TotalRow
+                    label="Supplemental shipping refunded"
+                    value={formatMoney(
+                      order.shippingPaymentRequest.refundedCents,
+                      order.shippingPaymentRequest.currency,
+                    )}
+                  />
+                ) : null}
+              </>
+            ) : null}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
               <dt className="text-muted-foreground">Dispute</dt>
               <dd>
@@ -395,7 +469,7 @@ function EmailDeliverySection({
             <p className="mt-3 text-muted-foreground text-sm">{emptyMessage}</p>
           )}
         </div>
-        {delivery && delivery.status !== "sent" ? (
+        {delivery && delivery.status !== "sent" && delivery.status !== "cancelled" ? (
           <RetryOrderEmailButton kind={kind} orderId={orderId} />
         ) : null}
       </div>
@@ -415,6 +489,63 @@ function DeliveryDetail({ label, value }: { label: string; value: string }) {
       <dt className="font-medium text-muted-foreground">{label}</dt>
       <dd className="mt-1">{value}</dd>
     </div>
+  );
+}
+
+function ShippingPaymentHistory({ requests }: { requests: OrderShippingPaymentRequest[] }) {
+  return (
+    <section aria-labelledby="shipping-payment-history-heading" className="space-y-4">
+      <div>
+        <h2 className="font-bold text-2xl" id="shipping-payment-history-heading">
+          Shipping payment history
+        </h2>
+        <p className="mt-1 text-muted-foreground text-sm">
+          Every link generation is retained so late or duplicate payments can be reconciled.
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-lg border bg-background">
+        <table className="w-full min-w-4xl text-left text-sm">
+          <thead className="border-b bg-muted/50">
+            <tr>
+              <TableHeading>Generation</TableHeading>
+              <TableHeading>Status</TableHeading>
+              <TableHeading>Amount</TableHeading>
+              <TableHeading>Refund / dispute</TableHeading>
+              <TableHeading>Stripe references</TableHeading>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {requests.map((request) => (
+              <tr key={request.id}>
+                <td className="whitespace-nowrap px-4 py-4">
+                  <span className="font-semibold">#{request.generation}</span>
+                  <span className="mt-1 block text-muted-foreground text-xs">
+                    {formatAdminDate(request.createdAt)}
+                  </span>
+                </td>
+                <td className="px-4 py-4 capitalize">{request.status.replaceAll("_", " ")}</td>
+                <td className="whitespace-nowrap px-4 py-4">
+                  {formatMoney(request.totalCents ?? request.amountCents, request.currency)}
+                  {request.totalCents === null ? (
+                    <span className="block text-muted-foreground text-xs">plus applicable tax</span>
+                  ) : null}
+                </td>
+                <td className="px-4 py-4">
+                  <span className="block capitalize">Refund: {request.refundStatus}</span>
+                  <span className="block capitalize">Dispute: {request.disputeStatus}</span>
+                </td>
+                <td className="max-w-sm px-4 py-4 font-mono text-xs">
+                  <span className="block break-all">{request.stripeSessionId ?? "No Session"}</span>
+                  <span className="mt-1 block break-all text-muted-foreground">
+                    {request.stripePaymentIntentId ?? "No Payment Intent"}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

@@ -16,6 +16,7 @@ function order(overrides: Partial<TestOrder> = {}): TestOrder {
     status: "paid",
     inventoryStatus: "allocated",
     fulfillmentMethod: "shipping",
+    deliveryReviewStatus: null,
     refundStatus: "none",
     disputeStatus: "none",
     confirmationDeliveryStatus: "sent",
@@ -30,6 +31,25 @@ describe("orderNeedsAction", () => {
 
   test("flags paid orders whose confirmation email terminally failed", () => {
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "failed" }))).toBe(true);
+  });
+
+  test("folds each unresolved local-delivery state into Needs action", () => {
+    for (const deliveryReviewStatus of [
+      "pending",
+      "shipping_payment_pending",
+      "shipping_payment_exception",
+    ] as const) {
+      expect(orderNeedsAction(order({ deliveryReviewStatus }))).toBe(true);
+    }
+    expect(orderNeedsAction(order({ deliveryReviewStatus: "approved" }))).toBe(false);
+  });
+
+  test("flags shipping payment exceptions after an order leaves paid", () => {
+    expect(
+      orderNeedsAction(
+        order({ status: "refunded", deliveryReviewStatus: "shipping_payment_exception" }),
+      ),
+    ).toBe(true);
   });
 
   test("flags refunded allocated stock regardless of fulfillment state", () => {
@@ -65,6 +85,18 @@ describe("matchesAdminOrderFilter", () => {
     expect(matchesAdminOrderFilter(order({ refundStatus: "full" }), "to-ship")).toBe(false);
     expect(matchesAdminOrderFilter(order({ disputeStatus: "open" }), "to-ship")).toBe(false);
     expect(matchesAdminOrderFilter(order({ inventoryStatus: "exception" }), "to-ship")).toBe(false);
+    expect(
+      matchesAdminOrderFilter(
+        order({ deliveryReviewStatus: "shipping_payment_pending" }),
+        "to-ship",
+      ),
+    ).toBe(false);
+    expect(
+      matchesAdminOrderFilter(
+        order({ deliveryReviewStatus: "shipping_payment_received" }),
+        "to-ship",
+      ),
+    ).toBe(true);
   });
 
   test("to-ship excludes delivery orders, which have their own queue", () => {

@@ -16,7 +16,12 @@ export type OrderFulfillmentTransition = (typeof orderFulfillmentTransitionValue
 
 export type OrderFulfillmentState = Pick<
   Order,
-  "status" | "inventoryStatus" | "refundStatus" | "disputeStatus" | "fulfillmentMethod"
+  | "status"
+  | "inventoryStatus"
+  | "refundStatus"
+  | "disputeStatus"
+  | "fulfillmentMethod"
+  | "deliveryReviewStatus"
 >;
 
 /** The tracking an operator recorded when marking an order as shipped. */
@@ -69,13 +74,17 @@ export const orderFulfillmentTransitionRules: Record<OrderFulfillmentTransition,
  * Keeps admin surfaces from offering a transition the server would reject.
  */
 export function resolveNextFulfillmentTransition(
-  order: Pick<Order, "status" | "fulfillmentMethod">,
+  order: Pick<Order, "status" | "fulfillmentMethod" | "deliveryReviewStatus">,
 ): OrderFulfillmentTransition | null {
   if (order.fulfillmentMethod === "shipping") {
-    return order.status === "paid" ? "ship" : null;
+    const reviewAllowsShipping =
+      order.deliveryReviewStatus === null ||
+      order.deliveryReviewStatus === "shipping_payment_received";
+
+    return order.status === "paid" && reviewAllowsShipping ? "ship" : null;
   }
 
-  if (order.status === "paid") {
+  if (order.status === "paid" && order.deliveryReviewStatus === "approved") {
     return "schedule_delivery";
   }
 
@@ -151,6 +160,20 @@ export async function applyOrderFulfillmentTransition(
 
   if (!isOrderFulfillmentEligible(state)) {
     throw new OrderFulfillmentError(rule.invalidStatusMessage, "invalid_status");
+  }
+
+  if (
+    (transition === "schedule_delivery" && state.deliveryReviewStatus !== "approved") ||
+    (transition === "ship" &&
+      state.deliveryReviewStatus !== null &&
+      state.deliveryReviewStatus !== "shipping_payment_received")
+  ) {
+    throw new OrderFulfillmentError(
+      transition === "schedule_delivery"
+        ? "Approve this delivery address before scheduling the order."
+        : "Resolve the shipping-payment review before marking this order as shipped.",
+      "invalid_status",
+    );
   }
 
   if (state.inventoryStatus === "exception") {

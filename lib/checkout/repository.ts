@@ -7,10 +7,12 @@ import {
   type CheckoutReservation,
   parsePersistedStripeSessionParams,
 } from "@/lib/checkout/create-hosted-checkout";
+import { LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS } from "@/lib/checkout/delivery";
 import { CheckoutError } from "@/lib/checkout/errors";
 import {
   combineCartLines,
   createPendingCheckoutLineSnapshots,
+  getCheckoutSnapshotSubtotalCents,
   resolveCheckoutLines,
 } from "@/lib/checkout/items";
 import type { Database } from "@/lib/db/client";
@@ -24,6 +26,7 @@ import {
   productVariants,
   shippingRates,
 } from "@/lib/db/schema";
+import { formatMoney } from "@/lib/money";
 import { parsePendingCheckoutLineSnapshots } from "@/lib/orders/create-paid-order";
 import { type CartLine, cartSchema } from "@/lib/validators/cart";
 
@@ -61,9 +64,12 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
             );
           }
 
+          const lineItems = parsePendingCheckoutLineSnapshots(existing.pendingCheckout.lineItems);
+          assertDeliveryMinimum(existing.pendingCheckout.fulfillmentMethod, lineItems);
+
           const reservation = toCheckoutReservation(
             existing,
-            parsePendingCheckoutLineSnapshots(existing.pendingCheckout.lineItems),
+            lineItems,
             existing.pendingCheckout.token,
             existing.pendingCheckout.fulfillmentMethod,
           );
@@ -110,6 +116,7 @@ export function createCheckoutRepository(database: Database): CheckoutRepository
         });
         const resolvedLines = resolveCheckoutLines(combinedItems, variantsWithRates);
         const lineItems = createPendingCheckoutLineSnapshots(resolvedLines);
+        assertDeliveryMinimum(checkout.fulfillmentMethod, lineItems);
         const [pendingCheckout] = await tx
           .insert(pendingCheckouts)
           .values({
@@ -485,6 +492,22 @@ function assertSameCart(persistedInput: unknown, requestedItems: CartLine[]): vo
 
   if (JSON.stringify(persistedLines) !== JSON.stringify(requestedLines)) {
     throw new CheckoutError("Checkout request ID was already used for another cart.", 409);
+  }
+}
+
+/** Enforces the delivery minimum from server-resolved price snapshots before stock is reserved. */
+function assertDeliveryMinimum(
+  fulfillmentMethod: FulfillmentMethod,
+  lineItems: ReturnType<typeof parsePendingCheckoutLineSnapshots>,
+): void {
+  if (
+    fulfillmentMethod === "delivery" &&
+    getCheckoutSnapshotSubtotalCents(lineItems) < LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS
+  ) {
+    throw new CheckoutError(
+      `Local delivery requires a merchandise subtotal of at least ${formatMoney(LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS)}.`,
+      400,
+    );
   }
 }
 

@@ -310,8 +310,17 @@ test.describe("admin product lifecycle @admin", () => {
     await expect(page.getByText("Product saved.").first()).toBeVisible();
 
     // Delete the product itself; success returns to the products list.
+    const productPath = new URL(page.url()).pathname;
     await page.getByRole("button", { name: "Delete product" }).click();
+    const deletionCompleted = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === productPath &&
+        response.request().method() === "POST" &&
+        response.ok(),
+      { timeout: 60_000 },
+    );
     await page.getByRole("button", { name: "Yes, delete" }).click();
+    await deletionCompleted;
     await expect(page).toHaveURL(/\/admin\/products$/);
     await page.goto(`/admin/products?q=${encodeURIComponent(renamed)}`);
     await expect(

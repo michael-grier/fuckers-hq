@@ -1,8 +1,9 @@
-import { AlertTriangle, ArrowUpRight, MailWarning, PackagePlus } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, MailWarning, MapPin, PackagePlus } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
 
 import {
+  DeliveryReviewStatusBadge,
   DisputeStatusBadge,
   OrderInventoryStatusBadge,
   OrderRestockRequiredBadge,
@@ -20,6 +21,7 @@ import {
   getAdminDashboardSummary,
   getAdminRecentOrders,
 } from "@/lib/admin/queries";
+import type { DeliveryReviewStatus } from "@/lib/db/schema";
 import { formatMoney } from "@/lib/money";
 import { orderNeedsInventoryReturn } from "@/lib/orders/return-order-inventory";
 import { cn } from "@/lib/utils";
@@ -31,6 +33,7 @@ export default async function AdminPage() {
     getAdminRecentOrders(),
   ]);
   const attentionCount =
+    attention.deliveryReviewOrders.length +
     attention.inventoryExceptionOrders.length +
     attention.inventoryReturnOrders.length +
     attention.failedEmailDeliveries.length;
@@ -144,6 +147,11 @@ export default async function AdminPage() {
                             fulfillmentMethod={order.fulfillmentMethod}
                             status={order.status}
                           />
+                          {order.deliveryReviewStatus === "pending" ||
+                          order.deliveryReviewStatus === "shipping_payment_pending" ||
+                          order.deliveryReviewStatus === "shipping_payment_exception" ? (
+                            <DeliveryReviewStatusBadge status={order.deliveryReviewStatus} />
+                          ) : null}
                           {orderNeedsInventoryReturn(order) ? (
                             <OrderRestockRequiredBadge />
                           ) : order.inventoryStatus === "exception" ? (
@@ -185,10 +193,21 @@ export default async function AdminPage() {
           </div>
           {attentionCount === 0 ? (
             <p className="px-5 py-8 text-muted-foreground text-sm">
-              All clear. Inventory exceptions, stock returns, and failed order emails show up here.
+              All clear. Address reviews, payment exceptions, stock issues, and failed emails show
+              up here.
             </p>
           ) : (
             <ul className="divide-y">
+              {attention.deliveryReviewOrders.map((order) => (
+                <AttentionItem
+                  action="Review order"
+                  description={getDeliveryReviewAttentionDescription(order)}
+                  href={`/admin/orders/${order.id}` as Route}
+                  icon={<MapPin aria-hidden="true" className="size-4 text-amber-700" />}
+                  key={order.id}
+                  title={`${order.orderNumber} — ${getDeliveryReviewAttentionTitle(order.deliveryReviewStatus)}`}
+                />
+              ))}
               {attention.inventoryExceptionOrders.map((order) => (
                 <AttentionItem
                   action="Resolve"
@@ -225,6 +244,33 @@ export default async function AdminPage() {
       </div>
     </div>
   );
+}
+
+function getDeliveryReviewAttentionTitle(status: DeliveryReviewStatus | null): string {
+  if (status === "shipping_payment_pending") {
+    return "waiting for shipping payment";
+  }
+
+  if (status === "shipping_payment_exception") {
+    return "shipping payment issue";
+  }
+
+  return "address review";
+}
+
+function getDeliveryReviewAttentionDescription(order: {
+  email: string;
+  deliveryReviewStatus: DeliveryReviewStatus | null;
+}): string {
+  if (order.deliveryReviewStatus === "shipping_payment_pending") {
+    return `${order.email}. The customer has been asked to pay regular shipping; follow up if needed.`;
+  }
+
+  if (order.deliveryReviewStatus === "shipping_payment_exception") {
+    return `${order.email}. Reconcile the supplemental charge in Stripe before fulfillment.`;
+  }
+
+  return `${order.email}. Confirm the address is inside the free local delivery area.`;
 }
 
 function TableHeading({ children }: { children: React.ReactNode }) {

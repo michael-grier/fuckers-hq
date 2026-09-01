@@ -34,6 +34,7 @@ const confirmationDeliveryLabels: Record<OrderEmailDelivery["status"], string> =
   retry: "Retry scheduled",
   sent: "Sent",
   failed: "Needs attention",
+  cancelled: "Cancelled",
 };
 
 export function formatConfirmationDeliveryStatus(status: OrderEmailDelivery["status"]): string {
@@ -71,6 +72,10 @@ const orderEmailKindCopy: Record<OrderEmailKind, { name: string; failureImpact: 
   shipped: {
     name: "shipping",
     failureImpact: "The customer has not been told their order shipped.",
+  },
+  shipping_payment_request: {
+    name: "shipping payment request",
+    failureImpact: "The customer has no link to pay the shipping charge.",
   },
 };
 

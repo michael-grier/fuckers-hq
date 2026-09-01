@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, count, countDistinct, eq, inArray, ne, or } from "drizzle-orm";
+import { and, asc, count, countDistinct, eq, inArray, isNull, ne, or } from "drizzle-orm";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { shippingProfiles } from "@/lib/catalog/shipping-profiles";
@@ -34,6 +34,10 @@ export async function getAdminDashboardSummary() {
         and(
           eq(orders.status, "paid"),
           eq(orders.fulfillmentMethod, "shipping"),
+          or(
+            isNull(orders.deliveryReviewStatus),
+            eq(orders.deliveryReviewStatus, "shipping_payment_received"),
+          ),
           eq(orders.inventoryStatus, "allocated"),
           paymentEligible,
         ),
@@ -58,6 +62,7 @@ export async function getAdminDashboardSummary() {
         and(
           eq(orders.status, "paid"),
           eq(orders.fulfillmentMethod, "delivery"),
+          eq(orders.deliveryReviewStatus, "approved"),
           eq(orders.inventoryStatus, "allocated"),
           paymentEligible,
         ),
@@ -101,8 +106,17 @@ export async function getAdminOrderNeedsActionCount() {
         ),
         and(
           eq(orders.status, "paid"),
-          or(eq(orders.inventoryStatus, "exception"), eq(orderEmailDeliveries.status, "failed")),
+          or(
+            eq(orders.inventoryStatus, "exception"),
+            eq(orderEmailDeliveries.status, "failed"),
+            inArray(orders.deliveryReviewStatus, [
+              "pending",
+              "shipping_payment_pending",
+              "shipping_payment_exception",
+            ]),
+          ),
         ),
+        eq(orders.deliveryReviewStatus, "shipping_payment_exception"),
       ),
     );
 
@@ -122,6 +136,7 @@ export async function getAdminRecentOrders() {
       status: true,
       inventoryStatus: true,
       fulfillmentMethod: true,
+      deliveryReviewStatus: true,
       refundStatus: true,
       disputeStatus: true,
       totalCents: true,
@@ -137,60 +152,89 @@ export async function getAdminAttentionItems() {
   await requireAdmin();
 
   const db = getDb();
-  const [inventoryExceptionOrders, inventoryReturnOrders, failedEmailDeliveries] =
-    await Promise.all([
-      db.query.orders.findMany({
-        columns: {
-          id: true,
-          orderNumber: true,
-          email: true,
-          totalCents: true,
-          currency: true,
-          createdAt: true,
-        },
-        where: (orders, { and, eq }) =>
-          and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception")),
-        orderBy: (orders, { asc }) => [asc(orders.createdAt)],
-      }),
-      db.query.orders.findMany({
-        columns: {
-          id: true,
-          orderNumber: true,
-          email: true,
-          totalCents: true,
-          currency: true,
-          createdAt: true,
-        },
-        where: (orders, { and, eq, inArray }) =>
+  const [
+    deliveryReviewOrders,
+    inventoryExceptionOrders,
+    inventoryReturnOrders,
+    failedEmailDeliveries,
+  ] = await Promise.all([
+    db.query.orders.findMany({
+      columns: {
+        id: true,
+        orderNumber: true,
+        email: true,
+        deliveryReviewStatus: true,
+        totalCents: true,
+        currency: true,
+        createdAt: true,
+      },
+      where: (orders, { and, eq, inArray, or }) =>
+        or(
           and(
-            eq(orders.inventoryStatus, "allocated"),
-            inArray(orders.refundStatus, ["partial", "full"]),
+            eq(orders.status, "paid"),
+            inArray(orders.deliveryReviewStatus, ["pending", "shipping_payment_pending"]),
           ),
-        orderBy: (orders, { asc }) => [asc(orders.createdAt)],
-      }),
-      db.query.orderEmailDeliveries.findMany({
-        columns: {
-          id: true,
-          kind: true,
-          attemptCount: true,
-          lastErrorCode: true,
-          lastAttemptAt: true,
-        },
-        // "failed" is terminal: the cron has exhausted retries and a human must intervene.
-        where: (deliveries, { eq }) => eq(deliveries.status, "failed"),
-        with: {
-          order: {
-            columns: {
-              id: true,
-              orderNumber: true,
-            },
+          eq(orders.deliveryReviewStatus, "shipping_payment_exception"),
+        ),
+      orderBy: (orders, { asc }) => [asc(orders.createdAt)],
+    }),
+    db.query.orders.findMany({
+      columns: {
+        id: true,
+        orderNumber: true,
+        email: true,
+        totalCents: true,
+        currency: true,
+        createdAt: true,
+      },
+      where: (orders, { and, eq }) =>
+        and(eq(orders.status, "paid"), eq(orders.inventoryStatus, "exception")),
+      orderBy: (orders, { asc }) => [asc(orders.createdAt)],
+    }),
+    db.query.orders.findMany({
+      columns: {
+        id: true,
+        orderNumber: true,
+        email: true,
+        totalCents: true,
+        currency: true,
+        createdAt: true,
+      },
+      where: (orders, { and, eq, inArray }) =>
+        and(
+          eq(orders.inventoryStatus, "allocated"),
+          inArray(orders.refundStatus, ["partial", "full"]),
+        ),
+      orderBy: (orders, { asc }) => [asc(orders.createdAt)],
+    }),
+    db.query.orderEmailDeliveries.findMany({
+      columns: {
+        id: true,
+        kind: true,
+        attemptCount: true,
+        lastErrorCode: true,
+        lastAttemptAt: true,
+      },
+      // "failed" is terminal: the cron has exhausted retries and a human must intervene.
+      where: (deliveries, { eq }) => eq(deliveries.status, "failed"),
+      with: {
+        order: {
+          columns: {
+            id: true,
+            orderNumber: true,
           },
         },
-        orderBy: (deliveries, { asc }) => [asc(deliveries.lastAttemptAt)],
-      }),
-    ]);
+      },
+      orderBy: (deliveries, { asc }) => [asc(deliveries.lastAttemptAt)],
+    }),
+  ]);
 
-  return { inventoryExceptionOrders, inventoryReturnOrders, failedEmailDeliveries };
+  return {
+    deliveryReviewOrders,
+    inventoryExceptionOrders,
+    inventoryReturnOrders,
+    failedEmailDeliveries,
+  };
 }
 
 export async function getAdminProducts() {
@@ -286,6 +330,7 @@ export async function getAdminOrders() {
       status: true,
       inventoryStatus: true,
       fulfillmentMethod: true,
+      deliveryReviewStatus: true,
       refundStatus: true,
       refundedCents: true,
       disputeStatus: true,
@@ -305,16 +350,28 @@ export async function getAdminOrders() {
           status: true,
         },
       },
+      shippingPaymentRequests: {
+        columns: {
+          status: true,
+          amountCents: true,
+          currency: true,
+          checkoutUrl: true,
+          expiresAt: true,
+        },
+        orderBy: (requests, { desc }) => [desc(requests.generation)],
+        limit: 1,
+      },
     },
     orderBy: (orders, { desc }) => [desc(orders.createdAt)],
   });
 
   // Flattened so list filtering does not need to reach through the relation.
-  return rows.map(({ emailDeliveries, ...order }) => ({
+  return rows.map(({ emailDeliveries, shippingPaymentRequests, ...order }) => ({
     ...order,
     itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
     confirmationDeliveryStatus:
       emailDeliveries.find((delivery) => delivery.kind === "confirmation")?.status ?? null,
+    shippingPaymentRequest: shippingPaymentRequests.at(0) ?? null,
   }));
 }
 
@@ -333,6 +390,9 @@ export async function getAdminOrderById(input: unknown) {
     where: (orders, { eq }) => eq(orders.id, parsedOrderId.data),
     with: {
       emailDeliveries: true,
+      shippingPaymentRequests: {
+        orderBy: (requests, { desc }) => [desc(requests.generation)],
+      },
       items: {
         orderBy: (items) => [asc(items.productNameSnapshot), asc(items.variantNameSnapshot)],
       },
@@ -343,7 +403,7 @@ export async function getAdminOrderById(input: unknown) {
     return null;
   }
 
-  const { emailDeliveries, ...rest } = order;
+  const { emailDeliveries, shippingPaymentRequests, ...rest } = order;
 
   return {
     ...rest,
@@ -351,6 +411,10 @@ export async function getAdminOrderById(input: unknown) {
     deliveryScheduledDelivery:
       emailDeliveries.find((row) => row.kind === "delivery_scheduled") ?? null,
     shippedDelivery: emailDeliveries.find((row) => row.kind === "shipped") ?? null,
+    shippingPaymentDelivery:
+      emailDeliveries.find((row) => row.kind === "shipping_payment_request") ?? null,
+    shippingPaymentRequest: shippingPaymentRequests.at(0) ?? null,
+    shippingPaymentRequests,
   };
 }
 
@@ -366,6 +430,7 @@ export async function getAdminDeliveryQueue() {
     where: (orders, { and, eq, inArray, ne }) =>
       and(
         eq(orders.fulfillmentMethod, "delivery"),
+        eq(orders.deliveryReviewStatus, "approved"),
         inArray(orders.status, ["paid", "delivery_scheduled"]),
         ne(orders.refundStatus, "full"),
         inArray(orders.disputeStatus, ["none", "won"]),
@@ -378,6 +443,7 @@ export async function getAdminDeliveryQueue() {
       inventoryStatus: true,
       refundStatus: true,
       disputeStatus: true,
+      deliveryReviewStatus: true,
       totalCents: true,
       currency: true,
       deliveryScheduledAt: true,

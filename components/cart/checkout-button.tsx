@@ -5,29 +5,35 @@ import { useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
+  getCartSubtotalCents,
   getCheckoutCartFingerprint,
   resolveFulfillmentMethod,
   toCheckoutRequest,
 } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
+import { LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS } from "@/lib/checkout/delivery";
 import { checkoutErrorResponseSchema, checkoutResponseSchema } from "@/lib/validators/cart";
 
 export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvailable?: boolean }) {
   const lines = useCartStore((state) => state.lines);
   const fulfillmentPreference = useCartStore((state) => state.fulfillmentMethod);
+  const deliveryAddressReviewAcknowledged = useCartStore(
+    (state) => state.deliveryAddressReviewAcknowledged,
+  );
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const requestIdentity = useRef<{ cartFingerprint: string; requestId: string } | null>(null);
+  const isDeliveryEligible =
+    isDeliveryAvailable && getCartSubtotalCents(lines) >= LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS;
+  const fulfillmentMethod = resolveFulfillmentMethod(fulfillmentPreference, isDeliveryEligible);
+  const needsDeliveryAcknowledgement =
+    fulfillmentMethod === "delivery" && !deliveryAddressReviewAcknowledged;
 
   async function handleCheckout() {
     setError(null);
     setIsLoading(true);
 
     try {
-      const fulfillmentMethod = resolveFulfillmentMethod(
-        fulfillmentPreference,
-        isDeliveryAvailable,
-      );
       const cartFingerprint = getCheckoutCartFingerprint(lines, fulfillmentMethod);
 
       if (requestIdentity.current?.cartFingerprint !== cartFingerprint) {
@@ -43,7 +49,12 @@ export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvai
           "Content-Type": "application/json",
         },
         body: JSON.stringify(
-          toCheckoutRequest(lines, requestIdentity.current.requestId, fulfillmentMethod),
+          toCheckoutRequest(
+            lines,
+            requestIdentity.current.requestId,
+            fulfillmentMethod,
+            deliveryAddressReviewAcknowledged,
+          ),
         ),
       });
       const responseBody: unknown = await response.json().catch(() => null);
@@ -76,7 +87,7 @@ export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvai
     <div className="space-y-3">
       <Button
         className="w-full"
-        disabled={lines.length === 0 || isLoading}
+        disabled={lines.length === 0 || isLoading || needsDeliveryAcknowledgement}
         onClick={handleCheckout}
         size="lg"
         type="button"
@@ -86,6 +97,8 @@ export function CheckoutButton({ isDeliveryAvailable = false }: { isDeliveryAvai
             <LoaderCircle aria-hidden="true" className="animate-spin" />
             Redirecting…
           </>
+        ) : needsDeliveryAcknowledgement ? (
+          "Agree above to checkout"
         ) : (
           <>
             Checkout

@@ -72,6 +72,7 @@ const orderEmailIdempotencyPrefixes: Record<OrderEmailKind, string> = {
   confirmation: "order-confirmation",
   delivery_scheduled: "order-delivery-scheduled",
   shipped: "order-shipped",
+  shipping_payment_request: "order-shipping-payment",
 };
 
 export function makeOrderEmailIdempotencyKey(orderId: string, kind: OrderEmailKind): string {

@@ -19,9 +19,13 @@ type CartState = {
   // `resolveFulfillmentMethod` coerces this back to shipping when it is not — including a
   // persisted value from before the current method names existed.
   fulfillmentMethod: CartFulfillmentMethod;
+  // Acknowledgement lasts for this browser session only. Reloading or switching back to shipping
+  // requires a fresh choice before another local-delivery checkout can start.
+  deliveryAddressReviewAcknowledged: boolean;
   isCartOpen: boolean;
   setCartOpen: (open: boolean) => void;
   setFulfillmentMethod: (method: CartFulfillmentMethod) => void;
+  setDeliveryAddressReviewAcknowledged: (acknowledged: boolean) => void;
   addLine: (line: AddCartLineInput) => void;
   updateQuantity: (variantId: string, quantity: number) => void;
   removeLine: (variantId: string) => void;
@@ -108,9 +112,17 @@ export const useCartStore = create<CartState>()(
     (set) => ({
       lines: [],
       fulfillmentMethod: "shipping",
+      deliveryAddressReviewAcknowledged: false,
       isCartOpen: false,
       setCartOpen: (open) => set({ isCartOpen: open }),
-      setFulfillmentMethod: (method) => set({ fulfillmentMethod: method }),
+      setFulfillmentMethod: (method) =>
+        set((state) => ({
+          fulfillmentMethod: method,
+          deliveryAddressReviewAcknowledged:
+            method === "delivery" ? state.deliveryAddressReviewAcknowledged : false,
+        })),
+      setDeliveryAddressReviewAcknowledged: (acknowledged) =>
+        set({ deliveryAddressReviewAcknowledged: acknowledged }),
       addLine: (line) => {
         const quantity = clampQuantity(line.quantity ?? 1);
 
@@ -159,7 +171,7 @@ export const useCartStore = create<CartState>()(
           lines: state.lines.filter((line) => line.variantId !== variantId),
         }));
       },
-      clear: () => set({ lines: [] }),
+      clear: () => set({ lines: [], deliveryAddressReviewAcknowledged: false }),
     }),
     {
       name: "fuckers-hq-cart",

@@ -133,6 +133,7 @@ describe("order preview shipment layout", () => {
       status: "paid",
       inventoryStatus: "allocated",
       fulfillmentMethod: "shipping",
+      deliveryReviewStatus: null,
       deliveryScheduledAt: null,
       shippedAt: null,
       trackingCarrier: null,
@@ -163,6 +164,9 @@ describe("order preview shipment layout", () => {
       confirmationDelivery: null,
       deliveryScheduledDelivery: null,
       shippedDelivery: null,
+      shippingPaymentDelivery: null,
+      shippingPaymentRequest: null,
+      shippingPaymentRequests: [],
     } satisfies PeekableOrder;
 
     render(<OrderPeek order={order} />);

@@ -2,6 +2,7 @@
 
 import { getCartSubtotalCents, resolveFulfillmentMethod } from "@/lib/cart/selectors";
 import { useCartStore } from "@/lib/cart/store";
+import { LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS } from "@/lib/checkout/delivery";
 import { formatMoney } from "@/lib/money";
 
 type CartSummaryProps = {
@@ -15,9 +16,12 @@ export function CartSummary({ isDeliveryAvailable = false, compact = false }: Ca
   const fulfillmentPreference = useCartStore((state) => state.fulfillmentMethod);
   const subtotal = getCartSubtotalCents(lines);
   const isDelivery =
-    resolveFulfillmentMethod(fulfillmentPreference, isDeliveryAvailable) === "delivery";
+    resolveFulfillmentMethod(
+      fulfillmentPreference,
+      isDeliveryAvailable && subtotal >= LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS,
+    ) === "delivery";
   const fulfillmentLabel = isDelivery ? "Delivery" : "Shipping";
-  const fulfillmentValue = isDelivery ? "Free" : "Calculated at checkout";
+  const fulfillmentValue = isDelivery ? "Free, pending review" : "Calculated at checkout";
 
   if (compact) {
     return (

@@ -29,7 +29,26 @@ export const orderStatusValues = [
 ] as const;
 export const orderInventoryStatusValues = ["allocated", "exception", "released"] as const;
 export const fulfillmentMethodValues = ["shipping", "delivery"] as const;
-export const orderEmailKindValues = ["confirmation", "delivery_scheduled", "shipped"] as const;
+export const deliveryReviewStatusValues = [
+  "pending",
+  "approved",
+  "shipping_payment_pending",
+  "shipping_payment_received",
+  "shipping_payment_exception",
+] as const;
+export const shippingPaymentRequestStatusValues = [
+  "provisioning",
+  "pending",
+  "paid",
+  "expired",
+  "failed",
+] as const;
+export const orderEmailKindValues = [
+  "confirmation",
+  "delivery_scheduled",
+  "shipped",
+  "shipping_payment_request",
+] as const;
 export const refundStatusValues = ["none", "partial", "full"] as const;
 export const disputeStatusValues = ["none", "open", "won", "lost", "prevented"] as const;
 export const stripePaymentEventKindValues = ["refund", "dispute"] as const;
@@ -39,6 +58,7 @@ export const orderEmailDeliveryStatusValues = [
   "retry",
   "sent",
   "failed",
+  "cancelled",
 ] as const;
 export const inventoryReservationStatusValues = [
   "provisioning",
@@ -52,6 +72,11 @@ export const productStatus = pgEnum("product_status", productStatusValues);
 export const orderStatus = pgEnum("order_status", orderStatusValues);
 export const orderInventoryStatus = pgEnum("order_inventory_status", orderInventoryStatusValues);
 export const fulfillmentMethod = pgEnum("fulfillment_method", fulfillmentMethodValues);
+export const deliveryReviewStatus = pgEnum("delivery_review_status", deliveryReviewStatusValues);
+export const shippingPaymentRequestStatus = pgEnum(
+  "shipping_payment_request_status",
+  shippingPaymentRequestStatusValues,
+);
 export const shippingProfile = pgEnum("shipping_profile", shippingProfileValues);
 export const shippingCarrier = pgEnum("shipping_carrier", shippingCarrierValues);
 export const orderEmailKind = pgEnum("order_email_kind", orderEmailKindValues);
@@ -310,6 +335,9 @@ export const orders = pgTable(
     status: orderStatus("status").notNull().default("pending"),
     inventoryStatus: orderInventoryStatus("inventory_status").notNull().default("allocated"),
     fulfillmentMethod: fulfillmentMethod("fulfillment_method").notNull().default("shipping"),
+    // Original shipping orders keep this null. Local-delivery orders retain their review history
+    // even when a supplemental payment converts them to shipping.
+    deliveryReviewStatus: deliveryReviewStatus("delivery_review_status"),
     deliveryScheduledAt: timestamp("delivery_scheduled_at", { withTimezone: true }),
     shippedAt: timestamp("shipped_at", { withTimezone: true }),
     // Tracking is optional: not every shipment has a number, and the shipping notification is sent
@@ -336,6 +364,7 @@ export const orders = pgTable(
     index("orders_status_idx").on(table.status),
     index("orders_created_at_idx").on(table.createdAt),
     index("orders_fulfillment_method_status_idx").on(table.fulfillmentMethod, table.status),
+    index("orders_delivery_review_status_idx").on(table.deliveryReviewStatus),
     check("orders_subtotal_cents_nonnegative", sql`${table.subtotalCents} >= 0`),
     check("orders_tax_cents_nonnegative", sql`${table.taxCents} >= 0`),
     check("orders_shipping_cents_nonnegative", sql`${table.shippingCents} >= 0`),
@@ -363,6 +392,8 @@ export const orders = pgTable(
       "orders_delivery_scheduled_requires_delivery",
       sql`${table.status}::text <> 'delivery_scheduled' OR ${table.fulfillmentMethod} = 'delivery'`,
     ),
+    // Production migrates before it deploys this writer. Cross-column review constraints must be
+    // added in a follow-up migration after the previous version can no longer write null states.
     // The timestamp survives drop-off so the admin history keeps how long the order waited.
     // Covers `fulfilled` as well, so a delivery order cannot reach its terminal state without the
     // scheduling step that told the customer to expect it. The application already enforces the
@@ -388,6 +419,98 @@ export const orders = pgTable(
       "orders_shipment_requires_shipping_method",
       sql`(${table.shippedAt} IS NULL AND ${table.trackingNumber} IS NULL)
         OR ${table.fulfillmentMethod} = 'shipping'`,
+    ),
+  ],
+);
+
+/**
+ * One durable supplemental shipping-charge request per local-delivery order.
+ *
+ * `generation` advances when an expired or definitively failed Checkout Session is replaced. The
+ * original order totals stay immutable; Stripe tax and the final amount paid live on this record.
+ */
+export const orderShippingPaymentRequests = pgTable(
+  "order_shipping_payment_requests",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    generation: integer("generation").notNull().default(1),
+    status: shippingPaymentRequestStatus("status").notNull().default("provisioning"),
+    amountCents: integer("amount_cents").notNull(),
+    taxCents: integer("tax_cents"),
+    totalCents: integer("total_cents"),
+    currency: text("currency").notNull(),
+    stripeSessionId: text("stripe_session_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    stripeCreateIdempotencyKey: text("stripe_create_idempotency_key").notNull(),
+    stripeSessionParams: jsonb("stripe_session_params").$type<JsonRecord>().notNull(),
+    checkoutUrl: text("checkout_url"),
+    shippingAddress: jsonb("shipping_address").$type<JsonRecord | null>(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    refundStatus: refundStatus("refund_status").notNull().default("none"),
+    refundedCents: integer("refunded_cents").notNull().default(0),
+    disputeStatus: disputeStatus("dispute_status").notNull().default("none"),
+    lastErrorCode: text("last_error_code"),
+    ...timestamps,
+  },
+  (table) => [
+    uniqueIndex("order_shipping_payment_requests_order_generation_unique").on(
+      table.orderId,
+      table.generation,
+    ),
+    uniqueIndex("order_shipping_payment_requests_stripe_session_id_unique").on(
+      table.stripeSessionId,
+    ),
+    uniqueIndex("order_shipping_payment_requests_payment_intent_id_unique").on(
+      table.stripePaymentIntentId,
+    ),
+    uniqueIndex("order_shipping_payment_requests_idempotency_key_unique").on(
+      table.stripeCreateIdempotencyKey,
+    ),
+    index("order_shipping_payment_requests_status_expires_idx").on(table.status, table.expiresAt),
+    check("order_shipping_payment_requests_generation_positive", sql`${table.generation} > 0`),
+    check("order_shipping_payment_requests_amount_nonnegative", sql`${table.amountCents} >= 0`),
+    check(
+      "order_shipping_payment_requests_tax_nonnegative",
+      sql`${table.taxCents} IS NULL OR ${table.taxCents} >= 0`,
+    ),
+    check(
+      "order_shipping_payment_requests_total_nonnegative",
+      sql`${table.totalCents} IS NULL OR ${table.totalCents} >= 0`,
+    ),
+    check("order_shipping_payment_requests_refunded_nonnegative", sql`${table.refundedCents} >= 0`),
+    check(
+      "order_shipping_payment_requests_refund_not_above_total",
+      sql`${table.totalCents} IS NULL OR ${table.refundedCents} <= ${table.totalCents}`,
+    ),
+    check(
+      "order_shipping_payment_requests_paid_state_consistent",
+      sql`(
+        ${table.status} = 'paid'
+        AND ${table.stripeSessionId} IS NOT NULL
+        AND ${table.stripePaymentIntentId} IS NOT NULL
+        AND ${table.taxCents} IS NOT NULL
+        AND ${table.totalCents} IS NOT NULL
+        AND ${table.shippingAddress} IS NOT NULL
+        AND ${table.paidAt} IS NOT NULL
+      ) OR (
+        ${table.status} <> 'paid'
+        AND ${table.stripePaymentIntentId} IS NULL
+        AND ${table.taxCents} IS NULL
+        AND ${table.totalCents} IS NULL
+        AND ${table.shippingAddress} IS NULL
+        AND ${table.paidAt} IS NULL
+        AND ${table.refundStatus} = 'none'
+        AND ${table.refundedCents} = 0
+        AND ${table.disputeStatus} = 'none'
+      )`,
+    ),
+    check(
+      "order_shipping_payment_requests_linked_state_has_session",
+      sql`${table.status} NOT IN ('pending', 'paid', 'expired') OR ${table.stripeSessionId} IS NOT NULL`,
     ),
   ],
 );
@@ -495,7 +618,18 @@ export const productImagesRelations = relations(productImages, ({ one }) => ({
 export const ordersRelations = relations(orders, ({ many }) => ({
   items: many(orderItems),
   emailDeliveries: many(orderEmailDeliveries),
+  shippingPaymentRequests: many(orderShippingPaymentRequests),
 }));
+
+export const orderShippingPaymentRequestsRelations = relations(
+  orderShippingPaymentRequests,
+  ({ one }) => ({
+    order: one(orders, {
+      fields: [orderShippingPaymentRequests.orderId],
+      references: [orders.id],
+    }),
+  }),
+);
 
 export const pendingCheckoutsRelations = relations(pendingCheckouts, ({ one }) => ({
   reservation: one(inventoryReservations),
@@ -555,6 +689,8 @@ export type InventoryReservationItem = typeof inventoryReservationItems.$inferSe
 export type NewInventoryReservationItem = typeof inventoryReservationItems.$inferInsert;
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
+export type OrderShippingPaymentRequest = typeof orderShippingPaymentRequests.$inferSelect;
+export type NewOrderShippingPaymentRequest = typeof orderShippingPaymentRequests.$inferInsert;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
 export type StripePaymentEvent = typeof stripePaymentEvents.$inferSelect;
@@ -562,4 +698,5 @@ export type NewStripePaymentEvent = typeof stripePaymentEvents.$inferInsert;
 export type OrderEmailDelivery = typeof orderEmailDeliveries.$inferSelect;
 export type NewOrderEmailDelivery = typeof orderEmailDeliveries.$inferInsert;
 export type FulfillmentMethod = (typeof fulfillmentMethodValues)[number];
+export type DeliveryReviewStatus = (typeof deliveryReviewStatusValues)[number];
 export type OrderEmailKind = (typeof orderEmailKindValues)[number];
