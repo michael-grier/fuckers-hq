@@ -574,6 +574,7 @@ source of truth. The ones below need deliberate production values rather than a 
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Live keys and a separate live webhook signing secret. |
 | `STRIPE_TAX_ENABLED` | Stays `false` unless the brand is tax-registered *and* jurisdictions are configured in Stripe. |
 | `DATABASE_URL` | Dedicated production Neon branch or project, never the demo one. |
+| `PRODUCTION_NEON_ENDPOINT_ID` | The production branch's non-secret `ep-...` ID; the build rejects a `DATABASE_URL` for any other endpoint. |
 | `EMAIL_FROM` / `SUPPORT_EMAIL` | Brand addresses on a Resend-verified domain. `SUPPORT_EMAIL` is baked into the statically rendered `/contact` page at build time, so changing it requires a redeploy. |
 | `ADMIN_USER_IDS` | Clerk **user IDs**, not emails. The accounts must exist first. |
 | `R2_PUBLIC_URL` | A custom domain on the bucket, not `r2.dev`. |

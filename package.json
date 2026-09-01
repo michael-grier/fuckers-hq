@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev --turbopack",
-    "build": "next build",
+    "build": "bun run db:verify-production-target && next build",
     "start": "next start",
     "lint": "biome check .",
     "format": "biome check --write .",
@@ -19,6 +19,7 @@
     "worktree:prune": "bun scripts/worktree-db.ts prune",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run lib/db/migrate.ts",
+    "db:verify-production-target": "bun scripts/verify-production-database.ts",
     "db:seed": "bun run lib/db/seed.ts",
     "db:studio": "drizzle-kit studio"
   },

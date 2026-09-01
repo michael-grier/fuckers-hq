@@ -9,10 +9,12 @@ writing those for any migration with a backfill, a guard, or a nontrivial rollba
 Migrations are applied by CI, not by hand. On every push to `main`, the
 [`Deploy Production`](../../.github/workflows/deploy-production.yml) workflow:
 
-1. Runs `bun run db:migrate` against the production database. The migrator logs which
+1. Confirms `PRODUCTION_DATABASE_URL` points at the configured production Neon endpoint.
+2. Runs `bun run db:migrate` against the production database. The migrator logs which
    migrations are pending, applies them, and is safe to re-run — an up-to-date database is a
    no-op.
-2. Only if that succeeds, deploys the same commit to Vercel with the CLI.
+3. Only if that succeeds, deploys the same commit to Vercel with the CLI. Vercel runs the same
+   endpoint check against its pooled `DATABASE_URL` before building.
 
 This enforces the load-bearing ordering: the application version reaches production only after
 the schema it expects. A failed or aborting migration fails the workflow run — visible as a red
@@ -40,6 +42,10 @@ Held only as GitHub Actions secrets — never in a developer shell, `.env` file,
 | `VERCEL_TOKEN` | Vercel deploy token |
 | `VERCEL_ORG_ID` | Vercel team/org ID |
 | `VERCEL_PROJECT_ID` | Vercel project ID |
+
+The repository variable `PRODUCTION_NEON_ENDPOINT_ID` holds the production branch's non-secret
+`ep-...` endpoint ID. Set the same Production-only variable in Vercel. The migration URL may be
+direct and the Vercel URL pooled; the guard removes Neon's `-pooler` suffix before comparing them.
 
 The application build runs on Vercel with the project's own environment variables; the CI runner
 never holds application secrets beyond the deploy token and the database URL used by the

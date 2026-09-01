@@ -183,6 +183,16 @@ describe("environment contract", () => {
     );
     expect(() => parseEnv({ NODE_ENV: "test", CRON_SECRET: "too-short" })).toThrow();
   });
+
+  test("accepts only Neon endpoint IDs for the production database guard", () => {
+    expect(
+      parseEnv({ NODE_ENV: "test", PRODUCTION_NEON_ENDPOINT_ID: "ep-bitter-art-a6pyx5cs" })
+        .PRODUCTION_NEON_ENDPOINT_ID,
+    ).toBe("ep-bitter-art-a6pyx5cs");
+    expect(() =>
+      parseEnv({ NODE_ENV: "test", PRODUCTION_NEON_ENDPOINT_ID: "production" }),
+    ).toThrow();
+  });
 });
 
 describe("cart selectors", () => {
