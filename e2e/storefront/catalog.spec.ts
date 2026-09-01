@@ -42,12 +42,15 @@ test.describe("storefront @smoke", () => {
 
   test("price sorting reorders the filtered grid and lands in the URL", async ({ page }) => {
     await page.goto("/products?q=e2e");
-    // Same hydration-race guard as the search spec.
+    // Retrying only until the URL changes can leave the initial server-rendered grid in place
+    // when hydration interrupts the first navigation, so require the rendered order as well.
     await expect(async () => {
       await page.getByLabel("Sort").selectOption("price-asc");
       await expect(page).toHaveURL(/sort=price-asc/, { timeout: 2_000 });
+      await expect(page.locator("article h2").first()).toHaveText("E2E Budget Bearings", {
+        timeout: 2_000,
+      });
     }).toPass({ timeout: 15_000 });
-    await expect(page.locator("article h2").first()).toHaveText("E2E Budget Bearings");
     // The reverse order arrives via URL params, proving the sort state is URL-driven.
     await page.goto("/products?q=e2e&sort=price-desc");
     await expect(page.locator("article h2").first()).toHaveText("E2E Sold Out Deck");
