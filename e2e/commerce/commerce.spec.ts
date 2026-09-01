@@ -61,45 +61,71 @@ async function openWorkspace(page: Page, productName: string): Promise<void> {
   }).toPass({ timeout: 30_000 });
 }
 
+/** Opens the selected order through the peek link's rendered destination. */
+async function openFullOrder(page: Page, linkName: "Open full order" | "Review full order") {
+  const link = page.getByRole("link", { name: linkName });
+  const href = await link.getAttribute("href");
+
+  if (!href || !/^\/admin\/orders\/[0-9a-f-]+$/.test(href)) {
+    throw new Error(`${linkName} has an invalid destination: ${href}`);
+  }
+  // The peek itself arrives through a streamed search-param refresh. Navigating its semantic href
+  // avoids racing a second client transition while keeping the workflow under test unchanged.
+  await page.goto(href);
+  await expect(page).toHaveURL(/\/admin\/orders\/[0-9a-f-]+$/);
+}
+
+/** Opens the client-only shipping form once the detail page has hydrated. */
+async function openShipmentForm(page: Page): Promise<void> {
+  const submit = page.getByRole("button", { name: "Ship and notify" });
+
+  if (await submit.isVisible()) {
+    return;
+  }
+
+  await expect(async () => {
+    await page.getByRole("button", { name: "Mark as shipped" }).click();
+    await expect(submit).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
 /** Ships the current order after the client form survives hydration. */
 async function shipOrder(page: Page, trackingNumber?: string): Promise<void> {
   const orderPath = new URL(page.url()).pathname;
+  const orderId = orderPath.split("/").at(-1);
   const shipped = page.getByText("Shipped", { exact: true }).first();
+
+  if (!orderId) {
+    throw new Error(`Order detail URL has no order id: ${orderPath}`);
+  }
+
   await page.waitForLoadState("networkidle");
+  await openShipmentForm(page);
 
-  await expect(async () => {
-    // The action may commit just after the response wait expires. Observe the rendered persisted
-    // state before retrying so an already-completed shipment is never submitted twice.
-    if (await shipped.isVisible()) {
-      return;
-    }
+  if (trackingNumber) {
+    await page.getByLabel("Carrier").selectOption("canada_post");
+    await page.getByLabel("Tracking number").fill(trackingNumber);
+  }
+  await page.getByRole("button", { name: "Ship and notify" }).click();
 
-    const submit = page.getByRole("button", { name: "Ship and notify" });
-    if (!(await submit.isVisible())) {
-      await page.getByRole("button", { name: "Mark as shipped" }).click();
-      await expect(submit).toBeVisible({ timeout: 2_000 });
-    }
-    if (trackingNumber) {
-      // A previous validation attempt can close and reset the form. Restore the carrier before
-      // filling its tracking number so the input is enabled on every retry.
-      await page.getByLabel("Carrier").selectOption("canada_post");
-      await page.getByLabel("Tracking number").fill(trackingNumber);
-    }
-    const [response] = await Promise.all([
-      page.waitForResponse(
-        (response) =>
-          new URL(response.url()).pathname === orderPath &&
-          response.request().method() === "POST" &&
-          response.ok(),
-        { timeout: 10_000 },
-      ),
-      submit.click(),
-    ]);
-    await response.finished();
-  }).toPass({ timeout: 30_000 });
+  // The action sends email after committing. Observe the durable transition instead of waiting on
+  // that streamed response, which can remain open while the provider attempt completes.
+  await expect
+    .poll(
+      () =>
+        getDb().query.orders.findFirst({
+          columns: { status: true, trackingCarrier: true, trackingNumber: true },
+          where: eq(orders.id, orderId),
+        }),
+      { timeout: 30_000 },
+    )
+    .toEqual({
+      status: "fulfilled",
+      trackingCarrier: trackingNumber ? "canada_post" : null,
+      trackingNumber: trackingNumber ?? null,
+    });
 
-  // The response or rendered status proves the write completed; reload so the final assertion
-  // reads persisted state rather than depending on the action's client-side router refresh.
+  // Reload after persistence so the final assertion does not race the action's router refresh.
   await page.reload();
   await expect(shipped).toBeVisible();
   if (trackingNumber) {
@@ -259,8 +285,7 @@ test.describe("paid-order webhook @commerce", () => {
     await expect(orderRow.getByText("Address review", { exact: true })).toBeVisible();
     await orderRow.click();
     await expect(page.getByText("Address review required", { exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Review full order" }).click();
-    await expect(page).toHaveURL(/\/admin\/orders\/[0-9a-f-]+$/);
+    await openFullOrder(page, "Review full order");
     const orderPath = new URL(page.url()).pathname;
 
     await expect(page.getByRole("heading", { name: "Review this delivery address" })).toBeVisible();
@@ -342,7 +367,7 @@ test.describe("paid-order webhook @commerce", () => {
     const orderRow = page.getByRole("link", { name: /FHQ-/ });
     await expect(orderRow).toHaveCount(1);
     await orderRow.click();
-    await page.getByRole("link", { name: "Open full order" }).click();
+    await openFullOrder(page, "Open full order");
     await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "Canvas Coach Jacket" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Confirmation email" })).toBeVisible();
@@ -476,7 +501,7 @@ test.describe("refund inventory @commerce", () => {
 
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
-    await page.getByRole("link", { name: "Open full order" }).click();
+    await openFullOrder(page, "Open full order");
     await expect(page.getByText("Returned to stock", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Stock action required" })).toBeHidden();
 
@@ -511,7 +536,7 @@ test.describe("refund inventory @commerce", () => {
 
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
-    await page.getByRole("link", { name: "Open full order" }).click();
+    await openFullOrder(page, "Open full order");
     const initialNeedsActionCount = await readOrderNeedsActionCount(page);
     await shipOrder(page);
 
@@ -601,9 +626,9 @@ test.describe("fulfillment @commerce", () => {
 
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
-    await page.getByRole("link", { name: "Open full order" }).click();
+    await openFullOrder(page, "Open full order");
 
-    await page.getByRole("button", { name: "Mark as shipped" }).click();
+    await openShipmentForm(page);
     await page.getByLabel("Carrier").selectOption("canada_post");
     await page.getByLabel("Tracking number").fill("CX473124828CA");
     await page.getByRole("button", { name: "Ship and notify" }).click();
@@ -658,8 +683,7 @@ test.describe("fulfillment @commerce", () => {
     const reviewOrder = page.getByRole("link", { name: /FHQ-/ });
     await expect(reviewOrder).toHaveCount(1);
     await reviewOrder.click();
-    await page.getByRole("link", { name: "Review full order" }).click();
-    await expect(page).toHaveURL(/\/admin\/orders\/[0-9a-f-]+$/);
+    await openFullOrder(page, "Review full order");
     await page.getByRole("button", { name: "Approve local delivery" }).click();
     await page.getByRole("button", { name: "Yes, approve" }).click();
     await expect
