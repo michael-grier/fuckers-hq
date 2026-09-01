@@ -156,9 +156,13 @@ Restore the product price and inventory after these checks.
 - [ ] Exactly one order appears in admin with status `paid`.
 - [ ] Order totals, shipping address, product name, variant name, quantity, and unit-price snapshots
       match Checkout.
+- [ ] The order's `destination_province` matches the Canadian province collected by Stripe. A
+      local-delivery order converted to shipping uses the supplemental Checkout address.
 - [ ] On-hand and reserved inventory both decreased by exactly the purchased quantity, leaving the
       correct available quantity.
 - [ ] The confirmation email arrives once and contains the same persisted snapshots and totals.
+- [ ] Stripe sends no separate successful-payment receipt; the branded confirmation is the only
+      customer email for the sale.
 - [ ] The order detail shows the confirmation delivery as `Sent` with one attempt.
 
 Fulfillment for a shipping order:

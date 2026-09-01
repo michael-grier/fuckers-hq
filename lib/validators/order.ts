@@ -11,6 +11,7 @@ import {
   orders,
   refundStatusValues,
 } from "@/lib/db/schema";
+import { destinationProvinceSchema } from "@/lib/orders/destination-province";
 
 export const orderStatusSchema = z.enum(orderStatusValues);
 export const orderInventoryStatusSchema = z.enum(orderInventoryStatusValues);
@@ -21,6 +22,7 @@ export const shippingAddressSchema = z.record(z.string(), z.unknown()).nullable(
 
 export const orderSelectSchema = createSelectSchema(orders, {
   shippingAddress: shippingAddressSchema,
+  destinationProvince: destinationProvinceSchema.nullable(),
 });
 
 export const orderInsertSchema = createInsertSchema(orders, {
@@ -34,6 +36,7 @@ export const orderInsertSchema = createInsertSchema(orders, {
   totalCents: (schema) => schema.int().nonnegative(),
   currency: (schema) => schema.length(3).toLowerCase(),
   shippingAddress: shippingAddressSchema,
+  destinationProvince: destinationProvinceSchema.nullable(),
 })
   .omit({
     id: true,

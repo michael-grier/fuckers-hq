@@ -163,6 +163,9 @@ export function createShippingPaymentRepository(database: Database): ShippingPay
               ? {
                   fulfillmentMethod: "shipping",
                   deliveryReviewStatus: "shipping_payment_received",
+                  // The supplemental Checkout address is the final shipping destination. Keep the
+                  // original value when Stripe returned no valid Canadian province.
+                  destinationProvince: payment.destinationProvince ?? order.destinationProvince,
                 }
               : { deliveryReviewStatus: "shipping_payment_exception" },
           )

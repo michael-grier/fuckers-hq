@@ -139,6 +139,7 @@ describe("checkout item resolution", () => {
           product_data: {
             name: "Database Deck",
             description: '8.25"',
+            tax_code: "txcd_99999999",
           },
         },
       },
@@ -214,6 +215,7 @@ describe("checkout shipping", () => {
 
       expect(option.shipping_rate_data?.fixed_amount?.amount).toBe(2000);
       expect(option.shipping_rate_data?.display_name).toBe("Standard shipping");
+      expect(option.shipping_rate_data?.tax_code).toBe("txcd_92010001");
     }
   });
 

@@ -282,6 +282,7 @@ const postgresTestSchema = [
     total_cents integer not null,
     currency text not null,
     shipping_address jsonb,
+    destination_province text,
     created_at timestamptz not null default now(),
     constraint orders_fulfilled_inventory_resolved check (
       status not in ('fulfilled', 'delivery_scheduled')

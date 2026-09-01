@@ -180,6 +180,10 @@ stock manually. Review the
 [deployment and rollback notes](docs/migrations/0015-refunded-inventory-release.md) before applying
 it.
 
+Migration `0017_quiet_viper.sql` adds the nullable destination province used for Canadian sales
+reporting and backfills valid codes from stored Stripe addresses. Review the
+[deployment and rollback notes](docs/migrations/0017-destination-province.md) before applying it.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:

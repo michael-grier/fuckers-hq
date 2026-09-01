@@ -14,6 +14,7 @@ import {
 
 import { productCategoryValues, productSubcategories } from "@/lib/catalog/categories";
 import { type ShippingProfile, shippingProfileValues } from "@/lib/catalog/shipping-profiles";
+import type { DestinationProvince } from "@/lib/orders/destination-province";
 import { shippingCarrierValues } from "@/lib/orders/shipping-carriers";
 
 export const productStatusValues = ["draft", "active", "archived"] as const;
@@ -355,6 +356,9 @@ export const orders = pgTable(
     totalCents: integer("total_cents").notNull(),
     currency: text("currency").notNull().default("cad"),
     shippingAddress: jsonb("shipping_address").$type<JsonRecord | null>(),
+    // Nullable preserves paid orders whose provider address is missing or malformed. Tax reports
+    // surface those rows for manual review instead of rejecting an otherwise verified payment.
+    destinationProvince: text("destination_province").$type<DestinationProvince>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [
@@ -365,10 +369,19 @@ export const orders = pgTable(
     index("orders_created_at_idx").on(table.createdAt),
     index("orders_fulfillment_method_status_idx").on(table.fulfillmentMethod, table.status),
     index("orders_delivery_review_status_idx").on(table.deliveryReviewStatus),
+    index("orders_destination_province_created_at_idx").on(
+      table.destinationProvince,
+      table.createdAt,
+    ),
     check("orders_subtotal_cents_nonnegative", sql`${table.subtotalCents} >= 0`),
     check("orders_tax_cents_nonnegative", sql`${table.taxCents} >= 0`),
     check("orders_shipping_cents_nonnegative", sql`${table.shippingCents} >= 0`),
     check("orders_total_cents_nonnegative", sql`${table.totalCents} >= 0`),
+    check(
+      "orders_destination_province_valid",
+      sql`${table.destinationProvince} IS NULL OR ${table.destinationProvince} IN
+        ('AB', 'BC', 'MB', 'NB', 'NL', 'NS', 'NT', 'NU', 'ON', 'PE', 'QC', 'SK', 'YT')`,
+    ),
     check("orders_refunded_cents_nonnegative", sql`${table.refundedCents} >= 0`),
     check(
       "orders_refunded_cents_not_above_total",

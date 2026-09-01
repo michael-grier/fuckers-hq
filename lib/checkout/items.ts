@@ -7,6 +7,7 @@ import type { CartLine } from "@/lib/validators/cart";
 import { CheckoutError } from "./errors";
 
 export const checkoutCurrency = "cad";
+const tangibleGoodsTaxCode = "txcd_99999999";
 
 export type CheckoutVariantRecord = {
   id: string;
@@ -82,6 +83,7 @@ export function buildStripeLineItems(
       product_data: {
         name: line.productName,
         description: line.variantName,
+        tax_code: tangibleGoodsTaxCode,
       },
     },
   }));
@@ -99,6 +101,7 @@ export function buildStripeLineItemsFromSnapshots(
       product_data: {
         name: line.productName,
         description: line.variantName,
+        tax_code: tangibleGoodsTaxCode,
       },
     },
   }));

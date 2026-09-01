@@ -1,4 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
+import { eq } from "drizzle-orm";
+
+import { getDb } from "@/lib/db/client";
+import { orders } from "@/lib/db/schema";
 
 import {
   addToCartFromPdp,
@@ -318,9 +322,16 @@ test.describe("paid-order webhook @commerce", () => {
       tokens,
       subtotalCents: 12_800,
       email,
+      province: "SK",
     });
 
     expect(await postWebhook(page.request, event)).toBe(200);
+
+    const persistedOrder = await getDb().query.orders.findFirst({
+      columns: { destinationProvince: true },
+      where: eq(orders.email, email),
+    });
+    expect(persistedOrder?.destinationProvince).toBe("SK");
 
     // The order is visible in admin with its persisted snapshots and a confirmation record.
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);

@@ -215,7 +215,36 @@ describe("paid Checkout Session parsing", () => {
           country: "CA",
         },
       },
+      destinationProvince: "AB",
     });
+  });
+
+  test("uses the customer address as a province fallback", () => {
+    const checkout = makeCheckoutSession({
+      customer_details: {
+        email: "skater@example.com",
+        address: { country: "ca", state: "sk" },
+      },
+      collected_information: null,
+    });
+
+    expect(parsePaidCheckoutData(checkout)).toMatchObject({
+      shippingAddress: null,
+      destinationProvince: "SK",
+    });
+  });
+
+  test("preserves a paid order when Stripe omits a valid Canadian province", () => {
+    const checkout = makeCheckoutSession({
+      collected_information: {
+        shipping_details: {
+          name: "Test Skater",
+          address: { country: "CA", state: "Alberta" },
+        },
+      },
+    });
+
+    expect(parsePaidCheckoutData(checkout)?.destinationProvince).toBeNull();
   });
 
   test("accepts zero tax and ignores unpaid completed Sessions", () => {
@@ -310,6 +339,7 @@ describe("shipping payment Session parsing", () => {
         name: "Test Skater",
         address: { city: "Calgary", country: "CA" },
       },
+      destinationProvince: "AB",
     });
   });
 });
