@@ -35,9 +35,9 @@ const shippingAddress = {
   name: "Shipping Rider",
   address: {
     line1: "456 Shipping Avenue",
-    city: "Airdrie",
-    state: "AB",
-    postal_code: "T4A 0A1",
+    city: "Saskatoon",
+    state: "SK",
+    postal_code: "S7K 3J8",
     country: "CA",
   },
 };
@@ -130,6 +130,7 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       totalCents: 6000,
       currency: "cad",
       shippingAddress: originalAddress,
+      destinationProvince: "AB",
     });
   });
 
@@ -171,6 +172,7 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       totalCents: 6000,
       currency: "cad",
       shippingAddress: originalAddress,
+      destinationProvince: "AB",
     });
 
     expect(
@@ -289,6 +291,7 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       shippingCents: 0,
       totalCents: 6000,
       shippingAddress: originalAddress,
+      destinationProvince: "SK",
     });
     expect(await findRequest(request.id)).toMatchObject({
       status: "paid",
@@ -299,6 +302,26 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
     expect(await database.select().from(orderEmailDeliveries)).toMatchObject([
       { status: "cancelled" },
     ]);
+  });
+
+  test("a converted order clears a province not supported by the final shipping address", async () => {
+    const request = await prepareLinkedRequest();
+    const payment = {
+      ...paidShippingPayment(request.id, request.generation, "unknown-province"),
+      shippingAddress: {
+        ...shippingAddress,
+        address: { ...shippingAddress.address, state: "Saskatchewan" },
+      },
+      destinationProvince: null,
+    };
+
+    await shippingPayments.recordPaidShippingPayment(payment);
+
+    expect(await findOrder()).toMatchObject({
+      fulfillmentMethod: "shipping",
+      deliveryReviewStatus: "shipping_payment_received",
+      destinationProvince: null,
+    });
   });
 
   test("a paid shipping Session preserves an already-sent request email", async () => {
@@ -372,6 +395,7 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
     expect(await findOrder()).toMatchObject({
       fulfillmentMethod: "delivery",
       deliveryReviewStatus: "shipping_payment_exception",
+      destinationProvince: "AB",
     });
   });
 
@@ -404,6 +428,7 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       totalCents: 2100,
       currency: "cad",
       shippingAddress,
+      destinationProvince: "SK" as const,
     };
   }
 
@@ -469,7 +494,8 @@ const postgresTestSchema = [
     refund_status text not null default 'none', refunded_cents integer not null default 0,
     dispute_status text not null default 'none', subtotal_cents integer not null,
     tax_cents integer not null, shipping_cents integer not null, total_cents integer not null,
-    currency text not null, shipping_address jsonb, created_at timestamptz not null default now()
+    currency text not null, shipping_address jsonb, destination_province text,
+    created_at timestamptz not null default now()
   )`,
   `create function set_legacy_delivery_review_status() returns trigger as $$
   begin

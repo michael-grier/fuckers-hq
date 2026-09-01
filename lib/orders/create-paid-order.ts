@@ -1,4 +1,5 @@
 import type { PendingCheckoutLineSnapshot } from "@/lib/db/schema";
+import type { DestinationProvince } from "@/lib/orders/destination-province";
 import { cartSchema } from "@/lib/validators/cart";
 import { pendingCheckoutLineSnapshotsSchema } from "@/lib/validators/pending-checkout";
 
@@ -14,6 +15,7 @@ export type PaidCheckoutData = {
   totalCents: number;
   currency: string;
   shippingAddress: Record<string, unknown> | null;
+  destinationProvince: DestinationProvince | null;
 };
 
 export type InventorySnapshotVariant = {

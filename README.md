@@ -83,6 +83,21 @@ Full detail lives in the [architecture document](docs/architecture.md) and the o
 For the temporary public sandbox deployment and Git-based release setup, follow the
 [Vercel demo deployment runbook](docs/demo-deployment.md).
 
+### Stripe Small-Supplier Launch Setup
+
+Before accepting live payments while the business is not registered to collect sales tax, run the
+dashboard wizard:
+
+```bash
+./scripts/configure-stripe-small-supplier.sh
+```
+
+It checks the live account for active or pending Stripe Tax locations and customer-facing account
+tax IDs, then disables Stripe's successful-payment email so the branded Resend confirmation is the
+only successful-payment email. The wizard makes no API calls, captures no values, and never reads
+or writes secrets. It does not determine whether the business must register; take that question to
+the accountant.
+
 ### Git Worktrees
 
 `.env.local` is gitignored, so a new `git worktree` checkout starts without one. Next.js only
@@ -179,6 +194,10 @@ restocking. It does not backfill older refunds because operators may already hav
 stock manually. Review the
 [deployment and rollback notes](docs/migrations/0015-refunded-inventory-release.md) before applying
 it.
+
+Migration `0017_quiet_viper.sql` adds the nullable destination province used for Canadian sales
+reporting and backfills valid codes from stored Stripe addresses. Review the
+[deployment and rollback notes](docs/migrations/0017-destination-province.md) before applying it.
 
 ## Stripe Webhooks
 

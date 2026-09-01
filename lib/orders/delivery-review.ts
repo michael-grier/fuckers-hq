@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isDefinitiveStripeSessionCreationFailure } from "@/lib/checkout/create-hosted-checkout";
 import type { AllowedShippingCountry } from "@/lib/checkout/shipping";
 import type { JsonRecord } from "@/lib/db/schema";
+import type { DestinationProvince } from "@/lib/orders/destination-province";
 
 export const shippingPaymentRequestLifetimeMs = 24 * 60 * 60 * 1_000 - 60 * 1_000;
 
@@ -65,6 +66,7 @@ export type PaidShippingPaymentData = {
   totalCents: number;
   currency: string;
   shippingAddress: Record<string, unknown>;
+  destinationProvince: DestinationProvince | null;
 };
 
 export type ShippingPaymentEventReference = {

@@ -16,6 +16,7 @@ import type {
   ShippingPaymentEventWriter,
 } from "@/lib/orders/delivery-review";
 import { shippingPaymentMetadataSchema } from "@/lib/orders/delivery-review";
+import { getDestinationProvince } from "@/lib/orders/destination-province";
 import type {
   PaymentLifecycleUpdate,
   PaymentLifecycleWriter,
@@ -53,6 +54,7 @@ const paidCheckoutSessionSchema = z
     customer_details: z
       .object({
         email: z.string().email(),
+        address: stripeAddressSchema.nullable().optional(),
       })
       .passthrough(),
     amount_subtotal: z.number().int().nonnegative(),
@@ -186,6 +188,8 @@ export function parsePaidCheckoutData(input: unknown): PaidCheckoutData | null {
   }
 
   const metadata = pendingCheckoutMetadataSchema.parse(session.metadata);
+  const shippingDetails = session.collected_information?.shipping_details;
+  const destinationAddress = shippingDetails?.address ?? session.customer_details.address;
 
   return {
     pendingCheckoutToken: metadata.pendingCheckoutToken,
@@ -199,7 +203,8 @@ export function parsePaidCheckoutData(input: unknown): PaidCheckoutData | null {
       session.shipping_cost?.amount_total ?? session.total_details?.amount_shipping ?? 0,
     totalCents: session.amount_total,
     currency: session.currency,
-    shippingAddress: session.collected_information?.shipping_details ?? null,
+    shippingAddress: shippingDetails ?? null,
+    destinationProvince: getDestinationProvince(destinationAddress),
   };
 }
 
@@ -277,6 +282,7 @@ export function parsePaidShippingPaymentData(input: unknown): PaidShippingPaymen
     totalCents: session.amount_total,
     currency: session.currency,
     shippingAddress,
+    destinationProvince: getDestinationProvince(shippingAddress.address),
   };
 }
 

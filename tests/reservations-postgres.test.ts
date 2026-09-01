@@ -586,6 +586,7 @@ function paidCheckout(reservation: Awaited<ReturnType<typeof reserve>>, stripeSe
     totalCents: 8900,
     currency: "cad",
     shippingAddress: null,
+    destinationProvince: null,
   };
 }
 
@@ -739,6 +740,7 @@ const postgresTestSchema = [
     total_cents integer not null,
     currency text not null,
     shipping_address jsonb,
+    destination_province text,
     created_at timestamptz not null default now(),
     constraint orders_delivery_scheduled_requires_delivery check (
       status <> 'delivery_scheduled' or fulfillment_method = 'delivery'

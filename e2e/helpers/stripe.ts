@@ -117,6 +117,8 @@ type CheckoutEventOptions = {
   paymentStatus?: "paid" | "unpaid";
   /** Defaults to the regular synthetic shipping charge; local delivery passes zero. */
   shippingCents?: number;
+  /** Canadian province recorded from the signed Stripe address. */
+  province?: string;
 };
 
 /** A signed checkout.session.* event body ready to POST to the webhook route. */
@@ -154,7 +156,7 @@ export function buildSignedCheckoutEvent(
             address: {
               line1: "123 Test Street",
               city: "Calgary",
-              state: "AB",
+              state: options.province ?? "AB",
               postal_code: "T1T 1T1",
               country: "CA",
             },

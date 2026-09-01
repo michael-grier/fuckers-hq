@@ -149,6 +149,7 @@ describe("order preview shipment layout", () => {
       totalCents: 4900,
       currency: "cad",
       shippingAddress: null,
+      destinationProvince: null,
       createdAt: new Date("2026-08-25T12:00:00.000Z"),
       items: [
         {

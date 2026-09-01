@@ -163,6 +163,7 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
             totalCents: checkout.totalCents,
             currency: checkout.currency,
             shippingAddress: checkout.shippingAddress,
+            destinationProvince: checkout.destinationProvince,
           })
           .onConflictDoNothing({ target: orders.stripeSessionId })
           .returning({ id: orders.id });

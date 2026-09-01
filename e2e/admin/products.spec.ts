@@ -1,4 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
+import { eq } from "drizzle-orm";
+
+import { getDb } from "@/lib/db/client";
+import { products } from "@/lib/db/schema";
 
 // Each run works on its own uniquely named product, so leftovers from an interrupted run can
 // never collide with the next one (slugs and SKUs are globally unique).
@@ -309,8 +313,14 @@ test.describe("admin product lifecycle @admin", () => {
     await page.getByRole("button", { name: "Save changes" }).click();
     await expect(page.getByText("Product saved.").first()).toBeVisible();
 
-    // Delete the product itself; success returns to the products list.
+    // Delete the product itself, then verify it is gone from the products list.
     const productPath = new URL(page.url()).pathname;
+    const productId = productPath.split("/").at(-1);
+
+    if (!productId) {
+      throw new Error(`Product workspace URL has no product id: ${productPath}`);
+    }
+
     await page.getByRole("button", { name: "Delete product" }).click();
     const deletionCompleted = page.waitForResponse(
       (response) =>
@@ -321,7 +331,18 @@ test.describe("admin product lifecycle @admin", () => {
     );
     await page.getByRole("button", { name: "Yes, delete" }).click();
     await deletionCompleted;
-    await expect(page).toHaveURL(/\/admin\/products$/);
+    // A Next server-action stream can remain open after its transaction commits. The durable
+    // record is the stable completion boundary for this destructive workflow.
+    await expect
+      .poll(
+        () =>
+          getDb().query.products.findFirst({
+            columns: { id: true },
+            where: eq(products.id, productId),
+          }),
+        { timeout: 30_000 },
+      )
+      .toBeUndefined();
     await page.goto(`/admin/products?q=${encodeURIComponent(renamed)}`);
     await expect(
       page.getByRole("heading", { name: "No products match these filters" }),

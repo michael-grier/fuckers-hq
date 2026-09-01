@@ -12,6 +12,7 @@ import { toCheckoutErrorResponse } from "@/lib/checkout/error-response";
 import { CheckoutError } from "@/lib/checkout/errors";
 import {
   buildStripeLineItems,
+  buildStripeLineItemsFromSnapshots,
   type CheckoutVariantRecord,
   createPendingCheckoutLineSnapshots,
   resolveCheckoutLines,
@@ -139,6 +140,7 @@ describe("checkout item resolution", () => {
           product_data: {
             name: "Database Deck",
             description: '8.25"',
+            tax_code: "txcd_99999999",
           },
         },
       },
@@ -214,6 +216,7 @@ describe("checkout shipping", () => {
 
       expect(option.shipping_rate_data?.fixed_amount?.amount).toBe(2000);
       expect(option.shipping_rate_data?.display_name).toBe("Standard shipping");
+      expect(option.shipping_rate_data?.tax_code).toBe("txcd_92010001");
     }
   });
 
@@ -339,8 +342,9 @@ describe("hosted checkout orchestration", () => {
 
   test("uses the same immutable snapshots for persistence and Stripe", () => {
     const [resolvedLine] = resolveCheckoutLines([{ variantId, quantity: 2 }], [activeVariant]);
+    const snapshots = createPendingCheckoutLineSnapshots([resolvedLine]);
 
-    expect(createPendingCheckoutLineSnapshots([resolvedLine])).toEqual(reservationLineItems);
+    expect(snapshots).toEqual(reservationLineItems);
     expect(buildStripeLineItems([resolvedLine])[0]).toMatchObject({
       quantity: 2,
       price_data: {
@@ -348,6 +352,9 @@ describe("hosted checkout orchestration", () => {
         unit_amount: 8900,
         product_data: { name: "Database Deck", description: '8.25"' },
       },
+    });
+    expect(buildStripeLineItemsFromSnapshots(snapshots)[0]).toMatchObject({
+      price_data: { product_data: { tax_code: "txcd_99999999" } },
     });
   });
 

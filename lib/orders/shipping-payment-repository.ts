@@ -163,6 +163,9 @@ export function createShippingPaymentRepository(database: Database): ShippingPay
               ? {
                   fulfillmentMethod: "shipping",
                   deliveryReviewStatus: "shipping_payment_received",
+                  // The supplemental Checkout address is now the destination. A null province
+                  // must stay visible for review instead of retaining the old delivery province.
+                  destinationProvince: payment.destinationProvince,
                 }
               : { deliveryReviewStatus: "shipping_payment_exception" },
           )
