@@ -11,6 +11,13 @@ const productName = `E2E Composer Deck ${runId}`;
 const productSlug = `e2e-composer-deck-${runId}`;
 
 test.describe("admin product lifecycle @admin", () => {
+  test("counts every variant that needs stock on the product card", async ({ page }) => {
+    await page.goto(`/admin/products?q=${encodeURIComponent("E2E Budget Bearings")}`);
+
+    await expect(page.getByText("2 variants need stock", { exact: true })).toBeVisible();
+    await expect(page.getByText("Ceramic: 0 left", { exact: true })).toHaveCount(0);
+  });
+
   test("hides pristine creation controls and uses one compact mobile action row", async ({
     page,
   }) => {

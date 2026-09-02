@@ -10,13 +10,15 @@ type StockVariant = {
 export type ProductStockSummary = {
   totalAvailable: number;
   isOutOfStock: boolean;
+  stockWarningCount: number;
   /** The scarcest variant, only set when it is at or below the low-stock threshold. */
   lowStockVariant: { name: string; available: number } | null;
 };
 
+/** Summarizes sellable availability for inventory warnings on the admin product list. */
 export function summarizeProductStock(variants: readonly StockVariant[]): ProductStockSummary {
   if (variants.length === 0) {
-    return { totalAvailable: 0, isOutOfStock: true, lowStockVariant: null };
+    return { totalAvailable: 0, isOutOfStock: true, stockWarningCount: 0, lowStockVariant: null };
   }
 
   const availability = variants.map((variant) => ({
@@ -24,6 +26,9 @@ export function summarizeProductStock(variants: readonly StockVariant[]): Produc
     available: variant.inventoryQty - variant.reservedQty,
   }));
   const totalAvailable = availability.reduce((total, variant) => total + variant.available, 0);
+  const stockWarningCount = availability.filter(
+    (variant) => variant.available <= LOW_STOCK_THRESHOLD,
+  ).length;
   const scarcest = availability.reduce((lowest, variant) =>
     variant.available < lowest.available ? variant : lowest,
   );
@@ -31,6 +36,7 @@ export function summarizeProductStock(variants: readonly StockVariant[]): Produc
   return {
     totalAvailable,
     isOutOfStock: totalAvailable <= 0,
+    stockWarningCount,
     lowStockVariant:
       totalAvailable > 0 && scarcest.available <= LOW_STOCK_THRESHOLD ? scarcest : null,
   };

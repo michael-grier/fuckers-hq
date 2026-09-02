@@ -17,6 +17,7 @@ describe("summarizeProductStock", () => {
 
     expect(summary.totalAvailable).toBe(15);
     expect(summary.isOutOfStock).toBe(false);
+    expect(summary.stockWarningCount).toBe(0);
     expect(summary.lowStockVariant).toBeNull();
   });
 
@@ -31,6 +32,19 @@ describe("summarizeProductStock", () => {
       name: "M",
       available: LOW_STOCK_THRESHOLD,
     });
+    expect(summary.stockWarningCount).toBe(1);
+  });
+
+  test("counts every low and out-of-stock variant", () => {
+    const summary = summarizeProductStock([
+      variant("S", 10),
+      variant("M", LOW_STOCK_THRESHOLD),
+      variant("L", 0),
+    ]);
+
+    expect(summary.isOutOfStock).toBe(false);
+    expect(summary.stockWarningCount).toBe(2);
+    expect(summary.lowStockVariant).toEqual({ name: "L", available: 0 });
   });
 
   test("treats a fully reserved product as out of stock, not low stock", () => {
@@ -44,6 +58,7 @@ describe("summarizeProductStock", () => {
     expect(summarizeProductStock([])).toEqual({
       totalAvailable: 0,
       isOutOfStock: true,
+      stockWarningCount: 0,
       lowStockVariant: null,
     });
   });
