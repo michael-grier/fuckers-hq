@@ -209,8 +209,9 @@ Fulfillment for a local-delivery order (requires the delivery configuration from
       decisions: **Approve local delivery** and **Request shipping payment**.
 - [ ] Attempting the delivery-scheduling action directly is rejected until the address is
       approved.
-- [ ] Confirm **Approve local delivery**. The Needs action count decreases and the order appears in
-      `/admin/deliveries`, oldest first, alongside the configured delivery area.
+- [ ] Confirm **Approve local delivery**. The full review panel collapses to a compact green
+      approval notice without repeating the address, the Needs action count decreases, and the
+      order appears in `/admin/deliveries`, oldest first, alongside the configured delivery area.
 - [ ] Scheduling the delivery moves the order to `delivery_scheduled` and delivers exactly one
       `delivery_scheduled` email.
 - [ ] Marking it delivered moves the order to `fulfilled` without sending another email.

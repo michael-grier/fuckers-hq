@@ -61,7 +61,7 @@ const toneStyles = {
   sky: "border-sky-300 bg-sky-50 text-sky-950",
 } as const;
 
-/** The full Option C decision surface selected for local-delivery review. */
+/** Shows the current local-delivery decision and any operator actions still available. */
 export function DeliveryReviewPanel({
   orderId,
   status,
@@ -70,6 +70,25 @@ export function DeliveryReviewPanel({
   paymentDelivery,
 }: DeliveryReviewPanelProps) {
   const copy = panelCopy[status];
+
+  // Approval ends the address-review workflow, so the order summary owns the address afterward.
+  if (status === "approved") {
+    return (
+      <section
+        aria-labelledby="delivery-review-heading"
+        className={cn("flex items-start gap-4 rounded-lg border px-5 py-4", toneStyles[copy.tone])}
+      >
+        <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+        <div className="min-w-0">
+          <h2 className="font-semibold" id="delivery-review-heading">
+            {copy.heading}
+          </h2>
+          <p className="mt-1 text-sm opacity-80">{copy.description}</p>
+        </div>
+      </section>
+    );
+  }
+
   const mapsUrl =
     addressLines.length > 0
       ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressLines.join(", "))}`

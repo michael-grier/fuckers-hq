@@ -850,7 +850,14 @@ test.describe("fulfillment @commerce", () => {
       .toBe("approved");
     // Reload only after persistence, rather than racing the server action's streamed response.
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Local delivery approved" })).toBeVisible();
+    const approvalNotice = page.getByRole("region", { name: "Local delivery approved" });
+    await expect(approvalNotice).toContainText(
+      "This order is ready to move through the delivery scheduling queue.",
+    );
+    await expect(approvalNotice.getByRole("heading", { name: "Customer address" })).toBeHidden();
+    await expect(
+      approvalNotice.getByRole("link", { name: /Check address in Google Maps/ }),
+    ).toBeHidden();
 
     // Once approved, scheduling and delivering the order completes it.
     await page.goto("/admin/deliveries");
