@@ -4,6 +4,8 @@ import { createElement } from "react";
 import type { CreateEmailOptions } from "resend";
 
 import { orderEmailKindValues } from "@/lib/db/schema";
+import { AdminNewOrderEmail, type AdminNewOrderView } from "@/lib/email/admin-new-order";
+import { deliverAdminNewOrder } from "@/lib/email/deliver-admin-new-order";
 import {
   type ConfirmationEmailDelivery,
   deliverOrderConfirmation,
@@ -16,6 +18,7 @@ import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
 import {
   attemptOrderEmailDelivery,
   deliverDueOrderEmails,
+  getOrderEmailErrorCode,
   makeOrderEmailIdempotencyKey,
   makeRefundEmailIdempotencyKey,
   type OrderEmailDeliveryRepository,
@@ -62,6 +65,7 @@ const delivery: ConfirmationEmailDelivery = {
 };
 
 const confirmationRef: OrderEmailRef = { orderId: delivery.orderId, kind: "confirmation" };
+const adminNewOrderRef: OrderEmailRef = { orderId: delivery.orderId, kind: "admin_new_order" };
 const deliveryScheduledRef: OrderEmailRef = {
   orderId: delivery.orderId,
   kind: "delivery_scheduled",
@@ -102,6 +106,76 @@ const refundView: RefundEmailView = {
   refundAmountCents: 3200,
   refundCumulativeCents: 3200,
 };
+
+const adminNewOrderView: AdminNewOrderView = {
+  orderNumber: delivery.order.orderNumber,
+  fulfillmentMethod: "delivery",
+  inventoryStatus: "allocated",
+  refundStatus: "none",
+  currency: delivery.order.currency,
+  totalCents: delivery.order.totalCents,
+  items: delivery.order.items,
+  adminOrderUrl: `https://example.com/admin/orders/${delivery.orderId}`,
+};
+
+describe("admin new-order email", () => {
+  test("renders the action brief without copying customer contact details", async () => {
+    const html = await render(createElement(AdminNewOrderEmail, { order: adminNewOrderView }));
+
+    expect(html).toContain("New paid order");
+    expect(html).toContain("Local delivery");
+    expect(html).toContain("Database Deck");
+    expect(html).toContain("$104.00");
+    expect(html).toContain(adminNewOrderView.adminOrderUrl);
+    expect(html).not.toContain(delivery.recipientEmail);
+    expect(html).not.toContain("123 Test Street");
+
+    const shippingHtml = await render(
+      createElement(AdminNewOrderEmail, {
+        order: { ...adminNewOrderView, fulfillmentMethod: "shipping" },
+      }),
+    );
+    expect(shippingHtml).toContain("Paid shipping");
+    expect(shippingHtml).toContain("prepare the shipment");
+
+    const refundedHtml = await render(
+      createElement(AdminNewOrderEmail, {
+        order: { ...adminNewOrderView, refundStatus: "full" },
+      }),
+    );
+    expect(refundedHtml).toContain("No fulfillment is required");
+  });
+
+  test("sends to the operational recipient under a stable order key", async () => {
+    let message: CreateEmailOptions | undefined;
+    let idempotencyKey: string | undefined;
+
+    const emailId = await deliverAdminNewOrder(
+      {
+        orderId: delivery.orderId,
+        idempotencyKey: makeOrderEmailIdempotencyKey(delivery.orderId, "admin_new_order"),
+        recipientEmail: "operations@example.com",
+        order: adminNewOrderView,
+      },
+      { from: "Fuckers Skateboards <orders@example.com>" },
+      {
+        send: async (input, options) => {
+          message = input;
+          idempotencyKey = options.idempotencyKey;
+          return { data: { id: "email_admin_123" }, error: null, headers: null };
+        },
+      },
+    );
+
+    expect(emailId).toBe("email_admin_123");
+    expect(message).toMatchObject({
+      from: "Fuckers Skateboards <orders@example.com>",
+      to: "operations@example.com",
+      subject: "New paid order FHQ-20260713-ABC12345",
+    });
+    expect(idempotencyKey).toBe(`admin-new-order/${delivery.orderId}`);
+  });
+});
 
 describe("order confirmation template", () => {
   test("renders persisted snapshots, totals, shipping, and support details", async () => {
@@ -256,7 +330,12 @@ describe("post-commit email boundary", () => {
       ),
     ).toBe(false);
     expect(await sendOrderEmailsAfterCommit({ handled: false }, attempt, () => {})).toBe(false);
-    expect(sentRefs).toEqual([confirmationRef, confirmationRef]);
+    expect(sentRefs).toEqual([
+      confirmationRef,
+      adminNewOrderRef,
+      confirmationRef,
+      adminNewOrderRef,
+    ]);
   });
 
   test("reports email failure without rejecting the persisted webhook result", async () => {
@@ -270,8 +349,28 @@ describe("post-commit email boundary", () => {
     );
 
     expect(result).toBe(false);
-    expect(reportedErrors).toHaveLength(1);
+    expect(reportedErrors).toHaveLength(2);
     expect(reportedErrors[0]).toBeInstanceOf(Error);
+  });
+
+  test("keeps the customer confirmation successful when the admin recipient is missing", async () => {
+    const reportedErrors: unknown[] = [];
+    const result = await sendOrderEmailsAfterCommit(
+      { handled: true, created: true, orderId: delivery.orderId },
+      async (ref) =>
+        ref.kind === "confirmation"
+          ? { status: "sent" }
+          : {
+              status: "failed",
+              error: new Error("ADMIN_ORDER_EMAIL is required."),
+              terminal: false,
+            },
+      (error) => reportedErrors.push(error),
+    );
+
+    expect(result).toBe(true);
+    expect(reportedErrors).toHaveLength(1);
+    expect(getOrderEmailErrorCode(reportedErrors[0])).toBe("configuration_error");
   });
 
   test("attempts a committed refund independently of the confirmation", async () => {
@@ -512,6 +611,9 @@ describe("order email idempotency keys", () => {
     // Pre-existing rows were sent under these exact keys; they must not change.
     expect(makeOrderEmailIdempotencyKey(orderId, "confirmation")).toBe(
       `order-confirmation/${orderId}`,
+    );
+    expect(makeOrderEmailIdempotencyKey(orderId, "admin_new_order")).toBe(
+      `admin-new-order/${orderId}`,
     );
     expect(makeOrderEmailIdempotencyKey(orderId, "delivery_scheduled")).toBe(
       `order-delivery-scheduled/${orderId}`,

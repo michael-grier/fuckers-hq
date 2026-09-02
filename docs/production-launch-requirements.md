@@ -204,6 +204,7 @@ or any third-party script makes the current wording false.
 **Brand provides:**
 
 - The from-address for order confirmation emails (`EMAIL_FROM`)
+- The sole operational recipient for paid-order alerts (`ADMIN_ORDER_EMAIL`)
 - A customer support address (`SUPPORT_EMAIL`)
 - **DNS access to the domain** — not just proof of purchase
 
@@ -576,6 +577,7 @@ source of truth. The ones below need deliberate production values rather than a 
 | `DATABASE_URL` | Dedicated production Neon branch or project, never the demo one. |
 | `PRODUCTION_NEON_ENDPOINT_ID` | The production branch's non-secret `ep-...` ID; the build rejects a `DATABASE_URL` for any other endpoint. |
 | `EMAIL_FROM` / `SUPPORT_EMAIL` | Brand addresses on a Resend-verified domain. `SUPPORT_EMAIL` is baked into the statically rendered `/contact` page at build time, so changing it requires a redeploy. |
+| `ADMIN_ORDER_EMAIL` | The sole administrator responsible for managing and fulfilling new paid orders. Keep the address in Vercel rather than source control. |
 | `ADMIN_USER_IDS` | Clerk **user IDs**, not emails. The accounts must exist first. |
 | `R2_PUBLIC_URL` | A custom domain on the bucket, not `r2.dev`. |
 | `SHIPPING_*` | Countries, flat rate, and free-shipping threshold, per section 2. |

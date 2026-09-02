@@ -95,6 +95,7 @@ runbook and the GitHub Actions secrets the workflow requires.
 - To demonstrate confirmation delivery to other addresses, verify a domain in Resend and use an
   address on that domain for `EMAIL_FROM`.
 - Set `SUPPORT_EMAIL` to the reply/support address shown in confirmations.
+- Set `ADMIN_ORDER_EMAIL` to the operational recipient for new paid-order alerts.
 
 ### Sentry
 
@@ -143,6 +144,7 @@ source maps are enabled.
 | `ADMIN_USER_IDS` | Comma-separated Clerk `user_...` allowlist | Yes |
 | `RESEND_API_KEY` | Non-production Resend API key | Yes |
 | `EMAIL_FROM` | Sender, e.g. `Fuckers Skateboards <orders@example.com>` | No |
+| `ADMIN_ORDER_EMAIL` | Operational recipient for new paid-order alerts | No |
 | `SUPPORT_EMAIL` | Support/reply address | No |
 | `CRON_SECRET` | Output of `openssl rand -hex 32` | Yes |
 | `R2_ACCOUNT_ID` | Cloudflare account ID | Yes |

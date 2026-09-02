@@ -42,6 +42,7 @@ import {
 
 /** One stable Sentry operation per email kind, so dashboards can query each notification. */
 const fulfillmentEmailOperations: Record<OrderEmailKind, string> = {
+  admin_new_order: "email.admin-new-order",
   confirmation: "email.confirmation",
   delivery_scheduled: "email.delivery-scheduled",
   refund: "email.refund",

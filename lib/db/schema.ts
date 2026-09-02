@@ -46,6 +46,7 @@ export const shippingPaymentRequestStatusValues = [
   "failed",
 ] as const;
 export const orderEmailKindValues = [
+  "admin_new_order",
   "confirmation",
   "delivery_scheduled",
   "refund",

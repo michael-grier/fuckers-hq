@@ -8,6 +8,11 @@ import { retryOrderEmail } from "@/lib/actions/orders";
 import type { OrderEmailKind } from "@/lib/db/schema";
 
 const emailCopy: Record<OrderEmailKind, { confirm: string; confirmLabel: string; idle: string }> = {
+  admin_new_order: {
+    confirm: "Retry this admin sale notification?",
+    confirmLabel: "Yes, retry",
+    idle: "Retry admin notification",
+  },
   confirmation: {
     confirm: "Retry this order confirmation email?",
     confirmLabel: "Yes, retry",

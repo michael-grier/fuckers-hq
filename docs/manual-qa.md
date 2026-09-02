@@ -167,10 +167,22 @@ Restore the product price and inventory after these checks.
 - [ ] On-hand and reserved inventory both decreased by exactly the purchased quantity, leaving the
       correct available quantity.
 - [ ] The confirmation email arrives once and contains the same persisted snapshots and totals.
+- [ ] The sole configured order administrator receives one **New paid order** email. It states
+      local delivery or paid shipping, lists the immutable product and variant snapshots with
+      quantities and line totals, shows the paid total and currency, and links to the protected
+      admin order.
+- [ ] The admin sale email contains no customer email or shipping address. Opening its order link
+      without an allowlisted Clerk session is rejected.
+- [ ] Replay the paid Checkout event. The order still has one admin sale delivery and the provider
+      receives no duplicate because the retry reuses `admin-new-order/<order-id>`.
+- [ ] Force the admin sale delivery to fail. The paid order, inventory allocation, customer
+      confirmation, and admin delivery row remain committed; the retry cron or protected manual
+      action can send that same row later.
 - [ ] Manual only: run `./scripts/configure-stripe-small-supplier.sh` and confirm the live Stripe
       Dashboard has **Successful payments** turned off. A sandbox payment does not prove this
       setting because Stripe does not send its automatic customer emails in sandbox mode.
-- [ ] The order detail shows the confirmation delivery as `Sent` with one attempt.
+- [ ] The order detail shows the confirmation and admin sale deliveries, each with its independent
+      attempt count and status.
 
 Fulfillment for a shipping order:
 
