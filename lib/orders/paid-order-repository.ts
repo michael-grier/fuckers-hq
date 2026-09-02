@@ -52,24 +52,10 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
         const existingOrder = await tx.query.orders.findFirst({
           columns: { id: true },
           where: (order, { eq }) => eq(order.stripeSessionId, checkout.stripeSessionId),
-          with: {
-            emailDeliveries: {
-              columns: { id: true },
-              where: (deliveries, { eq }) => eq(deliveries.kind, "refund"),
-              orderBy: (deliveries, { desc }) => [desc(deliveries.refundCumulativeCents)],
-              limit: 1,
-            },
-          },
         });
 
         if (existingOrder) {
-          return {
-            created: false,
-            orderId: existingOrder.id,
-            ...(existingOrder.emailDeliveries[0]
-              ? { refundEmailDeliveryId: existingOrder.emailDeliveries[0].id }
-              : {}),
-          };
+          return { created: false, orderId: existingOrder.id };
         }
 
         const [pendingCheckout] = await tx

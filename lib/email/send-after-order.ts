@@ -4,7 +4,7 @@ import type { StripeWebhookResult } from "@/lib/webhooks/stripe";
 type OrderEmailAttempt = (ref: OrderEmailRef) => Promise<OrderEmailAttemptResult>;
 type EmailErrorReporter = (error: unknown) => void;
 
-/** Attempts only emails whose outbox rows were committed by this webhook result. */
+/** Attempts the paid-order confirmation and any refund row committed by this webhook result. */
 export async function sendOrderEmailsAfterCommit(
   result: StripeWebhookResult,
   attemptEmail: OrderEmailAttempt,

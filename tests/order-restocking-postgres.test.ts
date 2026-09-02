@@ -183,6 +183,7 @@ describe.skipIf(!testDatabaseUrl)("refunded inventory with real Postgres", () =>
       orderBy: (deliveries, { asc }) => [asc(deliveries.refundCumulativeCents)],
     });
 
+    expect(deliveries).toHaveLength(2);
     expect(deliveries).toMatchObject([
       { kind: "refund", refundAmountCents: 200, refundCumulativeCents: 200 },
       { kind: "refund", refundAmountCents: 200, refundCumulativeCents: 400 },
@@ -197,6 +198,19 @@ describe.skipIf(!testDatabaseUrl)("refunded inventory with real Postgres", () =>
         })
         .execute(),
     ).rejects.toThrow();
+  });
+
+  test("serializes concurrent reports of the same cumulative refund", async () => {
+    await seedOrder();
+
+    const results = await Promise.all([
+      payments.recordPaymentLifecycleUpdate(refundUpdate(600, "evt_refund_concurrent_first")),
+      payments.recordPaymentLifecycleUpdate(refundUpdate(600, "evt_refund_concurrent_second")),
+    ]);
+
+    expect(results.filter((result) => result.refundEmailDeliveryId)).toHaveLength(1);
+    expect(await database.$count(orderEmailDeliveries)).toBe(1);
+    expect(await findStock()).toBe(5);
   });
 
   test("partial and post-fulfillment refunds leave stock for an operator decision", async () => {

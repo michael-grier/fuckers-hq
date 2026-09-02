@@ -400,13 +400,18 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       occurredAt: new Date("2026-08-27T15:00:00.000Z"),
     });
 
-    await expect(
-      paidOrders.createPaidOrder(paidCheckout(reservation, "cs_refunded_early")),
-    ).resolves.toMatchObject({ created: true });
+    const checkout = paidCheckout(reservation, "cs_refunded_early");
+    await expect(paidOrders.createPaidOrder(checkout)).resolves.toMatchObject({
+      created: true,
+      refundEmailDeliveryId: expect.any(String),
+    });
 
     const persistedOrder = await database.query.orders.findFirst({
       columns: { id: true, status: true, inventoryStatus: true, refundStatus: true },
     });
+    if (!persistedOrder) {
+      throw new Error("Expected the paid order to be persisted.");
+    }
     expect(persistedOrder).toMatchObject({
       status: "refunded",
       inventoryStatus: "released",
@@ -428,13 +433,17 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
           refundAmountCents: true,
           refundCumulativeCents: true,
         },
-        where: eq(orderEmailDeliveries.orderId, persistedOrder?.id ?? ""),
+        where: eq(orderEmailDeliveries.orderId, persistedOrder.id),
         orderBy: (deliveries) => [asc(deliveries.kind)],
       }),
     ).toEqual([
       { kind: "confirmation", refundAmountCents: null, refundCumulativeCents: null },
       { kind: "refund", refundAmountCents: 8900, refundCumulativeCents: 8900 },
     ]);
+    await expect(paidOrders.createPaidOrder(checkout)).resolves.toEqual({
+      created: false,
+      orderId: persistedOrder.id,
+    });
   });
 
   test("payment racing expiration has one consistent terminal result", async () => {

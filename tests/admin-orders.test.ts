@@ -479,6 +479,9 @@ describe("retry order email authorization", () => {
     expect(
       retryOrderEmailSchema.parse({ orderId, kind: "refund", deliveryId: refundDeliveryId }),
     ).toEqual({ orderId, kind: "refund", deliveryId: refundDeliveryId });
+    expect(() =>
+      retryOrderEmailSchema.parse({ orderId, kind: "refund", deliveryId: "invalid" }),
+    ).toThrow();
 
     await expect(
       retryOrderEmailForAdmin(
