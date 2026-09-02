@@ -65,7 +65,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {product.name}
             </h1>
             {product.description ? (
-              <p className="text-base text-muted-foreground lg:text-lg">{product.description}</p>
+              <p className="whitespace-pre-line text-base text-muted-foreground lg:text-lg">
+                {product.description}
+              </p>
             ) : null}
           </div>
         </div>

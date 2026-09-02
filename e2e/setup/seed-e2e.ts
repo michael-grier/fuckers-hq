@@ -23,7 +23,7 @@ const e2eProducts = [
     // Cheap in-stock counterpart, so price sorting over the q=e2e result set has a known order.
     slug: "e2e-budget-bearings",
     name: "E2E Budget Bearings",
-    description: "Fixture product for automated tests. In stock and inexpensive.",
+    description: "Fixture product for automated tests.\nIn stock and inexpensive.",
     category: "hardgoods",
     subcategory: "bearings",
     shippingProfile: "softgood" as const,

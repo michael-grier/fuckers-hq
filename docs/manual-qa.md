@@ -82,6 +82,8 @@ transition.
       hides ordinary inventory counts, shows `Only N left` for a selected variant with three or
       fewer available units, visually mutes out-of-stock variants without disabling their selector,
       and retains the out-of-stock warning after one is selected.
+- [ ] Intentional line breaks entered in a product description remain visible on its product page,
+      while long lines still wrap within the available width.
 - [ ] An unknown product slug returns the custom not-found page.
 
 ## 4. Cart
