@@ -64,6 +64,8 @@ transition.
 - [ ] Tablet and phone navigation opens and closes, expands Shop, closes after navigation, and
       returns focus to its trigger when dismissed with Escape.
 - [ ] Crew and Videos are reachable from desktop and mobile navigation.
+- [ ] The Videos page loads its Vimeo embed at phone, tablet, and desktop widths without
+      horizontal overflow or distortion, and fullscreen playback is available.
 - [ ] Product images load and remain centered at mobile and desktop widths.
 - [ ] Search and sort refresh the catalog, update the URL, and reset pagination to page one.
 - [ ] The Filters panel lists only subcategories the catalog has active products in, and keeps an

@@ -31,6 +31,8 @@ export default clerkMiddleware(
           "https://*.r2.cloudflarestorage.com",
           ...(process.env.NODE_ENV === "production" ? [] : ["ws:"]),
         ],
+        // Restrict video frames to the same Vimeo origin used by the Videos page.
+        "frame-src": ["https://player.vimeo.com"],
         "frame-ancestors": ["none"],
         "img-src": ["blob:", "https:"],
         "object-src": ["none"],
