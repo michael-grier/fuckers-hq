@@ -9,6 +9,7 @@ import {
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
 import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
+import { deliverRefund } from "@/lib/email/deliver-refund";
 import { deliverShippingPaymentRequest } from "@/lib/email/deliver-shipping-payment-request";
 import { DeliveryScheduledEmail, type DeliveryScheduledView } from "@/lib/email/delivery-scheduled";
 import { OrderConfirmationEmail } from "@/lib/email/order-confirmation";
@@ -16,12 +17,14 @@ import {
   attemptOrderEmailDelivery,
   deliverDueOrderEmails,
   makeOrderEmailIdempotencyKey,
+  makeRefundEmailIdempotencyKey,
   type OrderEmailDeliveryRepository,
   type OrderEmailRef,
 } from "@/lib/email/order-email-delivery";
 import { OrderEmailDeliveryError } from "@/lib/email/order-email-transport";
 import { OrderShippedEmail, type OrderShippedView } from "@/lib/email/order-shipped";
-import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
+import { RefundEmail, type RefundEmailView } from "@/lib/email/refund";
+import { sendOrderEmailsAfterCommit } from "@/lib/email/send-after-order";
 import {
   ShippingPaymentRequestEmail,
   type ShippingPaymentRequestView,
@@ -90,6 +93,14 @@ const shippingPaymentView: ShippingPaymentRequestView = {
   currency: "cad",
   checkoutUrl: "https://checkout.stripe.test/shipping",
   expiresAt: new Date("2026-09-01T18:00:00.000Z"),
+};
+
+const refundView: RefundEmailView = {
+  orderNumber: "FHQ-20260713-ABC12345",
+  currency: "cad",
+  totalCents: 10400,
+  refundAmountCents: 3200,
+  refundCumulativeCents: 3200,
 };
 
 describe("order confirmation template", () => {
@@ -219,21 +230,21 @@ describe("post-commit email boundary", () => {
     };
 
     expect(
-      await sendConfirmationAfterOrderCommit(
+      await sendOrderEmailsAfterCommit(
         { handled: true, created: true, orderId: delivery.orderId },
         attempt,
         () => {},
       ),
     ).toBe(true);
     expect(
-      await sendConfirmationAfterOrderCommit(
+      await sendOrderEmailsAfterCommit(
         { handled: true, created: false, orderId: delivery.orderId },
         attempt,
         () => {},
       ),
     ).toBe(true);
     expect(
-      await sendConfirmationAfterOrderCommit(
+      await sendOrderEmailsAfterCommit(
         {
           handled: true,
           paymentUpdated: true,
@@ -244,15 +255,13 @@ describe("post-commit email boundary", () => {
         () => {},
       ),
     ).toBe(false);
-    expect(await sendConfirmationAfterOrderCommit({ handled: false }, attempt, () => {})).toBe(
-      false,
-    );
+    expect(await sendOrderEmailsAfterCommit({ handled: false }, attempt, () => {})).toBe(false);
     expect(sentRefs).toEqual([confirmationRef, confirmationRef]);
   });
 
   test("reports email failure without rejecting the persisted webhook result", async () => {
     const reportedErrors: unknown[] = [];
-    const result = await sendConfirmationAfterOrderCommit(
+    const result = await sendOrderEmailsAfterCommit(
       { handled: true, created: true, orderId: delivery.orderId },
       async () => ({ status: "failed", error: new Error("Resend unavailable"), terminal: false }),
       (error) => {
@@ -263,6 +272,34 @@ describe("post-commit email boundary", () => {
     expect(result).toBe(false);
     expect(reportedErrors).toHaveLength(1);
     expect(reportedErrors[0]).toBeInstanceOf(Error);
+  });
+
+  test("attempts a committed refund independently of the confirmation", async () => {
+    const refs: OrderEmailRef[] = [];
+
+    expect(
+      await sendOrderEmailsAfterCommit(
+        {
+          handled: true,
+          paymentUpdated: true,
+          changed: true,
+          orderId: delivery.orderId,
+          refundEmailDeliveryId: "d1bce2d3-cb69-4abf-97a6-a0ad9f914690",
+        },
+        async (ref) => {
+          refs.push(ref);
+          return { status: "sent" };
+        },
+        () => {},
+      ),
+    ).toBe(true);
+    expect(refs).toEqual([
+      {
+        orderId: delivery.orderId,
+        kind: "refund",
+        deliveryId: "d1bce2d3-cb69-4abf-97a6-a0ad9f914690",
+      },
+    ]);
   });
 });
 
@@ -481,8 +518,86 @@ describe("order email idempotency keys", () => {
     );
     expect(makeOrderEmailIdempotencyKey(orderId, "shipped")).toBe(`order-shipped/${orderId}`);
 
-    const keys = orderEmailKindValues.map((kind) => makeOrderEmailIdempotencyKey(orderId, kind));
+    const keys = orderEmailKindValues
+      .filter((kind) => kind !== "refund")
+      .map((kind) => makeOrderEmailIdempotencyKey(orderId, kind));
+    keys.push(makeRefundEmailIdempotencyKey(orderId, 3200));
     expect(new Set(keys).size).toBe(orderEmailKindValues.length);
+    expect(makeRefundEmailIdempotencyKey(orderId, 10400)).toBe(`order-refund/${orderId}/10400`);
+  });
+});
+
+describe("refund email", () => {
+  test("renders the selected ledger copy from the captured refund milestone", async () => {
+    const partialHtml = await render(
+      createElement(RefundEmail, {
+        order: refundView,
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(partialHtml).toContain("We issued a partial refund.");
+    expect(partialHtml).toContain("Refunded this time");
+    expect(partialHtml).toContain("$32.00");
+    expect(partialHtml).toContain("$72.00");
+    expect(partialHtml).toContain("support@example.com");
+
+    const fullHtml = await render(
+      createElement(RefundEmail, {
+        order: {
+          ...refundView,
+          refundAmountCents: 7200,
+          refundCumulativeCents: 10400,
+        },
+        supportEmail: "support@example.com",
+      }),
+    );
+
+    expect(fullHtml).toContain("Your order is fully refunded.");
+    expect(fullHtml).toContain("$104.00");
+    expect(fullHtml).toContain("$0.00");
+  });
+
+  test("sends partial and full refunds under their distinct cumulative keys", async () => {
+    const messages: CreateEmailOptions[] = [];
+    const keys: string[] = [];
+    const client = {
+      send: async (input: CreateEmailOptions, options: { idempotencyKey: string }) => {
+        messages.push(input);
+        keys.push(options.idempotencyKey);
+        return { data: { id: `email_${messages.length}` }, error: null, headers: null };
+      },
+    };
+
+    await deliverRefund(
+      {
+        orderId: delivery.orderId,
+        idempotencyKey: makeRefundEmailIdempotencyKey(delivery.orderId, 3200),
+        recipientEmail: delivery.recipientEmail,
+        order: refundView,
+      },
+      { from: "Fuckers Skateboards <orders@example.com>", supportEmail: "support@example.com" },
+      client,
+    );
+    await deliverRefund(
+      {
+        orderId: delivery.orderId,
+        idempotencyKey: makeRefundEmailIdempotencyKey(delivery.orderId, 10400),
+        recipientEmail: delivery.recipientEmail,
+        order: { ...refundView, refundAmountCents: 7200, refundCumulativeCents: 10400 },
+      },
+      { from: "Fuckers Skateboards <orders@example.com>", supportEmail: "support@example.com" },
+      client,
+    );
+
+    expect(messages.map((message) => message.subject)).toEqual([
+      "Partial refund issued for order FHQ-20260713-ABC12345",
+      "Order FHQ-20260713-ABC12345 has been fully refunded",
+    ]);
+    expect(keys).toEqual([
+      `order-refund/${delivery.orderId}/3200`,
+      `order-refund/${delivery.orderId}/10400`,
+    ]);
   });
 });
 

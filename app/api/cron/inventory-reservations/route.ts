@@ -3,7 +3,7 @@ import { getReservationReconciliationRepository } from "@/lib/checkout/reservati
 import { isCronAuthorized } from "@/lib/cron/authorization";
 import { attemptOrderEmailDelivery } from "@/lib/email/order-email-delivery";
 import { orderEmailDeliveryRepository } from "@/lib/email/order-email-delivery-repository";
-import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
+import { sendOrderEmailsAfterCommit } from "@/lib/email/send-after-order";
 import { sendOrderEmail } from "@/lib/email/send-order-email";
 import { env } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
@@ -32,7 +32,7 @@ export async function GET(request: Request): Promise<Response> {
           paidOrderRepository,
         );
 
-        await sendConfirmationAfterOrderCommit(
+        await sendOrderEmailsAfterCommit(
           webhookResult,
           (ref) =>
             attemptOrderEmailDelivery(ref, orderEmailDeliveryRepository, sendOrderEmail, {
@@ -41,7 +41,7 @@ export async function GET(request: Request): Promise<Response> {
           (error) => {
             captureServerException(error, {
               area: "email",
-              operation: "email.send-order-confirmation",
+              operation: "email.send-after-order",
             });
           },
         );

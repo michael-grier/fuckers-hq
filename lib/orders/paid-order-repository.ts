@@ -14,7 +14,10 @@ import {
   productVariants,
   stripePaymentEvents,
 } from "@/lib/db/schema";
-import { makeOrderEmailIdempotencyKey } from "@/lib/email/order-email-delivery";
+import {
+  makeOrderEmailIdempotencyKey,
+  makeRefundEmailIdempotencyKey,
+} from "@/lib/email/order-email-delivery";
 import {
   assertInventoryDecremented,
   assertPendingCheckoutItemsMatchSnapshots,
@@ -229,6 +232,23 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           idempotencyKey: makeOrderEmailIdempotencyKey(order.id, "confirmation"),
         });
 
+        const [refundEmailDelivery] =
+          paymentState.refundedCents > 0
+            ? await tx
+                .insert(orderEmailDeliveries)
+                .values({
+                  orderId: order.id,
+                  kind: "refund",
+                  idempotencyKey: makeRefundEmailIdempotencyKey(
+                    order.id,
+                    paymentState.refundedCents,
+                  ),
+                  refundAmountCents: paymentState.refundedCents,
+                  refundCumulativeCents: paymentState.refundedCents,
+                })
+                .returning({ id: orderEmailDeliveries.id })
+            : [];
+
         const completedCheckouts = await tx
           .update(pendingCheckouts)
           .set({
@@ -244,7 +264,11 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           throw new PaidOrderError("Pending checkout could not be marked completed.");
         }
 
-        return { created: true, orderId: order.id };
+        return {
+          created: true,
+          orderId: order.id,
+          ...(refundEmailDelivery ? { refundEmailDeliveryId: refundEmailDelivery.id } : {}),
+        };
       });
     },
   };

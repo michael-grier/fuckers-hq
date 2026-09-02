@@ -473,6 +473,15 @@ describe("retry order email authorization", () => {
     });
     expect(() => retryOrderEmailSchema.parse({ orderId, kind: "unknown" })).toThrow();
     expect(() => retryOrderEmailSchema.parse({ orderId })).toThrow();
+    expect(() => retryOrderEmailSchema.parse({ orderId, kind: "refund" })).toThrow();
+
+    const refundDeliveryId = "d1bce2d3-cb69-4abf-97a6-a0ad9f914690";
+    expect(
+      retryOrderEmailSchema.parse({ orderId, kind: "refund", deliveryId: refundDeliveryId }),
+    ).toEqual({ orderId, kind: "refund", deliveryId: refundDeliveryId });
+    expect(() =>
+      retryOrderEmailSchema.parse({ orderId, kind: "refund", deliveryId: "invalid" }),
+    ).toThrow();
 
     await expect(
       retryOrderEmailForAdmin(

@@ -87,7 +87,11 @@ export const adminOrderRepository: OrderFulfillmentRepository &
             idempotencyKey: makeOrderEmailIdempotencyKey(orderId, rule.queuedEmailKind),
           })
           .onConflictDoNothing({
-            target: [orderEmailDeliveries.orderId, orderEmailDeliveries.kind],
+            target: [
+              orderEmailDeliveries.orderId,
+              orderEmailDeliveries.kind,
+              orderEmailDeliveries.refundCumulativeCents,
+            ],
           });
       }
 

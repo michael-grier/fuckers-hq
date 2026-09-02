@@ -10,6 +10,7 @@ import {
   deliverOrderConfirmation,
 } from "@/lib/email/deliver-order-confirmation";
 import { deliverOrderShipped } from "@/lib/email/deliver-order-shipped";
+import { deliverRefund } from "@/lib/email/deliver-refund";
 import { deliverShippingPaymentRequest } from "@/lib/email/deliver-shipping-payment-request";
 import type { OrderEmailRef } from "@/lib/email/order-email-delivery";
 import { getResend } from "@/lib/email/resend";
@@ -43,6 +44,49 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
     from: requireEnv("EMAIL_FROM"),
     supportEmail: requireEnv("SUPPORT_EMAIL"),
   };
+
+  if (ref.kind === "refund") {
+    const deliveryId = ref.deliveryId;
+
+    if (!deliveryId) {
+      throw new Error("Refund email is missing its delivery id.");
+    }
+
+    const refundDelivery = await database.query.orderEmailDeliveries.findFirst({
+      columns: { refundAmountCents: true, refundCumulativeCents: true },
+      where: (deliveries, { and, eq }) =>
+        and(
+          eq(deliveries.id, deliveryId),
+          eq(deliveries.orderId, order.id),
+          eq(deliveries.kind, "refund"),
+        ),
+    });
+
+    if (
+      !refundDelivery?.refundAmountCents ||
+      !refundDelivery.refundCumulativeCents ||
+      refundDelivery.refundCumulativeCents > order.totalCents
+    ) {
+      throw new Error("Refund email has an invalid financial snapshot.");
+    }
+
+    return deliverRefund(
+      {
+        orderId: order.id,
+        idempotencyKey,
+        recipientEmail: order.email,
+        order: {
+          orderNumber: order.orderNumber,
+          currency: order.currency,
+          totalCents: order.totalCents,
+          refundAmountCents: refundDelivery.refundAmountCents,
+          refundCumulativeCents: refundDelivery.refundCumulativeCents,
+        },
+      },
+      config,
+      getResend().emails,
+    );
+  }
 
   if (ref.kind === "shipping_payment_request") {
     const generation = Number(idempotencyKey.split("/").at(-1));

@@ -13,6 +13,7 @@ type RetryOrderEmailDependencies = {
 const emailLabels: Record<OrderEmailKind, string> = {
   confirmation: "Confirmation",
   delivery_scheduled: "Delivery notification",
+  refund: "Refund notification",
   shipped: "Shipping notification",
   shipping_payment_request: "Shipping payment request",
 };

@@ -35,6 +35,7 @@ export type OrderItemSnapshot = {
 export type CreatePaidOrderResult = {
   created: boolean;
   orderId: string;
+  refundEmailDeliveryId?: string;
 };
 
 export type PaidOrderWriter = {

@@ -259,6 +259,28 @@ Refund inventory:
 - [ ] For damaged, lost, or customer-kept goods, leave the action untouched. The warning remains
       visible rather than quietly making unavailable units sellable.
 
+Refund email:
+
+- [ ] In Stripe sandbox, partially refund an original order payment. Confirm one branded email says
+      **We issued a partial refund** and shows the amount refunded this time, cumulative refunded
+      amount, remaining paid amount, order number, and currency-formatted values.
+- [ ] Apply a second partial refund to that payment. Confirm a second email uses only the new delta
+      for **Refunded this time** while preserving the new cumulative and remaining-paid amounts.
+- [ ] Refund the remaining balance. Confirm a third email says **Your order is fully refunded**,
+      shows the final delta, cumulative order total, and zero remaining paid.
+- [ ] Replay each signed refund event and deliver a newer event with a lower cumulative amount.
+      Confirm no additional refund delivery rows or customer emails appear.
+- [ ] Inspect each refund email section on the full admin order. Force one Resend failure, confirm
+      the refund and inventory changes remain committed, then retry that specific email and confirm
+      it reuses the same provider idempotency key.
+- [ ] Refund an original payment before its paid Checkout event is processed. Process the paid event
+      and confirm the order queues both its confirmation and one refund email using the retained
+      cumulative amount.
+- [ ] Refund a supplemental shipping payment. Confirm it creates the existing shipping-payment
+      exception but never queues an original-order refund email.
+- [ ] Keep Stripe's refund emails enabled until this flow is deployed and the sandbox checks above
+      pass. Then disable Stripe refund emails in the Dashboard so customers receive one notice.
+
 Use a fresh sandbox order to verify catalog mutation after Checkout creation:
 
 - [ ] Open hosted Checkout and record the displayed product name, variant name, unit price, and

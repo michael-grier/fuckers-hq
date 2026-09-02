@@ -69,6 +69,10 @@ const orderEmailKindCopy: Record<OrderEmailKind, { name: string; failureImpact: 
     name: "delivery",
     failureImpact: "The customer has not been told their delivery is being arranged.",
   },
+  refund: {
+    name: "refund",
+    failureImpact: "The customer has not been told about their refund.",
+  },
   shipped: {
     name: "shipping",
     failureImpact: "The customer has not been told their order shipped.",

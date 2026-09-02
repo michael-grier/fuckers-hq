@@ -4,7 +4,13 @@ import { eq, sql } from "drizzle-orm";
 
 import type { Database } from "@/lib/db/client";
 import { getDb } from "@/lib/db/client";
-import { orderShippingPaymentRequests, orders, stripePaymentEvents } from "@/lib/db/schema";
+import {
+  orderEmailDeliveries,
+  orderShippingPaymentRequests,
+  orders,
+  stripePaymentEvents,
+} from "@/lib/db/schema";
+import { makeRefundEmailIdempotencyKey } from "@/lib/email/order-email-delivery";
 import { returnOrderItemsToStock } from "@/lib/orders/order-inventory-repository";
 import {
   derivePaymentLifecycleState,
@@ -133,6 +139,22 @@ export function createPaymentLifecycleRepository(database: Database): PaymentLif
             .where(eq(orders.id, order.id));
         }
 
+        const refundAdvanced =
+          update.kind === "refund" && state.refundedCents > order.refundedCents;
+        const [refundEmailDelivery] = refundAdvanced
+          ? await tx
+              .insert(orderEmailDeliveries)
+              .values({
+                orderId: order.id,
+                kind: "refund",
+                idempotencyKey: makeRefundEmailIdempotencyKey(order.id, state.refundedCents),
+                refundAmountCents: state.refundedCents - order.refundedCents,
+                refundCumulativeCents: state.refundedCents,
+              })
+              .onConflictDoNothing({ target: orderEmailDeliveries.idempotencyKey })
+              .returning({ id: orderEmailDeliveries.id })
+          : [];
+
         let inventoryReturned = false;
 
         if (shouldAutoReleaseInventory && order.inventoryStatus === "allocated") {
@@ -144,6 +166,7 @@ export function createPaymentLifecycleRepository(database: Database): PaymentLif
         return {
           changed: insertedEvents.length === 1 || stateChanged || inventoryReturned,
           orderId: order.id,
+          ...(refundEmailDelivery ? { refundEmailDeliveryId: refundEmailDelivery.id } : {}),
         };
       });
     },

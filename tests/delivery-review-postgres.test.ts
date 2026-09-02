@@ -388,6 +388,11 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       refundStatus: "partial",
       refundedCents: 500,
     });
+    expect(
+      await database.query.orderEmailDeliveries.findMany({
+        where: (deliveries, { eq }) => eq(deliveries.kind, "refund"),
+      }),
+    ).toHaveLength(0);
   });
 
   test("a late payment from a replaced generation is retained as an exception", async () => {
@@ -554,10 +559,12 @@ const postgresTestSchema = [
   `create table order_email_deliveries (
     id uuid primary key default gen_random_uuid(), order_id uuid not null references orders(id),
     kind text not null, status text not null default 'pending', idempotency_key text not null unique,
+    refund_amount_cents integer, refund_cumulative_cents integer,
     attempt_count integer not null default 0, next_attempt_at timestamptz not null default now(),
     last_attempt_at timestamptz, last_error_at timestamptz, last_error_code text,
     provider_message_id text, delivered_at timestamptz, created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(), unique (order_id, kind)
+    updated_at timestamptz not null default now(),
+    unique nulls not distinct (order_id, kind, refund_cumulative_cents)
   )`,
   `create table stripe_payment_events (
     stripe_event_id text primary key, stripe_payment_intent_id text not null, kind text not null,

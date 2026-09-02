@@ -330,6 +330,8 @@ const postgresTestSchema = [
     kind text not null default 'confirmation',
     status text not null default 'pending',
     idempotency_key text not null unique,
+    refund_amount_cents integer,
+    refund_cumulative_cents integer,
     attempt_count integer not null default 0,
     next_attempt_at timestamptz not null default now(),
     last_attempt_at timestamptz,
@@ -339,6 +341,6 @@ const postgresTestSchema = [
     delivered_at timestamptz,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
-    unique (order_id, kind)
+    unique nulls not distinct (order_id, kind, refund_cumulative_cents)
   )`,
 ];

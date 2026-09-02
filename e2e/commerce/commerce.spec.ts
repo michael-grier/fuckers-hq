@@ -1,8 +1,8 @@
 import { expect, type Page, test } from "@playwright/test";
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
-import { orders } from "@/lib/db/schema";
+import { orderEmailDeliveries, orders } from "@/lib/db/schema";
 
 import {
   addToCartFromPdp,
@@ -52,12 +52,17 @@ async function readOrderNeedsActionCount(page: Page) {
 /** Opens the admin workspace for a product via the products list search. */
 async function openWorkspace(page: Page, productName: string): Promise<void> {
   await page.goto(`/admin/products?q=${encodeURIComponent(productName)}`);
-  // A click before hydration is silently lost, so retry the action-and-outcome pair.
+  const heading = page.getByRole("heading", { name: productName, level: 1 });
+  // A click before hydration is silently lost. Once navigation starts, retry only the outcome so
+  // a slow detail-page render does not look for the product link on the page it just left.
   await expect(async () => {
-    await page.getByRole("link", { name: productName }).click();
-    await expect(page.getByRole("heading", { name: productName, level: 1 })).toBeVisible({
-      timeout: 5_000,
-    });
+    if (!(await heading.isVisible())) {
+      const productLink = page.getByRole("link", { name: productName });
+      if (await productLink.isVisible()) {
+        await productLink.click();
+      }
+    }
+    await expect(heading).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 30_000 });
 }
 
@@ -466,7 +471,7 @@ test.describe("paid-order webhook @commerce", () => {
 });
 
 test.describe("refund inventory @commerce", () => {
-  test("a full refund before fulfillment restores stock automatically and once", async ({
+  test("advancing refunds queue distinct notices and restore stock once when full", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -491,23 +496,165 @@ test.describe("refund inventory @commerce", () => {
       ),
     ).toBe(200);
 
-    const refund = buildSignedRefundEvent({
-      eventId: `evt_e2e_refund_auto_${runId}`,
+    const partialRefund = buildSignedRefundEvent({
+      eventId: `evt_e2e_refund_partial_${runId}`,
+      refundedCents: 500,
+      tokens,
+    });
+    const fullRefund = buildSignedRefundEvent({
+      eventId: `evt_e2e_refund_full_${runId}`,
       refundedCents: 2_000,
       tokens,
     });
-    expect(await postWebhook(page.request, refund)).toBe(200);
-    // Replaying the same event must not add the unit twice.
-    expect(await postWebhook(page.request, refund)).toBe(200);
+    expect(await postWebhook(page.request, partialRefund)).toBe(200);
+    expect(await postWebhook(page.request, fullRefund)).toBe(200);
+    // Neither an exact replay nor a new stale event can add stock or queue another notice.
+    expect(await postWebhook(page.request, fullRefund)).toBe(200);
+    expect(
+      await postWebhook(
+        page.request,
+        buildSignedRefundEvent({
+          eventId: `evt_e2e_refund_stale_${runId}`,
+          refundedCents: 500,
+          tokens,
+        }),
+      ),
+    ).toBe(200);
+
+    const order = await getDb().query.orders.findFirst({
+      columns: { id: true },
+      where: eq(orders.email, email),
+    });
+    const refundDeliveries = await getDb().query.orderEmailDeliveries.findMany({
+      columns: {
+        id: true,
+        attemptCount: true,
+        refundAmountCents: true,
+        refundCumulativeCents: true,
+      },
+      where: and(
+        eq(orderEmailDeliveries.orderId, order?.id ?? ""),
+        eq(orderEmailDeliveries.kind, "refund"),
+      ),
+      orderBy: (deliveries) => [asc(deliveries.refundCumulativeCents)],
+    });
+    expect(refundDeliveries).toMatchObject([
+      { refundAmountCents: 500, refundCumulativeCents: 500 },
+      { refundAmountCents: 1500, refundCumulativeCents: 2000 },
+    ]);
+    expect(refundDeliveries).toHaveLength(2);
+
+    const deliveryToRetry = refundDeliveries[1];
+    const untouchedDelivery = refundDeliveries[0];
+    if (!deliveryToRetry || !untouchedDelivery) {
+      throw new Error("Expected two persisted refund deliveries.");
+    }
+    // The suite deliberately runs without Resend in CI, while a local mock may mark this sent.
+    // Reset one row so the admin retry path has the same starting state in both environments.
+    await getDb()
+      .update(orderEmailDeliveries)
+      .set({
+        status: "retry",
+        nextAttemptAt: new Date(0),
+        deliveredAt: null,
+        providerMessageId: null,
+      })
+      .where(eq(orderEmailDeliveries.id, deliveryToRetry.id));
 
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await openFullOrder(page, "Open full order");
+    const firstRefund = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Refund email #1" }),
+    });
+    const secondRefund = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Refund email #2" }),
+    });
+    await expect(firstRefund.getByRole("heading", { name: "Refund email #1" })).toBeVisible();
+    await expect(secondRefund.getByRole("heading", { name: "Refund email #2" })).toBeVisible();
+    await expect(firstRefund.getByText("Refunded this time").locator("..")).toContainText("$5.00");
+    await expect(firstRefund.getByText("Total refunded").locator("..")).toContainText("$5.00");
+    await expect(secondRefund.getByText("Refunded this time").locator("..")).toContainText(
+      "$15.00",
+    );
+    await expect(secondRefund.getByText("Total refunded").locator("..")).toContainText("$20.00");
+
+    await secondRefund.getByRole("button", { name: "Retry refund email" }).click();
+    await secondRefund.getByRole("button", { name: "Yes, retry" }).click();
+    await expect
+      .poll(async () => {
+        const retried = await getDb().query.orderEmailDeliveries.findFirst({
+          columns: { attemptCount: true },
+          where: eq(orderEmailDeliveries.id, deliveryToRetry.id),
+        });
+        return retried?.attemptCount;
+      })
+      .toBe(deliveryToRetry.attemptCount + 1);
+    await expect
+      .poll(async () => {
+        const untouched = await getDb().query.orderEmailDeliveries.findFirst({
+          columns: { attemptCount: true },
+          where: eq(orderEmailDeliveries.id, untouchedDelivery.id),
+        });
+        return untouched?.attemptCount;
+      })
+      .toBe(untouchedDelivery.attemptCount);
     await expect(page.getByText("Returned to stock", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Stock action required" })).toBeHidden();
 
     await openWorkspace(page, "E2E Budget Bearings");
     await expect((await variantRow(page, "E2E-BEARINGS-BUDGET")).onHand).toHaveValue(initialStock);
+  });
+
+  test("a refund retained before order creation queues its notice with the paid order", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const email = `e2e-refund-early-${runId}@example.com`;
+
+    await addToCartFromPdp(page, "e2e-budget-bearings");
+    const sessionId = await startCheckoutFromCart(page);
+    const tokens = await getSessionTokens(sessionId);
+    expect(
+      await postWebhook(
+        page.request,
+        buildSignedRefundEvent({
+          eventId: `evt_e2e_refund_early_${runId}`,
+          refundedCents: 2_000,
+          tokens,
+        }),
+      ),
+    ).toBe(200);
+    expect(
+      await postWebhook(
+        page.request,
+        buildSignedCheckoutEvent("checkout.session.completed", {
+          sessionId,
+          tokens,
+          subtotalCents: 500,
+          email,
+        }),
+      ),
+    ).toBe(200);
+
+    const order = await getDb().query.orders.findFirst({
+      columns: { id: true },
+      where: eq(orders.email, email),
+    });
+    const deliveries = await getDb().query.orderEmailDeliveries.findMany({
+      columns: { kind: true, refundAmountCents: true, refundCumulativeCents: true },
+      where: eq(orderEmailDeliveries.orderId, order?.id ?? ""),
+      orderBy: (deliveries) => [asc(deliveries.kind)],
+    });
+    expect(deliveries).toEqual([
+      { kind: "confirmation", refundAmountCents: null, refundCumulativeCents: null },
+      { kind: "refund", refundAmountCents: 2000, refundCumulativeCents: 2000 },
+    ]);
+
+    await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
+    await page.getByRole("link", { name: /FHQ-/ }).click();
+    await openFullOrder(page, "Open full order");
+    await expect(page.getByRole("heading", { name: "Refund email #1" })).toBeVisible();
   });
 
   test("a refund after shipment stays visible until an operator returns the stock", async ({

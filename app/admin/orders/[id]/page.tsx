@@ -268,6 +268,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
       </div>
 
       <EmailDeliverySection
+        currency={order.currency}
         delivery={order.confirmationDelivery}
         emptyMessage="No confirmation delivery record exists for this order."
         heading="Confirmation email"
@@ -278,6 +279,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
 
       {order.shippingPaymentRequest || order.shippingPaymentDelivery ? (
         <EmailDeliverySection
+          currency={order.currency}
           delivery={order.shippingPaymentDelivery}
           emptyMessage="No shipping payment request email is queued for this order."
           heading="Shipping payment request email"
@@ -287,8 +289,22 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         />
       ) : null}
 
+      {order.refundDeliveries.map((delivery, index) => (
+        <EmailDeliverySection
+          currency={order.currency}
+          delivery={delivery}
+          emptyMessage=""
+          heading={`Refund email #${order.refundDeliveries.length - index}`}
+          id={`refund-delivery-${delivery.id}`}
+          key={delivery.id}
+          kind="refund"
+          orderId={order.id}
+        />
+      ))}
+
       {isDelivery ? (
         <EmailDeliverySection
+          currency={order.currency}
           delivery={order.deliveryScheduledDelivery}
           emptyMessage="This order has not been scheduled for delivery yet, so no delivery email is queued."
           heading="Delivery email"
@@ -298,6 +314,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         />
       ) : (
         <EmailDeliverySection
+          currency={order.currency}
           delivery={order.shippedDelivery}
           emptyMessage="This order has not been marked as shipped yet, so no shipping email is queued."
           heading="Shipping email"
@@ -423,6 +440,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
 }
 
 type EmailDeliverySectionProps = {
+  currency: string;
   delivery: OrderEmailDelivery | null;
   emptyMessage: string;
   heading: string;
@@ -432,6 +450,7 @@ type EmailDeliverySectionProps = {
 };
 
 function EmailDeliverySection({
+  currency,
   delivery,
   emptyMessage,
   heading,
@@ -464,13 +483,27 @@ function EmailDeliverySection({
                 label="Last error"
                 value={formatConfirmationDeliveryError(delivery.lastErrorCode)}
               />
+              {kind === "refund" &&
+              delivery.refundAmountCents !== null &&
+              delivery.refundCumulativeCents !== null ? (
+                <>
+                  <DeliveryDetail
+                    label="Refunded this time"
+                    value={formatMoney(delivery.refundAmountCents, currency)}
+                  />
+                  <DeliveryDetail
+                    label="Total refunded"
+                    value={formatMoney(delivery.refundCumulativeCents, currency)}
+                  />
+                </>
+              ) : null}
             </dl>
           ) : (
             <p className="mt-3 text-muted-foreground text-sm">{emptyMessage}</p>
           )}
         </div>
         {delivery && delivery.status !== "sent" && delivery.status !== "cancelled" ? (
-          <RetryOrderEmailButton kind={kind} orderId={orderId} />
+          <RetryOrderEmailButton deliveryId={delivery.id} kind={kind} orderId={orderId} />
         ) : null}
       </div>
     </section>

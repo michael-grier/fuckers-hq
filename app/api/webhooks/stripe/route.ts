@@ -3,7 +3,7 @@ import type Stripe from "stripe";
 import { reservationEventRepository } from "@/lib/checkout/reservation-event-repository";
 import { attemptOrderEmailDelivery } from "@/lib/email/order-email-delivery";
 import { orderEmailDeliveryRepository } from "@/lib/email/order-email-delivery-repository";
-import { sendConfirmationAfterOrderCommit } from "@/lib/email/send-after-order";
+import { sendOrderEmailsAfterCommit } from "@/lib/email/send-after-order";
 import { sendOrderEmail } from "@/lib/email/send-order-email";
 import { requireEnv } from "@/lib/env";
 import { captureServerException } from "@/lib/observability/server";
@@ -42,7 +42,7 @@ export async function POST(request: Request): Promise<Response> {
       shippingPaymentRepository,
     );
 
-    await sendConfirmationAfterOrderCommit(
+    await sendOrderEmailsAfterCommit(
       result,
       (ref) =>
         attemptOrderEmailDelivery(ref, orderEmailDeliveryRepository, sendOrderEmail, {
@@ -51,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
       (error) => {
         captureServerException(error, {
           area: "email",
-          operation: "email.send-order-confirmation",
+          operation: "email.send-after-order",
         });
       },
     );

@@ -18,6 +18,11 @@ const emailCopy: Record<OrderEmailKind, { confirm: string; confirmLabel: string;
     confirmLabel: "Yes, resend",
     idle: "Resend delivery email",
   },
+  refund: {
+    confirm: "Retry this refund notification email?",
+    confirmLabel: "Yes, retry",
+    idle: "Retry refund email",
+  },
   shipped: {
     confirm: "Resend the shipping notification to this customer?",
     confirmLabel: "Yes, resend",
@@ -31,9 +36,11 @@ const emailCopy: Record<OrderEmailKind, { confirm: string; confirmLabel: string;
 };
 
 export function RetryOrderEmailButton({
+  deliveryId,
   orderId,
   kind,
 }: {
+  deliveryId?: string;
   orderId: string;
   kind: OrderEmailKind;
 }) {
@@ -47,7 +54,7 @@ export function RetryOrderEmailButton({
     setIsSubmitting(true);
 
     try {
-      const result = await retryOrderEmail({ orderId, kind });
+      const result = await retryOrderEmail({ orderId, kind, deliveryId });
 
       if (!result.success) {
         setErrorMessage(result.message);

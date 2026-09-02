@@ -256,7 +256,11 @@ export function createDeliveryReviewRepository(database: Database): DeliveryRevi
             updatedAt: linkedAt,
           })
           .onConflictDoUpdate({
-            target: [orderEmailDeliveries.orderId, orderEmailDeliveries.kind],
+            target: [
+              orderEmailDeliveries.orderId,
+              orderEmailDeliveries.kind,
+              orderEmailDeliveries.refundCumulativeCents,
+            ],
             set: {
               status: "pending",
               idempotencyKey,
