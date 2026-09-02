@@ -31,6 +31,7 @@ const e2eProducts = [
     variants: [
       { name: "Set of 8", sku: "E2E-BEARINGS-BUDGET", priceCents: 500, inventoryQty: 8 },
       { name: "Ceramic", sku: "E2E-BEARINGS-CERAMIC", priceCents: 700, inventoryQty: 0 },
+      { name: "Steel", sku: "E2E-BEARINGS-STEEL", priceCents: 600, inventoryQty: 2 },
     ],
   },
 ];

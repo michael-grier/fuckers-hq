@@ -443,6 +443,8 @@ The expected count is `1`. Do not commit identifiers copied from a real customer
 - [ ] Editing its name, slug, category, description, and status updates the storefront after
       revalidation.
 - [ ] A variant can be created and its price and inventory can be updated.
+- [ ] Product cards name a single low-stock variant and show a compact count when multiple
+      variants are low or out of stock.
 - [ ] Duplicate product slugs and variant SKUs produce safe form errors.
 - [ ] Archiving a product removes it from the public catalog without deleting historical orders.
 - [ ] Invalid order and product IDs do not expose internal data.

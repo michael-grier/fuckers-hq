@@ -39,7 +39,13 @@ export function AdminProductCard({ product }: { product: AdminProduct }) {
         </span>
         {stock.isOutOfStock ? (
           <span className="absolute bottom-2.5 left-2.5 rounded-full border border-destructive/30 bg-destructive/10 px-2.5 py-1 font-semibold text-destructive text-xs">
-            Out of stock
+            {stock.stockWarningCount > 1
+              ? `${stock.stockWarningCount} variants out of stock`
+              : "Out of stock"}
+          </span>
+        ) : stock.stockWarningCount > 1 ? (
+          <span className="absolute bottom-2.5 left-2.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 font-semibold text-amber-800 text-xs">
+            {stock.stockWarningCount} variants need stock
           </span>
         ) : stock.lowStockVariant ? (
           <span className="absolute bottom-2.5 left-2.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 font-semibold text-amber-800 text-xs">
