@@ -14,7 +14,10 @@ import {
   productVariants,
   stripePaymentEvents,
 } from "@/lib/db/schema";
-import { makeOrderEmailIdempotencyKey } from "@/lib/email/order-email-delivery";
+import {
+  makeOrderEmailIdempotencyKey,
+  makeRefundEmailIdempotencyKey,
+} from "@/lib/email/order-email-delivery";
 import {
   assertInventoryDecremented,
   assertPendingCheckoutItemsMatchSnapshots,
@@ -49,10 +52,24 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
         const existingOrder = await tx.query.orders.findFirst({
           columns: { id: true },
           where: (order, { eq }) => eq(order.stripeSessionId, checkout.stripeSessionId),
+          with: {
+            emailDeliveries: {
+              columns: { id: true },
+              where: (deliveries, { eq }) => eq(deliveries.kind, "refund"),
+              orderBy: (deliveries, { desc }) => [desc(deliveries.refundCumulativeCents)],
+              limit: 1,
+            },
+          },
         });
 
         if (existingOrder) {
-          return { created: false, orderId: existingOrder.id };
+          return {
+            created: false,
+            orderId: existingOrder.id,
+            ...(existingOrder.emailDeliveries[0]
+              ? { refundEmailDeliveryId: existingOrder.emailDeliveries[0].id }
+              : {}),
+          };
         }
 
         const [pendingCheckout] = await tx
@@ -229,6 +246,23 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           idempotencyKey: makeOrderEmailIdempotencyKey(order.id, "confirmation"),
         });
 
+        const [refundEmailDelivery] =
+          paymentState.refundedCents > 0
+            ? await tx
+                .insert(orderEmailDeliveries)
+                .values({
+                  orderId: order.id,
+                  kind: "refund",
+                  idempotencyKey: makeRefundEmailIdempotencyKey(
+                    order.id,
+                    paymentState.refundedCents,
+                  ),
+                  refundAmountCents: paymentState.refundedCents,
+                  refundCumulativeCents: paymentState.refundedCents,
+                })
+                .returning({ id: orderEmailDeliveries.id })
+            : [];
+
         const completedCheckouts = await tx
           .update(pendingCheckouts)
           .set({
@@ -244,7 +278,11 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           throw new PaidOrderError("Pending checkout could not be marked completed.");
         }
 
-        return { created: true, orderId: order.id };
+        return {
+          created: true,
+          orderId: order.id,
+          ...(refundEmailDelivery ? { refundEmailDeliveryId: refundEmailDelivery.id } : {}),
+        };
       });
     },
   };

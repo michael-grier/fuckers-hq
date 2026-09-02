@@ -4,7 +4,13 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import type { Database } from "@/lib/db/client";
-import { orderItems, orders, products, productVariants } from "@/lib/db/schema";
+import {
+  orderEmailDeliveries,
+  orderItems,
+  orders,
+  products,
+  productVariants,
+} from "@/lib/db/schema";
 import type { PaymentLifecycleWriter } from "@/lib/orders/payment-lifecycle";
 import type { OrderInventoryReturnResult } from "@/lib/orders/return-order-inventory";
 
@@ -138,7 +144,7 @@ describe.skipIf(!testDatabaseUrl)("refunded inventory with real Postgres", () =>
   test("a full refund before fulfillment restores stock once", async () => {
     await seedOrder();
 
-    await expect(payments.recordPaymentLifecycleUpdate(refundUpdate(600))).resolves.toEqual({
+    await expect(payments.recordPaymentLifecycleUpdate(refundUpdate(600))).resolves.toMatchObject({
       changed: true,
       orderId,
     });
@@ -154,6 +160,43 @@ describe.skipIf(!testDatabaseUrl)("refunded inventory with real Postgres", () =>
       inventoryStatus: "released",
     });
     expect(await findStock()).toBe(5);
+    expect(await database.select().from(orderEmailDeliveries)).toMatchObject([
+      {
+        orderId,
+        kind: "refund",
+        refundAmountCents: 600,
+        refundCumulativeCents: 600,
+      },
+    ]);
+  });
+
+  test("queues each advancing refund once and ignores duplicate or stale totals", async () => {
+    await seedOrder();
+
+    await payments.recordPaymentLifecycleUpdate(refundUpdate(200, "evt_refund_first"));
+    await payments.recordPaymentLifecycleUpdate(refundUpdate(400, "evt_refund_second"));
+    await payments.recordPaymentLifecycleUpdate(refundUpdate(200, "evt_refund_stale"));
+    await payments.recordPaymentLifecycleUpdate(refundUpdate(400, "evt_refund_second"));
+
+    const deliveries = await database.query.orderEmailDeliveries.findMany({
+      where: eq(orderEmailDeliveries.orderId, orderId),
+      orderBy: (deliveries, { asc }) => [asc(deliveries.refundCumulativeCents)],
+    });
+
+    expect(deliveries).toMatchObject([
+      { kind: "refund", refundAmountCents: 200, refundCumulativeCents: 200 },
+      { kind: "refund", refundAmountCents: 200, refundCumulativeCents: 400 },
+    ]);
+    await expect(
+      database
+        .insert(orderEmailDeliveries)
+        .values({
+          orderId,
+          kind: "refund",
+          idempotencyKey: "order-refund/missing-snapshot",
+        })
+        .execute(),
+    ).rejects.toThrow();
   });
 
   test("partial and post-fulfillment refunds leave stock for an operator decision", async () => {
@@ -300,6 +343,30 @@ const postgresTestSchema = [
     variant_name_snapshot text not null,
     unit_price_cents_snapshot integer not null,
     quantity integer not null
+  )`,
+  `create table order_email_deliveries (
+    id uuid primary key default gen_random_uuid(),
+    order_id uuid not null references orders(id) on delete cascade,
+    kind text not null default 'confirmation',
+    status text not null default 'pending',
+    idempotency_key text not null unique,
+    refund_amount_cents integer,
+    refund_cumulative_cents integer,
+    attempt_count integer not null default 0,
+    next_attempt_at timestamptz not null default now(),
+    last_attempt_at timestamptz,
+    last_error_at timestamptz,
+    last_error_code text,
+    provider_message_id text,
+    delivered_at timestamptz,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique nulls not distinct (order_id, kind, refund_cumulative_cents),
+    constraint order_email_deliveries_refund_snapshot_consistent check (
+      (kind = 'refund' and refund_amount_cents is not null and refund_cumulative_cents is not null
+        and refund_amount_cents > 0 and refund_cumulative_cents >= refund_amount_cents)
+      or (kind <> 'refund' and refund_amount_cents is null and refund_cumulative_cents is null)
+    )
   )`,
   `create table stripe_payment_events (
     stripe_event_id text primary key,

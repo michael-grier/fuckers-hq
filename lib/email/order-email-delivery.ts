@@ -5,10 +5,13 @@ export const ORDER_EMAIL_LEASE_MS = 10 * 60 * 1_000;
 const ORDER_EMAIL_RETRY_BASE_MS = 5 * 60 * 1_000;
 const ORDER_EMAIL_RETRY_MAX_MS = 6 * 60 * 60 * 1_000;
 
-/** Identifies one outbox row: an order plus the kind of email owed for it. */
+export type SingletonOrderEmailKind = Exclude<OrderEmailKind, "refund">;
+
+/** Identifies one outbox row. Refunds carry the row id because an order can have several. */
 export type OrderEmailRef = {
   orderId: string;
   kind: OrderEmailKind;
+  deliveryId?: string;
 };
 
 export type OrderEmailDeliveryClaim = OrderEmailRef & {
@@ -68,15 +71,26 @@ type AttemptOrderEmailOptions = {
  * email as new. Confirmation in particular keeps the prefix used before this outbox carried more
  * than one kind.
  */
-const orderEmailIdempotencyPrefixes: Record<OrderEmailKind, string> = {
+const orderEmailIdempotencyPrefixes: Record<SingletonOrderEmailKind, string> = {
   confirmation: "order-confirmation",
   delivery_scheduled: "order-delivery-scheduled",
   shipped: "order-shipped",
   shipping_payment_request: "order-shipping-payment",
 };
 
-export function makeOrderEmailIdempotencyKey(orderId: string, kind: OrderEmailKind): string {
+export function makeOrderEmailIdempotencyKey(
+  orderId: string,
+  kind: SingletonOrderEmailKind,
+): string {
   return `${orderEmailIdempotencyPrefixes[kind]}/${orderId}`;
+}
+
+/** One provider key per cumulative refund milestone, stable across webhook and delivery retries. */
+export function makeRefundEmailIdempotencyKey(
+  orderId: string,
+  refundCumulativeCents: number,
+): string {
+  return `order-refund/${orderId}/${refundCumulativeCents}`;
 }
 
 export function getOrderEmailRetryAt(attemptCount: number, failedAt: Date): Date {
@@ -120,7 +134,7 @@ export async function attemptOrderEmailDelivery(
 
   try {
     const providerMessageId = await send(
-      { orderId: claim.orderId, kind: claim.kind },
+      { orderId: claim.orderId, kind: claim.kind, deliveryId: claim.id },
       claim.idempotencyKey,
     );
     const recorded = await repository.markDelivered({

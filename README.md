@@ -204,6 +204,11 @@ the temporary trigger that supported the pre-manual-review writer during deploym
 [audit, deployment, and rollback notes](docs/migrations/0016-manual-delivery-review.md) before
 applying it.
 
+Migration `0019_refund-email-outbox.sql` adds immutable refund snapshots and permits one durable
+email row per advancing cumulative refund amount. It deliberately does not email historical
+refunds. Review the [deployment and rollback notes](docs/migrations/0019-refund-email-outbox.md)
+before applying it.
+
 ## Stripe Webhooks
 
 Forward sandbox webhook events to the local raw-body endpoint while developing:

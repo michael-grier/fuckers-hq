@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from "bun:test";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
@@ -8,6 +8,7 @@ import type { ReservationEventWriter } from "@/lib/checkout/reservation-events";
 import type { Database } from "@/lib/db/client";
 import {
   inventoryReservations,
+  orderEmailDeliveries,
   orders,
   pendingCheckouts,
   products,
@@ -403,11 +404,14 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
       paidOrders.createPaidOrder(paidCheckout(reservation, "cs_refunded_early")),
     ).resolves.toMatchObject({ created: true });
 
-    expect(
-      await database.query.orders.findFirst({
-        columns: { status: true, inventoryStatus: true, refundStatus: true },
-      }),
-    ).toEqual({ status: "refunded", inventoryStatus: "released", refundStatus: "full" });
+    const persistedOrder = await database.query.orders.findFirst({
+      columns: { id: true, status: true, inventoryStatus: true, refundStatus: true },
+    });
+    expect(persistedOrder).toMatchObject({
+      status: "refunded",
+      inventoryStatus: "released",
+      refundStatus: "full",
+    });
     expect(await variantStock(database, variantId)).toEqual({
       inventoryQty: 1,
       reservedQty: 0,
@@ -417,6 +421,20 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
         columns: { status: true, releaseReason: true },
       }),
     ).toEqual({ status: "released", releaseReason: "fully_refunded_before_order" });
+    expect(
+      await database.query.orderEmailDeliveries.findMany({
+        columns: {
+          kind: true,
+          refundAmountCents: true,
+          refundCumulativeCents: true,
+        },
+        where: eq(orderEmailDeliveries.orderId, persistedOrder?.id ?? ""),
+        orderBy: (deliveries) => [asc(deliveries.kind)],
+      }),
+    ).toEqual([
+      { kind: "confirmation", refundAmountCents: null, refundCumulativeCents: null },
+      { kind: "refund", refundAmountCents: 8900, refundCumulativeCents: 8900 },
+    ]);
   });
 
   test("payment racing expiration has one consistent terminal result", async () => {
@@ -783,6 +801,8 @@ const postgresTestSchema = [
     kind text not null default 'confirmation',
     status text not null default 'pending',
     idempotency_key text not null unique,
+    refund_amount_cents integer,
+    refund_cumulative_cents integer,
     attempt_count integer not null default 0,
     next_attempt_at timestamptz not null default now(),
     last_attempt_at timestamptz,
@@ -792,7 +812,7 @@ const postgresTestSchema = [
     delivered_at timestamptz,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now(),
-    unique (order_id, kind)
+    unique nulls not distinct (order_id, kind, refund_cumulative_cents)
   )`,
   `create table stripe_payment_events (
     stripe_event_id text primary key,

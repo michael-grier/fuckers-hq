@@ -413,6 +413,11 @@ export async function getAdminOrderById(input: unknown) {
     shippedDelivery: emailDeliveries.find((row) => row.kind === "shipped") ?? null,
     shippingPaymentDelivery:
       emailDeliveries.find((row) => row.kind === "shipping_payment_request") ?? null,
+    refundDeliveries: emailDeliveries
+      .filter((row) => row.kind === "refund")
+      .sort(
+        (left, right) => (right.refundCumulativeCents ?? 0) - (left.refundCumulativeCents ?? 0),
+      ),
     shippingPaymentRequest: shippingPaymentRequests.at(0) ?? null,
     shippingPaymentRequests,
   };

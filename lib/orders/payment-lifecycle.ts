@@ -22,6 +22,7 @@ export type PaymentLifecycleState = {
 export type RecordPaymentLifecycleResult = {
   changed: boolean;
   orderId: string | null;
+  refundEmailDeliveryId?: string;
 };
 
 export type PaymentLifecycleWriter = {

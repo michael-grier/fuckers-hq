@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -47,6 +48,7 @@ export const shippingPaymentRequestStatusValues = [
 export const orderEmailKindValues = [
   "confirmation",
   "delivery_scheduled",
+  "refund",
   "shipped",
   "shipping_payment_request",
 ] as const;
@@ -598,6 +600,9 @@ export const orderEmailDeliveries = pgTable(
     kind: orderEmailKind("kind").notNull().default("confirmation"),
     status: orderEmailDeliveryStatus("status").notNull().default("pending"),
     idempotencyKey: text("idempotency_key").notNull(),
+    // Refund notices snapshot the advancing amounts so a delayed retry cannot render newer state.
+    refundAmountCents: integer("refund_amount_cents"),
+    refundCumulativeCents: integer("refund_cumulative_cents"),
     attemptCount: integer("attempt_count").notNull().default(0),
     nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
     lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
@@ -608,10 +613,26 @@ export const orderEmailDeliveries = pgTable(
     ...timestamps,
   },
   (table) => [
-    uniqueIndex("order_email_deliveries_order_id_kind_unique").on(table.orderId, table.kind),
+    unique("order_email_deliveries_order_kind_refund_unique")
+      .on(table.orderId, table.kind, table.refundCumulativeCents)
+      .nullsNotDistinct(),
     uniqueIndex("order_email_deliveries_idempotency_key_unique").on(table.idempotencyKey),
     index("order_email_deliveries_due_idx").on(table.status, table.nextAttemptAt),
     check("order_email_deliveries_attempt_count_nonnegative", sql`${table.attemptCount} >= 0`),
+    check(
+      "order_email_deliveries_refund_snapshot_consistent",
+      sql`(
+        ${table.kind}::text = 'refund'
+        AND ${table.refundAmountCents} IS NOT NULL
+        AND ${table.refundCumulativeCents} IS NOT NULL
+        AND ${table.refundAmountCents} > 0
+        AND ${table.refundCumulativeCents} >= ${table.refundAmountCents}
+      ) OR (
+        ${table.kind}::text <> 'refund'
+        AND ${table.refundAmountCents} IS NULL
+        AND ${table.refundCumulativeCents} IS NULL
+      )`,
+    ),
     check(
       "order_email_deliveries_sent_at_required",
       sql`${table.status} <> 'sent' OR ${table.deliveredAt} IS NOT NULL`,

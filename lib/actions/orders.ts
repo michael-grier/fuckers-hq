@@ -44,6 +44,7 @@ import {
 const fulfillmentEmailOperations: Record<OrderEmailKind, string> = {
   confirmation: "email.confirmation",
   delivery_scheduled: "email.delivery-scheduled",
+  refund: "email.refund",
   shipped: "email.shipped",
   shipping_payment_request: "email.shipping-payment-request",
 };

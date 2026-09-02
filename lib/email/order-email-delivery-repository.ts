@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { orderEmailDeliveries } from "@/lib/db/schema";
@@ -10,6 +10,10 @@ const claimableStatuses = ["pending", "retry"] as const;
 
 export const orderEmailDeliveryRepository: OrderEmailDeliveryRepository = {
   async claimDelivery(ref, options) {
+    if (ref.kind === "refund" && !ref.deliveryId) {
+      return null;
+    }
+
     const available = options.force
       ? or(
           inArray(orderEmailDeliveries.status, ["pending", "retry", "failed"]),
@@ -42,6 +46,9 @@ export const orderEmailDeliveryRepository: OrderEmailDeliveryRepository = {
         and(
           eq(orderEmailDeliveries.orderId, ref.orderId),
           eq(orderEmailDeliveries.kind, ref.kind),
+          ref.deliveryId
+            ? eq(orderEmailDeliveries.id, ref.deliveryId)
+            : isNull(orderEmailDeliveries.refundCumulativeCents),
           available,
         ),
       )
@@ -105,6 +112,7 @@ export const orderEmailDeliveryRepository: OrderEmailDeliveryRepository = {
   async findDueDeliveries(now, limit) {
     return getDb()
       .select({
+        deliveryId: orderEmailDeliveries.id,
         orderId: orderEmailDeliveries.orderId,
         kind: orderEmailDeliveries.kind,
       })

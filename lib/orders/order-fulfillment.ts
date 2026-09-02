@@ -41,7 +41,7 @@ type TransitionRule = {
    * change. Null for steps the customer has already been told about — the drop-off happens in
    * person, so being handed the order is the notification.
    */
-  queuedEmailKind: OrderEmailKind | null;
+  queuedEmailKind: Extract<OrderEmailKind, "delivery_scheduled" | "shipped"> | null;
 };
 
 export const orderFulfillmentTransitionRules: Record<OrderFulfillmentTransition, TransitionRule> = {

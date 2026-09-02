@@ -4,25 +4,49 @@ import type { StripeWebhookResult } from "@/lib/webhooks/stripe";
 type OrderEmailAttempt = (ref: OrderEmailRef) => Promise<OrderEmailAttemptResult>;
 type EmailErrorReporter = (error: unknown) => void;
 
-export async function sendConfirmationAfterOrderCommit(
+/** Attempts only emails whose outbox rows were committed by this webhook result. */
+export async function sendOrderEmailsAfterCommit(
   result: StripeWebhookResult,
-  attemptConfirmation: OrderEmailAttempt,
+  attemptEmail: OrderEmailAttempt,
   reportError: EmailErrorReporter,
 ): Promise<boolean> {
-  if (!result.handled || !("created" in result)) {
+  if (!result.handled) {
     return false;
   }
 
-  try {
-    const attempt = await attemptConfirmation({ orderId: result.orderId, kind: "confirmation" });
+  const refs: OrderEmailRef[] = [];
 
-    if (attempt.status === "failed") {
-      reportError(attempt.error);
+  if ("created" in result) {
+    refs.push({ orderId: result.orderId, kind: "confirmation" });
+  }
+
+  if (
+    "refundEmailDeliveryId" in result &&
+    typeof result.refundEmailDeliveryId === "string" &&
+    typeof result.orderId === "string"
+  ) {
+    refs.push({
+      orderId: result.orderId,
+      kind: "refund",
+      deliveryId: result.refundEmailDeliveryId,
+    });
+  }
+
+  let sent = false;
+
+  for (const ref of refs) {
+    try {
+      const attempt = await attemptEmail(ref);
+
+      if (attempt.status === "failed") {
+        reportError(attempt.error);
+      }
+
+      sent ||= attempt.status === "sent";
+    } catch (error) {
+      reportError(error);
     }
-
-    return attempt.status === "sent";
-  } catch (error) {
-    reportError(error);
-    return false;
   }
+
+  return sent;
 }

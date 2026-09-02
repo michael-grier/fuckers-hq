@@ -76,5 +76,10 @@ export const retryOrderEmailSchema = z
   .object({
     orderId: adminEntityIdSchema,
     kind: z.enum(orderEmailKindValues),
+    deliveryId: adminEntityIdSchema.optional(),
   })
-  .strict();
+  .strict()
+  .refine((value) => value.kind !== "refund" || value.deliveryId !== undefined, {
+    message: "A refund email delivery is required.",
+    path: ["deliveryId"],
+  });

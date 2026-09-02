@@ -166,6 +166,7 @@ describe("order preview shipment layout", () => {
       deliveryScheduledDelivery: null,
       shippedDelivery: null,
       shippingPaymentDelivery: null,
+      refundDeliveries: [],
       shippingPaymentRequest: null,
       shippingPaymentRequests: [],
     } satisfies PeekableOrder;
