@@ -382,12 +382,10 @@ test.describe("paid-order webhook @commerce", () => {
     await openFullOrder(page, "Open full order");
     await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "Canvas Coach Jacket" })).toBeVisible();
-    const adminNotification = page.getByRole("region", { name: "Admin sale notification" });
-    const confirmationEmail = page.getByRole("region", { name: "Confirmation email" });
-    await expect(adminNotification).toBeVisible();
+    const confirmationEmail = page.getByRole("region", { name: "Order confirmation" });
+    await expect(page.getByRole("region", { name: "Admin sale notification" })).toBeHidden();
     await expect(confirmationEmail).toBeVisible();
     // Delivery is durable either way: sent, or parked for the retry cron.
-    await expect(adminNotification).toContainText(/Sent|Retry scheduled/);
     await expect(confirmationEmail).toContainText(/Sent|Retry scheduled/);
 
     // Replaying the identical signed bytes is acknowledged without a second order.
@@ -580,12 +578,8 @@ test.describe("refund inventory @commerce", () => {
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await openFullOrder(page, "Open full order");
-    const firstRefund = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Refund email #1" }),
-    });
-    const secondRefund = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Refund email #2" }),
-    });
+    const firstRefund = page.getByRole("region", { name: "Refund email #1" });
+    const secondRefund = page.getByRole("region", { name: "Refund email #2" });
     await expect(firstRefund.getByRole("heading", { name: "Refund email #1" })).toBeVisible();
     await expect(secondRefund.getByRole("heading", { name: "Refund email #2" })).toBeVisible();
     await expect(firstRefund.getByText("Refunded this time").locator("..")).toContainText("$5.00");

@@ -281,10 +281,11 @@ idempotency key; a successful record cannot be claimed again.
 
 Configure `RESEND_API_KEY`, `EMAIL_FROM`, `ADMIN_ORDER_EMAIL`, and `SUPPORT_EMAIL` to enable
 delivery. `ADMIN_ORDER_EMAIL` receives one privacy-minimized alert for each newly paid order.
-Resend failures
-are recorded as normalized error codes without copying email payloads or provider error messages
-into the outbox. Automatic retries use exponential backoff, stop after eight attempts, and can be
-resumed from the protected admin order page.
+Resend failures are recorded as normalized error codes without copying email payloads or provider
+error messages into the outbox. Automatic retries use exponential backoff and stop after eight
+attempts. Customer-facing deliveries can be resumed from the protected admin order page. Admin
+sale notifications stay out of that page because opening the order has already served the alert's
+purpose; their delivery records remain available for diagnostics.
 
 Migration `0020_admin-new-order-email.sql` adds the dedicated admin sale-notification kind without
 backfilling historical orders. Review its
