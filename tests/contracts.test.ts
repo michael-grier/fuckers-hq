@@ -177,6 +177,14 @@ describe("environment contract", () => {
     );
   });
 
+  test("accepts one valid operational recipient and rejects malformed addresses", () => {
+    expect(parseEnv({ NODE_ENV: "test" }).ADMIN_ORDER_EMAIL).toBeUndefined();
+    expect(
+      parseEnv({ NODE_ENV: "test", ADMIN_ORDER_EMAIL: "operations@example.com" }).ADMIN_ORDER_EMAIL,
+    ).toBe("operations@example.com");
+    expect(() => parseEnv({ NODE_ENV: "test", ADMIN_ORDER_EMAIL: "not-an-email" })).toThrow();
+  });
+
   test("requires a high-entropy cron secret when scheduled delivery is configured", () => {
     expect(parseEnv({ NODE_ENV: "test", CRON_SECRET: "test_cron_secret_123456" }).CRON_SECRET).toBe(
       "test_cron_secret_123456",

@@ -72,6 +72,7 @@ type AttemptOrderEmailOptions = {
  * than one kind.
  */
 const orderEmailIdempotencyPrefixes: Record<SingletonOrderEmailKind, string> = {
+  admin_new_order: "admin-new-order",
   confirmation: "order-confirmation",
   delivery_scheduled: "order-delivery-scheduled",
   shipped: "order-shipped",
@@ -103,7 +104,9 @@ export function getOrderEmailRetryAt(attemptCount: number, failedAt: Date): Date
 export function getOrderEmailErrorCode(error: unknown): string {
   if (
     error instanceof Error &&
-    /^(RESEND_API_KEY|EMAIL_FROM|SUPPORT_EMAIL) is required\.$/.test(error.message)
+    /^(RESEND_API_KEY|EMAIL_FROM|ADMIN_ORDER_EMAIL|SUPPORT_EMAIL) is required\.$/.test(
+      error.message,
+    )
   ) {
     return "configuration_error";
   }

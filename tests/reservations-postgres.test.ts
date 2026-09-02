@@ -352,6 +352,12 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
     ).toEqual({ status: "converted" });
     expect(await database.$count(orders)).toBe(1);
     expect(
+      await database.query.orderEmailDeliveries.findMany({
+        columns: { kind: true },
+        orderBy: (deliveries) => [asc(deliveries.kind)],
+      }),
+    ).toEqual([{ kind: "admin_new_order" }, { kind: "confirmation" }]);
+    expect(
       await reservationEvents.markAwaitingPayment(eventFor(reservation, "cs_test_paid")),
     ).toEqual({
       changed: false,
@@ -437,6 +443,7 @@ describe.skipIf(!testDatabaseUrl)("inventory reservations with real Postgres", (
         orderBy: (deliveries) => [asc(deliveries.kind)],
       }),
     ).toEqual([
+      { kind: "admin_new_order", refundAmountCents: null, refundCumulativeCents: null },
       { kind: "confirmation", refundAmountCents: null, refundCumulativeCents: null },
       { kind: "refund", refundAmountCents: 8900, refundCumulativeCents: 8900 },
     ]);

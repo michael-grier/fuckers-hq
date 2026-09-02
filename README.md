@@ -279,10 +279,16 @@ after commit, and verified webhook replays retry an unsent record without recrea
 decrementing inventory. Every attempt uses the persisted `order-confirmation/<order-id>` Resend
 idempotency key; a successful record cannot be claimed again.
 
-Configure `RESEND_API_KEY`, `EMAIL_FROM`, and `SUPPORT_EMAIL` to enable delivery. Resend failures
+Configure `RESEND_API_KEY`, `EMAIL_FROM`, `ADMIN_ORDER_EMAIL`, and `SUPPORT_EMAIL` to enable
+delivery. `ADMIN_ORDER_EMAIL` receives one privacy-minimized alert for each newly paid order.
+Resend failures
 are recorded as normalized error codes without copying email payloads or provider error messages
 into the outbox. Automatic retries use exponential backoff, stop after eight attempts, and can be
 resumed from the protected admin order page.
+
+Migration `0020_admin-new-order-email.sql` adds the dedicated admin sale-notification kind without
+backfilling historical orders. Review its
+[deployment and rollback notes](docs/migrations/0020-admin-new-order-email.md) before applying it.
 
 The Vercel Pro deployment runs `/api/cron/order-confirmations` every 30 minutes. The paid-order path
 makes the first delivery attempt immediately; this schedule governs durable retries and still lets

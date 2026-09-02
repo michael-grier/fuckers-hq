@@ -277,6 +277,16 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
         orderId={order.id}
       />
 
+      <EmailDeliverySection
+        currency={order.currency}
+        delivery={order.adminNewOrderDelivery}
+        emptyMessage="No admin sale notification exists for this order."
+        heading="Admin sale notification"
+        id="admin-new-order-delivery"
+        kind="admin_new_order"
+        orderId={order.id}
+      />
+
       {order.shippingPaymentRequest || order.shippingPaymentDelivery ? (
         <EmailDeliverySection
           currency={order.currency}

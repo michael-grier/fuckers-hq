@@ -371,6 +371,8 @@ export async function getAdminOrders() {
     itemCount: order.items.reduce((total, item) => total + item.quantity, 0),
     confirmationDeliveryStatus:
       emailDeliveries.find((delivery) => delivery.kind === "confirmation")?.status ?? null,
+    adminNewOrderDeliveryStatus:
+      emailDeliveries.find((delivery) => delivery.kind === "admin_new_order")?.status ?? null,
     shippingPaymentRequest: shippingPaymentRequests.at(0) ?? null,
   }));
 }
@@ -407,6 +409,7 @@ export async function getAdminOrderById(input: unknown) {
 
   return {
     ...rest,
+    adminNewOrderDelivery: emailDeliveries.find((row) => row.kind === "admin_new_order") ?? null,
     confirmationDelivery: emailDeliveries.find((row) => row.kind === "confirmation") ?? null,
     deliveryScheduledDelivery:
       emailDeliveries.find((row) => row.kind === "delivery_scheduled") ?? null,

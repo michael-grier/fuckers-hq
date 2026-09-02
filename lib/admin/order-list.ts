@@ -22,12 +22,13 @@ type FilterableOrder = Pick<
   | "fulfillmentMethod"
   | "deliveryReviewStatus"
 > & {
+  adminNewOrderDeliveryStatus: OrderEmailDelivery["status"] | null;
   confirmationDeliveryStatus: OrderEmailDelivery["status"] | null;
 };
 
 /**
  * An order needs a human when payment succeeded but fulfillment cannot proceed:
- * stock was never allocated, or the confirmation email exhausted its retries.
+ * stock was never allocated, or a required initial email exhausted its retries.
  */
 export function orderNeedsAction(order: FilterableOrder): boolean {
   if (orderNeedsInventoryReturn(order)) {
@@ -40,6 +41,7 @@ export function orderNeedsAction(order: FilterableOrder): boolean {
 
   return (
     order.inventoryStatus === "exception" ||
+    order.adminNewOrderDeliveryStatus === "failed" ||
     order.confirmationDeliveryStatus === "failed" ||
     order.deliveryReviewStatus === "pending" ||
     order.deliveryReviewStatus === "shipping_payment_pending" ||

@@ -5,6 +5,11 @@ const optionalString = z.preprocess(
   z.string().min(1).optional(),
 );
 
+const optionalEmail = z.preprocess(
+  (value) => (value === "" ? undefined : value),
+  z.string().email().optional(),
+);
+
 const optionalUrl = z.preprocess(
   (value) => (value === "" ? undefined : value),
   z.string().url().optional(),
@@ -53,6 +58,9 @@ const envSchema = z.object({
   NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: optionalString,
   RESEND_API_KEY: optionalString,
   EMAIL_FROM: optionalString,
+  // The operational recipient is separate from customer support. This currently targets the one
+  // administrator responsible for managing and fulfilling orders.
+  ADMIN_ORDER_EMAIL: optionalEmail,
   // Defaulted rather than optional so the policy pages always have a real address to print.
   // An unset variable used to render an empty string mid-sentence, which reads as finished copy
   // and leaves a customer with no way to reach the store.

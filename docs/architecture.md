@@ -20,7 +20,7 @@ The Fuckers HQ storefront is optimized for **reliability without ongoing babysit
 | Validation & types | Zod + **drizzle-zod** + React Hook Form | Schemas derived from the Drizzle schema — one source of truth for types *and* runtime validation |
 | Client state | Zustand + localStorage | Cart only |
 | URL state | nuqs | Catalog filters / sort / pagination |
-| Email | Resend + React Email | Order confirmations |
+| Email | Resend + React Email | Transactional customer and admin notifications |
 | Errors | Sentry | Wraps the webhook + admin actions |
 | Lint/format | Biome | |
 
@@ -373,6 +373,7 @@ CLERK_SECRET_KEY=
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
 RESEND_API_KEY=
 EMAIL_FROM=
+ADMIN_ORDER_EMAIL=
 SUPPORT_EMAIL=
 R2_ACCOUNT_ID=
 R2_ACCESS_KEY_ID=
@@ -400,7 +401,7 @@ Build in this order so each phase is testable before the next depends on it:
 4. **Cart** — Zustand store + localStorage persistence, cart UI.
 5. **Checkout** — Checkout session route, Stripe Tax, shipping options, redirect.
 6. **Webhook** — order creation + transactional inventory decrement + idempotency. Test with the Stripe CLI (`stripe listen` / `stripe trigger`).
-7. **Email** — Resend + React Email order confirmation.
+7. **Email** — Resend + React Email notifications through the durable order outbox.
 8. **Admin** — Clerk gate, product/order management, R2 presigned uploads.
 9. **Sentry + polish** — error monitoring, loading/error states, empty states, 404s.
 10. **Go-live checklist** — switch Stripe to live keys, register the **production** webhook endpoint, configure Stripe Tax origin + Canadian GST/HST registration, set a Neon/Stripe spend alert, smoke-test a real $1 purchase.

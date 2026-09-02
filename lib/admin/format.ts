@@ -61,6 +61,10 @@ export function formatConfirmationDeliveryError(errorCode: string | null): strin
  * attention queue, where the copy is what tells an operator what the customer is missing.
  */
 const orderEmailKindCopy: Record<OrderEmailKind, { name: string; failureImpact: string }> = {
+  admin_new_order: {
+    name: "admin sale notification",
+    failureImpact: "The order administrator has not been notified about this sale.",
+  },
   confirmation: {
     name: "confirmation",
     failureImpact: "The customer has no receipt.",

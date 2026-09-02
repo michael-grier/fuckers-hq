@@ -141,6 +141,13 @@
       "when": 1788366174504,
       "tag": "0019_refund-email-outbox",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788374932860,
+      "tag": "0020_admin-new-order-email",
+      "breakpoints": true
     }
   ]
 }

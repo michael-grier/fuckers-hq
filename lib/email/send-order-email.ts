@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { orderShippingPaymentRequests } from "@/lib/db/schema";
+import { deliverAdminNewOrder } from "@/lib/email/deliver-admin-new-order";
 import { deliverDeliveryScheduled } from "@/lib/email/deliver-delivery-scheduled";
 import {
   type ConfirmationEmailDelivery,
@@ -44,6 +45,36 @@ export async function sendOrderEmail(ref: OrderEmailRef, idempotencyKey: string)
     from: requireEnv("EMAIL_FROM"),
     supportEmail: requireEnv("SUPPORT_EMAIL"),
   };
+
+  if (ref.kind === "admin_new_order") {
+    return deliverAdminNewOrder(
+      {
+        orderId: order.id,
+        idempotencyKey,
+        recipientEmail: requireEnv("ADMIN_ORDER_EMAIL"),
+        order: {
+          orderNumber: order.orderNumber,
+          fulfillmentMethod: order.fulfillmentMethod,
+          inventoryStatus: order.inventoryStatus,
+          refundStatus: order.refundStatus,
+          currency: order.currency,
+          totalCents: order.totalCents,
+          items: order.items.map((item) => ({
+            productName: item.productNameSnapshot,
+            variantName: item.variantNameSnapshot,
+            unitPriceCents: item.unitPriceCentsSnapshot,
+            quantity: item.quantity,
+          })),
+          adminOrderUrl: new URL(
+            `/admin/orders/${order.id}`,
+            requireEnv("NEXT_PUBLIC_APP_URL"),
+          ).toString(),
+        },
+      },
+      config,
+      getResend().emails,
+    );
+  }
 
   if (ref.kind === "refund") {
     const deliveryId = ref.deliveryId;

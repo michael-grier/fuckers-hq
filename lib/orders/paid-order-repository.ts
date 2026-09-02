@@ -226,11 +226,18 @@ export function createPaidOrderRepository(database: Database): PaidOrderWriter {
           })),
         );
 
-        await tx.insert(orderEmailDeliveries).values({
-          orderId: order.id,
-          kind: "confirmation",
-          idempotencyKey: makeOrderEmailIdempotencyKey(order.id, "confirmation"),
-        });
+        await tx.insert(orderEmailDeliveries).values([
+          {
+            orderId: order.id,
+            kind: "confirmation",
+            idempotencyKey: makeOrderEmailIdempotencyKey(order.id, "confirmation"),
+          },
+          {
+            orderId: order.id,
+            kind: "admin_new_order",
+            idempotencyKey: makeOrderEmailIdempotencyKey(order.id, "admin_new_order"),
+          },
+        ]);
 
         const [refundEmailDelivery] =
           paymentState.refundedCents > 0

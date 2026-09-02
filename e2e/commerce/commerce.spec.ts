@@ -363,10 +363,16 @@ test.describe("paid-order webhook @commerce", () => {
     expect(await postWebhook(page.request, event)).toBe(200);
 
     const persistedOrder = await getDb().query.orders.findFirst({
-      columns: { destinationProvince: true },
+      columns: { id: true, destinationProvince: true },
       where: eq(orders.email, email),
     });
     expect(persistedOrder?.destinationProvince).toBe("SK");
+    const initialDeliveries = await getDb().query.orderEmailDeliveries.findMany({
+      columns: { kind: true },
+      where: eq(orderEmailDeliveries.orderId, persistedOrder?.id ?? ""),
+      orderBy: (deliveries) => [asc(deliveries.kind)],
+    });
+    expect(initialDeliveries).toEqual([{ kind: "admin_new_order" }, { kind: "confirmation" }]);
 
     // The order is visible in admin with its persisted snapshots and a confirmation record.
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
@@ -376,12 +382,22 @@ test.describe("paid-order webhook @commerce", () => {
     await openFullOrder(page, "Open full order");
     await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "Canvas Coach Jacket" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Confirmation email" })).toBeVisible();
+    const adminNotification = page.getByRole("region", { name: "Admin sale notification" });
+    const confirmationEmail = page.getByRole("region", { name: "Confirmation email" });
+    await expect(adminNotification).toBeVisible();
+    await expect(confirmationEmail).toBeVisible();
     // Delivery is durable either way: sent, or parked for the retry cron.
-    await expect(page.getByText(/Sent|Retry scheduled/).first()).toBeVisible();
+    await expect(adminNotification).toContainText(/Sent|Retry scheduled/);
+    await expect(confirmationEmail).toContainText(/Sent|Retry scheduled/);
 
     // Replaying the identical signed bytes is acknowledged without a second order.
     expect(await postWebhook(page.request, event)).toBe(200);
+    expect(
+      await getDb().$count(
+        orderEmailDeliveries,
+        eq(orderEmailDeliveries.orderId, persistedOrder?.id ?? ""),
+      ),
+    ).toBe(2);
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await expect(page.getByRole("link", { name: /FHQ-/ })).toHaveCount(1);
 
@@ -647,6 +663,7 @@ test.describe("refund inventory @commerce", () => {
       orderBy: (deliveries) => [asc(deliveries.kind)],
     });
     expect(deliveries).toEqual([
+      { kind: "admin_new_order", refundAmountCents: null, refundCumulativeCents: null },
       { kind: "confirmation", refundAmountCents: null, refundCumulativeCents: null },
       { kind: "refund", refundAmountCents: 2000, refundCumulativeCents: 2000 },
     ]);
