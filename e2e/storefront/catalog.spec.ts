@@ -94,6 +94,19 @@ test.describe("storefront @smoke", () => {
 });
 
 test.describe("product page @smoke", () => {
+  test("preserves intentional newlines in the product description", async ({ page }) => {
+    await page.goto("/products/e2e-budget-bearings");
+    const description = page.getByText(
+      "Fixture product for automated tests. In stock and inexpensive.",
+    );
+
+    await expect(description).toHaveCSS("white-space", "pre-line");
+    await expect(description).toHaveText(
+      "Fixture product for automated tests.\nIn stock and inexpensive.",
+      { useInnerText: false },
+    );
+  });
+
   test("shows the product with its variants and price", async ({ page }) => {
     failOnPageError(page);
     await page.goto("/products/street-deck-825");
