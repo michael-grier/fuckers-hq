@@ -63,7 +63,7 @@ describe("storefront navigation", () => {
     expect(openMarkup).toContain('href="/videos">Videos</a>');
   });
 
-  test("renders branded placeholders for both new destinations", () => {
+  test("renders the crew placeholder and videos page content", () => {
     const crewMarkup = renderToStaticMarkup(<CrewPage />);
     const videosMarkup = renderToStaticMarkup(<VideosPage />);
 
@@ -71,7 +71,13 @@ describe("storefront navigation", () => {
     expect(crewMarkup).toContain("Meet the crew.");
     expect(crewMarkup).toContain("Crew profiles are on the way");
     expect(videosMarkup).toContain("<h1");
-    expect(videosMarkup).toContain("Watch the latest.");
-    expect(videosMarkup).toContain("We&#x27;re working on it okay?");
+    expect(videosMarkup).toContain(">Videos</h1>");
+    expect(videosMarkup).toContain("The Fuckers Video");
+    expect(videosMarkup).toContain("Our first official full length video!");
+    expect(videosMarkup).toContain("Reid Morris");
+    expect(videosMarkup).toContain("Filmed by");
+    expect(videosMarkup).toContain("Edited by");
+    expect(videosMarkup).toContain('src="https://player.vimeo.com/video/831883647?h=5ca502be5f"');
+    expect(videosMarkup).toContain('title="The Fuckers Video"');
   });
 });
