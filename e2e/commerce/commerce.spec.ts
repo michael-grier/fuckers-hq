@@ -382,10 +382,13 @@ test.describe("paid-order webhook @commerce", () => {
     await openFullOrder(page, "Open full order");
     await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "Canvas Coach Jacket" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Admin sale notification" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Confirmation email" })).toBeVisible();
+    const adminNotification = page.getByRole("region", { name: "Admin sale notification" });
+    const confirmationEmail = page.getByRole("region", { name: "Confirmation email" });
+    await expect(adminNotification).toBeVisible();
+    await expect(confirmationEmail).toBeVisible();
     // Delivery is durable either way: sent, or parked for the retry cron.
-    await expect(page.getByText(/Sent|Retry scheduled/).first()).toBeVisible();
+    await expect(adminNotification).toContainText(/Sent|Retry scheduled/);
+    await expect(confirmationEmail).toContainText(/Sent|Retry scheduled/);
 
     // Replaying the identical signed bytes is acknowledged without a second order.
     expect(await postWebhook(page.request, event)).toBe(200);
