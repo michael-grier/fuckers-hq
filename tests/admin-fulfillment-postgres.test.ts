@@ -5,10 +5,19 @@ import postgres from "postgres";
 
 import type { Database } from "@/lib/db/client";
 import { orderEmailDeliveries, orders } from "@/lib/db/schema";
+import {
+  attemptOrderEmailDelivery,
+  deliverDueOrderEmails,
+  makeOrderEmailIdempotencyKey,
+  ORDER_EMAIL_MAX_ATTEMPTS,
+  type OrderEmailDeliveryRepository,
+  type OrderEmailSender,
+} from "@/lib/email/order-email-delivery";
 import type { OrderFulfillmentRepository } from "@/lib/orders/order-fulfillment";
 import type { InventoryExceptionRepository } from "@/lib/orders/resolve-inventory-exception";
 
 const testDatabaseUrl = process.env.RESERVATION_TEST_DATABASE_URL;
+const databaseUrl = testDatabaseUrl ? toUnpooledNeonUrl(testDatabaseUrl) : undefined;
 const schemaName = `fulfillment_test_${crypto.randomUUID().replaceAll("-", "")}`;
 const shippingOrderId = "0a3c9f18-64e5-4d33-90c4-2b6f5a1d77e2";
 const deliveryOrderId = "7d1b8e52-3f47-4a90-8c15-9e60d2b4a831";
@@ -21,23 +30,24 @@ mock.module("server-only", () => ({}));
  * `shipped` row leaves the customer silently uninformed, which is the exact failure this feature
  * exists to prevent, and a mocked repository would never catch it.
  */
-describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postgres", () => {
+describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres", () => {
   let adminClient: ReturnType<typeof postgres>;
   let client: ReturnType<typeof postgres>;
   let database: Database;
   let repository: OrderFulfillmentRepository & InventoryExceptionRepository;
+  let emailRepository: OrderEmailDeliveryRepository;
   let saveOrderShippingRecord: typeof import("@/lib/orders/shipping-record-repository")["saveOrderShippingRecord"];
   let realDbClient: typeof import("@/lib/db/client");
 
   beforeAll(async () => {
-    if (!testDatabaseUrl) {
+    if (!databaseUrl) {
       return;
     }
 
-    adminClient = postgres(testDatabaseUrl, { max: 1, prepare: false });
+    adminClient = postgres(databaseUrl, { max: 1, prepare: false });
     await adminClient.unsafe(`create schema "${schemaName}"`);
-    // A URL startup option survives Neon pooling; the postgres-js connection setting does not.
-    const scopedDatabaseUrl = new URL(testDatabaseUrl);
+    // Use the direct endpoint because Neon's pooler rejects search_path startup options.
+    const scopedDatabaseUrl = new URL(databaseUrl);
     scopedDatabaseUrl.searchParams.set("options", `-csearch_path=${schemaName}`);
     client = postgres(scopedDatabaseUrl.toString(), {
       max: 10,
@@ -60,11 +70,14 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     realDbClient = { ...(await import("@/lib/db/client")) };
     mock.module("@/lib/db/client", () => ({ getDb: () => database }));
     ({ adminOrderRepository: repository } = await import("@/lib/orders/admin-order-repository"));
+    ({ orderEmailDeliveryRepository: emailRepository } = await import(
+      "@/lib/email/order-email-delivery-repository"
+    ));
     ({ saveOrderShippingRecord } = await import("@/lib/orders/shipping-record-repository"));
   });
 
   beforeEach(async () => {
-    if (!testDatabaseUrl) {
+    if (!databaseUrl) {
       return;
     }
 
@@ -110,7 +123,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
   });
 
   afterAll(async () => {
-    if (!testDatabaseUrl) {
+    if (!databaseUrl) {
       return;
     }
 
@@ -400,7 +413,92 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     ).resolves.toBe(false);
     expect(await findDeliveries(deliveryOrderId)).toHaveLength(0);
   });
+
+  test("stops automatic confirmation retries at the limit and requires a forced retry", async () => {
+    const confirmationRef = { orderId: shippingOrderId, kind: "confirmation" as const };
+    const idempotencyKey = makeOrderEmailIdempotencyKey(shippingOrderId, "confirmation");
+    const firstAttemptAt = new Date("2030-01-01T00:00:00.000Z");
+    const usedKeys: string[] = [];
+
+    await database.insert(orderEmailDeliveries).values({
+      orderId: shippingOrderId,
+      kind: "confirmation",
+      idempotencyKey,
+      nextAttemptAt: firstAttemptAt,
+    });
+
+    const failDelivery: OrderEmailSender = async (_ref, key) => {
+      usedKeys.push(key);
+      throw new Error("Test provider unavailable");
+    };
+
+    for (let index = 0; index < ORDER_EMAIL_MAX_ATTEMPTS; index += 1) {
+      // Seven hours clears even the capped six-hour backoff before the next automatic attempt.
+      const now = new Date(firstAttemptAt.getTime() + index * 7 * 60 * 60 * 1_000);
+      const result = await attemptOrderEmailDelivery(
+        confirmationRef,
+        emailRepository,
+        failDelivery,
+        { now },
+      );
+
+      expect(result).toMatchObject({
+        status: "failed",
+        terminal: index === ORDER_EMAIL_MAX_ATTEMPTS - 1,
+      });
+    }
+
+    const [terminalDelivery] = await findDeliveries(shippingOrderId);
+    expect(terminalDelivery).toMatchObject({
+      status: "failed",
+      attemptCount: ORDER_EMAIL_MAX_ATTEMPTS,
+      idempotencyKey,
+      lastErrorCode: "delivery_error",
+    });
+    const paidOrder = await database.query.orders.findFirst({
+      columns: { status: true },
+      where: eq(orders.id, shippingOrderId),
+    });
+    expect(paidOrder).toMatchObject({ status: "paid" });
+
+    const afterBackoff = new Date("2031-01-01T00:00:00.000Z");
+    await expect(
+      deliverDueOrderEmails(emailRepository, failDelivery, { now: afterBackoff }),
+    ).resolves.toEqual({ attempted: 0, sent: 0, failed: 0 });
+    await expect(
+      attemptOrderEmailDelivery(confirmationRef, emailRepository, failDelivery, {
+        now: afterBackoff,
+      }),
+    ).resolves.toEqual({ status: "skipped" });
+
+    const sendDelivery: OrderEmailSender = async (_ref, key) => {
+      usedKeys.push(key);
+      return "email_terminal_retry";
+    };
+    await expect(
+      attemptOrderEmailDelivery(confirmationRef, emailRepository, sendDelivery, {
+        force: true,
+        now: afterBackoff,
+      }),
+    ).resolves.toEqual({ status: "sent" });
+
+    const [recoveredDelivery] = await findDeliveries(shippingOrderId);
+    expect(recoveredDelivery).toMatchObject({
+      status: "sent",
+      attemptCount: ORDER_EMAIL_MAX_ATTEMPTS + 1,
+      idempotencyKey,
+      providerMessageId: "email_terminal_retry",
+    });
+    expect(usedKeys).toEqual(Array(ORDER_EMAIL_MAX_ATTEMPTS + 1).fill(idempotencyKey));
+  });
 });
+
+/** Neon poolers reject startup `search_path`; the direct endpoint accepts the isolated schema. */
+function toUnpooledNeonUrl(value: string): string {
+  const url = new URL(value);
+  url.hostname = url.hostname.replace("-pooler.", ".");
+  return url.toString();
+}
 
 // Mirrors the production DDL for only the tables this transition touches. Enum columns are declared
 // as text, matching the other Postgres suites, so the schema can be created without the app's types.

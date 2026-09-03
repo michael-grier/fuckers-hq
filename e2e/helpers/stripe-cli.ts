@@ -24,20 +24,16 @@ export async function startStripeRelay(): Promise<StripeRelay> {
   if (!apiKey?.startsWith("sk_test_")) {
     throw new Error("The live tier needs a sandbox STRIPE_SECRET_KEY.");
   }
+  const relayTarget = new URL(
+    "/api/webhooks/stripe",
+    process.env.E2E_BASE_URL ?? "http://localhost:3000",
+  ).toString();
 
   let child: ChildProcess;
   try {
     child = spawn(
       "stripe",
-      [
-        "listen",
-        "--api-key",
-        apiKey,
-        "--events",
-        FORWARDED_EVENTS,
-        "--forward-to",
-        "localhost:3000/api/webhooks/stripe",
-      ],
+      ["listen", "--api-key", apiKey, "--events", FORWARDED_EVENTS, "--forward-to", relayTarget],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
   } catch (error) {

@@ -158,6 +158,8 @@ Restore the product price and inventory after these checks.
 - [ ] Complete hosted Checkout with Stripe's
       [successful sandbox card](https://docs.stripe.com/testing) `4242 4242 4242 4242`, any future
       expiry, any three-digit CVC, and a valid postal code.
+- [ ] Repeat with Stripe's sandbox card `4000 0027 6000 3184`, approve the 3D Secure challenge,
+      and confirm Stripe returns to `/order/success` before continuing the checks below.
 - [ ] Stripe redirects to `/order/success` and the page confirms payment without exposing order or
       customer details in the URL.
 - [ ] The CLI reports a successful webhook response.
@@ -487,9 +489,12 @@ order. Do not use production customer data or live Resend credentials.
 
 - [ ] Temporarily use an invalid test Resend credential and create a paid Stripe sandbox order.
 - [ ] The paid order and its items remain persisted while the delivery becomes `Retry scheduled`.
-- [ ] Restore the valid test credential and invoke the authenticated cron route or use the admin
-      retry button.
-- [ ] The same delivery reaches `Sent` with a higher attempt count and only one email arrives.
+- [ ] Leave the test credential invalid through all eight delivery attempts. The row becomes
+      `Needs attention`, while the paid order remains unchanged.
+- [ ] Invoke the authenticated cron route after the eighth attempt. It does not claim the terminal
+      delivery or increase its attempt count.
+- [ ] Restore the valid test credential and use the admin retry button. The same delivery reaches
+      `Sent` on attempt nine with its original idempotency key, and only one email arrives.
 - [ ] A request to the cron route without `Authorization: Bearer <CRON_SECRET>` returns `401`.
 - [ ] The inventory-reservation cron also rejects a request without the same bearer secret.
 
