@@ -508,7 +508,10 @@ const postgresTestSchema = [
     stripe_session_id text not null unique, stripe_payment_intent_id text unique,
     refund_status text not null default 'none', refunded_cents integer not null default 0,
     dispute_status text not null default 'none', subtotal_cents integer not null,
-    tax_cents integer not null, shipping_cents integer not null, total_cents integer not null,
+    tax_cents integer not null, shipping_cents integer not null,
+    shipping_actual_cost_cents integer, shipping_actual_cost_unknown boolean not null default false,
+    packed_weight_grams integer, packed_weight_unknown boolean not null default false,
+    total_cents integer not null,
     currency text not null, shipping_address jsonb, destination_province text,
     created_at timestamptz not null default now(),
     constraint orders_delivery_review_method_consistent check (

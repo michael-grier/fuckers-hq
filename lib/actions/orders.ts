@@ -31,6 +31,7 @@ import {
   OrderInventoryReturnError,
   returnRefundedOrderInventory,
 } from "@/lib/orders/return-order-inventory";
+import { saveOrderShippingRecord } from "@/lib/orders/shipping-record-repository";
 import { getStripe } from "@/lib/stripe";
 import {
   adminOrderIdSchema,
@@ -39,6 +40,10 @@ import {
   retryOrderInventoryAllocationSchema,
   returnOrderInventorySchema,
 } from "@/lib/validators/admin";
+import {
+  adminOrderShippingRecordSchema,
+  toOrderShippingRecordValues,
+} from "@/lib/validators/shipping-record";
 
 /** One stable Sentry operation per email kind, so dashboards can query each notification. */
 const fulfillmentEmailOperations: Record<OrderEmailKind, string> = {
@@ -166,6 +171,41 @@ export async function scheduleOrderDelivery(input: unknown): Promise<ActionResul
 
 export async function markOrderDelivered(input: unknown): Promise<ActionResult> {
   return runOrderIdTransition(input, "delivered", "admin.mark-order-delivered");
+}
+
+/** Records the packed parcel facts used to compare flat shipping charges with carrier costs. */
+export async function updateOrderShippingRecord(input: unknown): Promise<ActionResult> {
+  await requireAdmin();
+
+  const parsed = adminOrderShippingRecordSchema.safeParse(input);
+
+  if (!parsed.success) {
+    return validationFailure(parsed.error);
+  }
+
+  try {
+    const result = await saveOrderShippingRecord(
+      parsed.data.orderId,
+      toOrderShippingRecordValues(parsed.data),
+    );
+
+    if (result === "not_found") {
+      return { success: false, message: "Order not found." };
+    }
+
+    if (result === "not_shipping") {
+      return { success: false, message: "Local-delivery orders do not need a shipping record." };
+    }
+  } catch (error) {
+    captureServerException(error, {
+      area: "admin",
+      operation: "admin.update-order-shipping-record",
+    });
+    throw error;
+  }
+
+  revalidatePath(`/admin/orders/${parsed.data.orderId}`);
+  return { success: true, data: undefined };
 }
 
 function revalidateOrderWorkflows(orderId: string): void {

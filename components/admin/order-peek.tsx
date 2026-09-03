@@ -44,6 +44,8 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
   const shippingAddressLines = getShippingAddressLines(fulfillmentAddress);
   const canFulfill = isOrderFulfillmentEligible(order);
   const nextTransition = resolveNextFulfillmentTransition(order);
+  // Shipping stays on the full order page because its parcel measurements must be recorded first.
+  const previewTransition = nextTransition === "ship" ? null : nextTransition;
   const delivery = order.confirmationDelivery;
   const tracking = resolveOrderTracking(order);
   const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
@@ -77,10 +79,9 @@ export function OrderPeek({ order }: { order: PeekableOrder }) {
           </time>
         </div>
 
-        {/* Keep the open shipping form on its own row so validation text cannot shift the link. */}
-        <div className="flex flex-wrap items-center gap-2 [&>form]:w-full [&>form]:shrink-0">
-          {order.inventoryStatus === "allocated" && canFulfill && nextTransition ? (
-            <FulfillmentActionButton orderId={order.id} size="sm" transition={nextTransition} />
+        <div className="flex flex-wrap items-center gap-2">
+          {order.inventoryStatus === "allocated" && canFulfill && previewTransition ? (
+            <FulfillmentActionButton orderId={order.id} size="sm" transition={previewTransition} />
           ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href={`/admin/orders/${order.id}` as Route} prefetch={false}>

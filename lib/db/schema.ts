@@ -1,5 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -356,6 +357,12 @@ export const orders = pgTable(
     subtotalCents: integer("subtotal_cents").notNull(),
     taxCents: integer("tax_cents").notNull().default(0),
     shippingCents: integer("shipping_cents").notNull().default(0),
+    // Null plus a false unknown flag means the operator has not completed that field yet. Keeping
+    // the unknown decision separate prevents missing launch data from looking like a $0 label.
+    shippingActualCostCents: integer("shipping_actual_cost_cents"),
+    shippingActualCostUnknown: boolean("shipping_actual_cost_unknown").notNull().default(false),
+    packedWeightGrams: integer("packed_weight_grams"),
+    packedWeightUnknown: boolean("packed_weight_unknown").notNull().default(false),
     totalCents: integer("total_cents").notNull(),
     currency: text("currency").notNull().default("cad"),
     shippingAddress: jsonb("shipping_address").$type<JsonRecord | null>(),
@@ -379,6 +386,33 @@ export const orders = pgTable(
     check("orders_subtotal_cents_nonnegative", sql`${table.subtotalCents} >= 0`),
     check("orders_tax_cents_nonnegative", sql`${table.taxCents} >= 0`),
     check("orders_shipping_cents_nonnegative", sql`${table.shippingCents} >= 0`),
+    check(
+      "orders_shipping_actual_cost_nonnegative",
+      sql`${table.shippingActualCostCents} IS NULL OR ${table.shippingActualCostCents} >= 0`,
+    ),
+    check(
+      "orders_shipping_actual_cost_state_consistent",
+      sql`NOT (${table.shippingActualCostUnknown} AND ${table.shippingActualCostCents} IS NOT NULL)`,
+    ),
+    check(
+      "orders_packed_weight_positive",
+      sql`${table.packedWeightGrams} IS NULL OR ${table.packedWeightGrams} > 0`,
+    ),
+    check(
+      "orders_packed_weight_state_consistent",
+      sql`NOT (${table.packedWeightUnknown} AND ${table.packedWeightGrams} IS NOT NULL)`,
+    ),
+    // Shipping fulfillment is the enforcement point: paid orders may remain incomplete while the
+    // parcel is prepared, but a shipped order must carry a value or an explicit unknown decision.
+    check(
+      "orders_fulfilled_shipping_record_complete",
+      sql`${table.status}::text <> 'fulfilled'
+        OR ${table.fulfillmentMethod} <> 'shipping'
+        OR (
+          (${table.shippingActualCostCents} IS NOT NULL OR ${table.shippingActualCostUnknown})
+          AND (${table.packedWeightGrams} IS NOT NULL OR ${table.packedWeightUnknown})
+        )`,
+    ),
     check("orders_total_cents_nonnegative", sql`${table.totalCents} >= 0`),
     check(
       "orders_destination_province_valid",

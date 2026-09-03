@@ -35,6 +35,7 @@ mock.module("@/lib/actions/orders", () => ({
   retryOrderInventoryAllocation: async () => ({ success: true, data: undefined }) as const,
   returnOrderInventoryToStock: async () => ({ success: true, data: undefined }) as const,
   scheduleOrderDelivery: async () => ({ success: true, data: undefined }) as const,
+  updateOrderShippingRecord: async () => ({ success: true, data: undefined }) as const,
 }));
 
 const { FulfillmentActionButton } = await import("@/components/admin/fulfillment-action-button");
@@ -124,8 +125,8 @@ describe("return order inventory button", () => {
   });
 });
 
-describe("order preview shipment layout", () => {
-  test("keeps the open shipment form on its own row above the full-order link", () => {
+describe("order preview shipment flow", () => {
+  test("routes shipping work to the full order where parcel measurements are available", () => {
     const order = {
       id: "823071ff-f180-43ed-82df-af334ccfe35a",
       orderNumber: "FHQ-TEST-ORDER",
@@ -146,6 +147,10 @@ describe("order preview shipment layout", () => {
       subtotalCents: 4900,
       taxCents: 0,
       shippingCents: 0,
+      shippingActualCostCents: null,
+      shippingActualCostUnknown: false,
+      packedWeightGrams: null,
+      packedWeightUnknown: false,
       totalCents: 4900,
       currency: "cad",
       shippingAddress: null,
@@ -172,14 +177,10 @@ describe("order preview shipment layout", () => {
     } satisfies PeekableOrder;
 
     render(<OrderPeek order={order} />);
-    fireEvent.click(screen.getByRole("button", { name: "Mark as shipped" }));
 
-    const formParent = screen.getByLabelText("Carrier").closest("form")?.parentElement;
-
-    expect(formParent?.classList.contains("[&>form]:w-full")).toBe(true);
-    expect(formParent?.classList.contains("[&>form]:shrink-0")).toBe(true);
-    expect(formParent?.querySelector('a[href*="/admin/orders/"]')?.textContent).toContain(
-      "Open full order",
+    expect(screen.queryByRole("button", { name: "Mark as shipped" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Open full order" }).getAttribute("href")).toBe(
+      `/admin/orders/${order.id}`,
     );
   });
 });

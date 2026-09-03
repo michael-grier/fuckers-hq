@@ -33,6 +33,8 @@ export const orderInsertSchema = createInsertSchema(orders, {
   subtotalCents: (schema) => schema.int().nonnegative(),
   taxCents: (schema) => schema.int().nonnegative(),
   shippingCents: (schema) => schema.int().nonnegative(),
+  shippingActualCostCents: z.number().int().nonnegative().nullable().optional(),
+  packedWeightGrams: z.number().int().positive().nullable().optional(),
   totalCents: (schema) => schema.int().nonnegative(),
   currency: (schema) => schema.length(3).toLowerCase(),
   shippingAddress: shippingAddressSchema,
@@ -45,6 +47,31 @@ export const orderInsertSchema = createInsertSchema(orders, {
   .refine((order) => (order.refundedCents ?? 0) <= order.totalCents, {
     message: "Refunded amount cannot exceed the order total.",
     path: ["refundedCents"],
+  })
+  .superRefine((order, context) => {
+    if (
+      order.shippingActualCostUnknown &&
+      order.shippingActualCostCents !== null &&
+      order.shippingActualCostCents !== undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Carrier cost cannot have both a value and an unknown state.",
+        path: ["shippingActualCostCents"],
+      });
+    }
+
+    if (
+      order.packedWeightUnknown &&
+      order.packedWeightGrams !== null &&
+      order.packedWeightGrams !== undefined
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Packed weight cannot have both a value and an unknown state.",
+        path: ["packedWeightGrams"],
+      });
+    }
   });
 
 export const orderUpdateSchema = createUpdateSchema(orders, {

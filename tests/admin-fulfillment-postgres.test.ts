@@ -26,6 +26,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
   let client: ReturnType<typeof postgres>;
   let database: Database;
   let repository: OrderFulfillmentRepository & InventoryExceptionRepository;
+  let saveOrderShippingRecord: typeof import("@/lib/orders/shipping-record-repository")["saveOrderShippingRecord"];
   let realDbClient: typeof import("@/lib/db/client");
 
   beforeAll(async () => {
@@ -59,6 +60,7 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     realDbClient = { ...(await import("@/lib/db/client")) };
     mock.module("@/lib/db/client", () => ({ getDb: () => database }));
     ({ adminOrderRepository: repository } = await import("@/lib/orders/admin-order-repository"));
+    ({ saveOrderShippingRecord } = await import("@/lib/orders/shipping-record-repository"));
   });
 
   beforeEach(async () => {
@@ -83,6 +85,8 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
         subtotalCents: 8900,
         taxCents: 0,
         shippingCents: 1500,
+        shippingActualCostCents: 1_250,
+        packedWeightGrams: 780,
         totalCents: 10400,
         currency: "cad",
       },
@@ -225,6 +229,143 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     expect(await findDeliveries(deliveryOrderId)).toHaveLength(0);
   });
 
+  test("saves shipping facts and refuses to attach them to local delivery", async () => {
+    await expect(
+      saveOrderShippingRecord(shippingOrderId, {
+        shippingActualCostCents: 1_425,
+        shippingActualCostUnknown: false,
+        packedWeightGrams: null,
+        packedWeightUnknown: true,
+      }),
+    ).resolves.toBe("saved");
+    await expect(
+      saveOrderShippingRecord(deliveryOrderId, {
+        shippingActualCostCents: 0,
+        shippingActualCostUnknown: false,
+        packedWeightGrams: 1,
+        packedWeightUnknown: false,
+      }),
+    ).resolves.toBe("not_shipping");
+
+    const updatedOrder = await database.query.orders.findFirst({
+      where: eq(orders.id, shippingOrderId),
+    });
+
+    expect(updatedOrder).toMatchObject({
+      shippingActualCostCents: 1_425,
+      shippingActualCostUnknown: false,
+      packedWeightGrams: null,
+      packedWeightUnknown: true,
+    });
+  });
+
+  test("refuses to ship until both shipping facts are complete", async () => {
+    await database
+      .update(orders)
+      .set({
+        shippingActualCostCents: null,
+        shippingActualCostUnknown: false,
+        packedWeightGrams: null,
+        packedWeightUnknown: false,
+      })
+      .where(eq(orders.id, shippingOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
+    ).resolves.toBe(false);
+    await expect(findDeliveries(shippingOrderId)).resolves.toHaveLength(0);
+  });
+
+  test.each([
+    {
+      name: "carrier cost recorded but weight pending",
+      values: { shippingActualCostCents: 1_250, packedWeightGrams: null },
+    },
+    {
+      name: "weight recorded but carrier cost pending",
+      values: { shippingActualCostCents: null, packedWeightGrams: 780 },
+    },
+  ] as const)("refuses to ship with $name", async ({ values }) => {
+    await database
+      .update(orders)
+      .set({
+        ...values,
+        shippingActualCostUnknown: false,
+        packedWeightUnknown: false,
+      })
+      .where(eq(orders.id, shippingOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
+    ).resolves.toBe(false);
+    const order = await database.query.orders.findFirst({
+      columns: { status: true },
+      where: eq(orders.id, shippingOrderId),
+    });
+    expect(order?.status).toBe("paid");
+    await expect(findDeliveries(shippingOrderId)).resolves.toHaveLength(0);
+  });
+
+  test.each([
+    {
+      name: "known carrier cost and unknown weight",
+      values: {
+        shippingActualCostCents: 1_250,
+        shippingActualCostUnknown: false,
+        packedWeightGrams: null,
+        packedWeightUnknown: true,
+      },
+    },
+    {
+      name: "unknown carrier cost and known weight",
+      values: {
+        shippingActualCostCents: null,
+        shippingActualCostUnknown: true,
+        packedWeightGrams: 780,
+        packedWeightUnknown: false,
+      },
+    },
+  ] as const)("ships with $name", async ({ values }) => {
+    await database.update(orders).set(values).where(eq(orders.id, shippingOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
+    ).resolves.toBe(true);
+    const order = await database.query.orders.findFirst({
+      columns: { status: true },
+      where: eq(orders.id, shippingOrderId),
+    });
+    expect(order?.status).toBe("fulfilled");
+    await expect(findDeliveries(shippingOrderId)).resolves.toHaveLength(1);
+  });
+
+  test("accepts explicit unknown decisions without converting them to zero", async () => {
+    await database
+      .update(orders)
+      .set({
+        shippingActualCostCents: null,
+        shippingActualCostUnknown: true,
+        packedWeightGrams: null,
+        packedWeightUnknown: true,
+      })
+      .where(eq(orders.id, shippingOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
+    ).resolves.toBe(true);
+    const fulfilledOrder = await database.query.orders.findFirst({
+      where: eq(orders.id, shippingOrderId),
+    });
+
+    expect(fulfilledOrder).toMatchObject({
+      status: "fulfilled",
+      shippingActualCostCents: null,
+      shippingActualCostUnknown: true,
+      packedWeightGrams: null,
+      packedWeightUnknown: true,
+    });
+  });
+
   test("queues the delivery email on the delivery path without touching shipment columns", async () => {
     const readyAt = new Date("2026-08-06T12:00:00.000Z");
 
@@ -284,6 +425,10 @@ const postgresTestSchema = [
     subtotal_cents integer not null,
     tax_cents integer not null,
     shipping_cents integer not null,
+    shipping_actual_cost_cents integer,
+    shipping_actual_cost_unknown boolean not null default false,
+    packed_weight_grams integer,
+    packed_weight_unknown boolean not null default false,
     total_cents integer not null,
     currency text not null,
     shipping_address jsonb,
@@ -322,6 +467,26 @@ const postgresTestSchema = [
     constraint orders_shipment_requires_shipping_method check (
       (shipped_at is null and tracking_number is null)
       or fulfillment_method = 'shipping'
+    ),
+    constraint orders_shipping_actual_cost_nonnegative check (
+      shipping_actual_cost_cents is null or shipping_actual_cost_cents >= 0
+    ),
+    constraint orders_shipping_actual_cost_state_consistent check (
+      not (shipping_actual_cost_unknown and shipping_actual_cost_cents is not null)
+    ),
+    constraint orders_packed_weight_positive check (
+      packed_weight_grams is null or packed_weight_grams > 0
+    ),
+    constraint orders_packed_weight_state_consistent check (
+      not (packed_weight_unknown and packed_weight_grams is not null)
+    ),
+    constraint orders_fulfilled_shipping_record_complete check (
+      status <> 'fulfilled'
+      or fulfillment_method <> 'shipping'
+      or (
+        (shipping_actual_cost_cents is not null or shipping_actual_cost_unknown)
+        and (packed_weight_grams is not null or packed_weight_unknown)
+      )
     )
   )`,
   `create table order_email_deliveries (

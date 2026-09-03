@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 
 import { getDb } from "@/lib/db/client";
 import { orderEmailDeliveries, orderItems, orders, productVariants } from "@/lib/db/schema";
@@ -63,9 +63,16 @@ export const adminOrderRepository: OrderFulfillmentRepository &
             ne(orders.refundStatus, "full"),
             inArray(orders.disputeStatus, ["none", "won"]),
             transition === "ship"
-              ? or(
-                  isNull(orders.deliveryReviewStatus),
-                  eq(orders.deliveryReviewStatus, "shipping_payment_received"),
+              ? and(
+                  or(
+                    isNull(orders.deliveryReviewStatus),
+                    eq(orders.deliveryReviewStatus, "shipping_payment_received"),
+                  ),
+                  or(
+                    isNotNull(orders.shippingActualCostCents),
+                    eq(orders.shippingActualCostUnknown, true),
+                  ),
+                  or(isNotNull(orders.packedWeightGrams), eq(orders.packedWeightUnknown, true)),
                 )
               : eq(orders.deliveryReviewStatus, "approved"),
           ),
@@ -108,6 +115,10 @@ export const adminOrderRepository: OrderFulfillmentRepository &
         disputeStatus: true,
         fulfillmentMethod: true,
         deliveryReviewStatus: true,
+        shippingActualCostCents: true,
+        shippingActualCostUnknown: true,
+        packedWeightGrams: true,
+        packedWeightUnknown: true,
       },
       where: (orders, { eq }) => eq(orders.id, orderId),
     });
