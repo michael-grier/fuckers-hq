@@ -843,6 +843,7 @@ test.describe("fulfillment @commerce", () => {
     await expect(reviewOrder).toHaveCount(1);
     await reviewOrder.click();
     await openFullOrder(page, "Review full order");
+    const orderPath = new URL(page.url()).pathname;
     await page.getByRole("button", { name: "Approve local delivery" }).click();
     await page.getByRole("button", { name: "Yes, approve" }).click();
     await expect
@@ -858,6 +859,7 @@ test.describe("fulfillment @commerce", () => {
     await expect(
       approvalNotice.getByRole("link", { name: /Check address in Google Maps/ }),
     ).toBeHidden();
+    await expect(page.getByRole("region", { name: "Ready to schedule" })).toBeHidden();
 
     // Once approved, scheduling and delivering the order completes it.
     await page.goto("/admin/deliveries");
@@ -867,22 +869,20 @@ test.describe("fulfillment @commerce", () => {
     await expect
       .poll(async () => (await readOrderState())?.status, { timeout: 15_000 })
       .toBe("delivery_scheduled");
-    await page.reload();
+    await page.goto(orderPath);
+    const scheduledApprovalNotice = page.getByRole("region", {
+      name: "Local delivery approved",
+    });
     await expect(
-      page.getByRole("row").filter({ hasText: email }).getByRole("button", {
-        name: "Mark as delivered",
-      }),
+      scheduledApprovalNotice.getByRole("button", { name: "Mark as delivered" }),
     ).toBeVisible();
-    await page
-      .getByRole("row")
-      .filter({ hasText: email })
-      .getByRole("button", { name: "Mark as delivered" })
-      .click();
+    await expect(page.getByRole("region", { name: "Ready to complete" })).toBeHidden();
+    await scheduledApprovalNotice.getByRole("button", { name: "Mark as delivered" }).click();
     await page.getByRole("button", { name: "Yes, delivered" }).click();
     await expect
       .poll(async () => (await readOrderState())?.status, { timeout: 15_000 })
       .toBe("fulfilled");
-    await page.reload();
+    await page.goto("/admin/deliveries");
     await expect(page.getByRole("row").filter({ hasText: email })).toBeHidden();
   });
 });

@@ -84,6 +84,9 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
     order.inventoryStatus === "allocated" && isOrderFulfillmentEligible(order)
       ? nextTransition
       : null;
+  const approvedDeliveryTransition =
+    isDelivery && order.deliveryReviewStatus === "approved" ? availableTransition : null;
+  const standaloneFulfillmentTransition = approvedDeliveryTransition ? null : availableTransition;
   const tracking = resolveOrderTracking(order);
   const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
   const needsInventoryReturn = orderNeedsInventoryReturn(order);
@@ -133,6 +136,11 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
       {order.deliveryReviewStatus ? (
         <DeliveryReviewPanel
           addressLines={shippingAddressLines}
+          approvedAction={
+            approvedDeliveryTransition ? (
+              <FulfillmentActionButton orderId={order.id} transition={approvedDeliveryTransition} />
+            ) : null
+          }
           orderId={order.id}
           paymentDelivery={order.shippingPaymentDelivery}
           paymentRequest={order.shippingPaymentRequest}
@@ -200,26 +208,29 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
       ) : null}
 
       <div className="overflow-hidden rounded-lg border lg:contents">
-        {availableTransition ? (
+        {standaloneFulfillmentTransition ? (
           <section
             aria-labelledby="fulfillment-action-heading"
             className="flex flex-wrap items-center justify-between gap-4 bg-muted/50 px-5 py-4 lg:rounded-lg lg:border"
           >
             <div>
               <h2 className="font-semibold" id="fulfillment-action-heading">
-                {fulfillmentActionCopy[availableTransition].heading}
+                {fulfillmentActionCopy[standaloneFulfillmentTransition].heading}
               </h2>
               <p className="mt-1 text-muted-foreground text-sm">
-                {fulfillmentActionCopy[availableTransition].description}
+                {fulfillmentActionCopy[standaloneFulfillmentTransition].description}
               </p>
             </div>
-            <FulfillmentActionButton orderId={order.id} transition={availableTransition} />
+            <FulfillmentActionButton
+              orderId={order.id}
+              transition={standaloneFulfillmentTransition}
+            />
           </section>
         ) : null}
 
         <section
           aria-labelledby="order-summary-heading"
-          className={`overflow-hidden ${availableTransition ? "border-t" : ""} lg:mt-4 lg:rounded-lg lg:border`}
+          className={`overflow-hidden ${standaloneFulfillmentTransition ? "border-t" : ""} lg:mt-4 lg:rounded-lg lg:border`}
         >
           <h2 className="sr-only" id="order-summary-heading">
             Order summary

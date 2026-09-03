@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, Clock3, MapPin } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { DeliveryReviewActions } from "@/components/admin/delivery-review-actions";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ type DeliveryReviewPanelProps = {
   addressLines: string[];
   paymentRequest: OrderShippingPaymentRequest | null;
   paymentDelivery: OrderEmailDelivery | null;
+  approvedAction?: ReactNode;
 };
 
 const panelCopy: Record<
@@ -68,6 +70,7 @@ export function DeliveryReviewPanel({
   addressLines,
   paymentRequest,
   paymentDelivery,
+  approvedAction,
 }: DeliveryReviewPanelProps) {
   const copy = panelCopy[status];
 
@@ -76,15 +79,21 @@ export function DeliveryReviewPanel({
     return (
       <section
         aria-labelledby="delivery-review-heading"
-        className={cn("flex items-start gap-4 rounded-lg border px-5 py-4", toneStyles[copy.tone])}
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-4 rounded-lg border px-5 py-4",
+          toneStyles[copy.tone],
+        )}
       >
-        <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
-        <div className="min-w-0">
-          <h2 className="font-semibold" id="delivery-review-heading">
-            {copy.heading}
-          </h2>
-          <p className="mt-1 text-sm opacity-80">{copy.description}</p>
+        <div className="flex min-w-0 items-start gap-4">
+          <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
+          <div className="min-w-0">
+            <h2 className="font-semibold" id="delivery-review-heading">
+              {copy.heading}
+            </h2>
+            <p className="mt-1 text-sm opacity-80">{copy.description}</p>
+          </div>
         </div>
+        {approvedAction}
       </section>
     );
   }
