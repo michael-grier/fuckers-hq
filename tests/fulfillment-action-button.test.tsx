@@ -162,7 +162,6 @@ describe("order preview shipment layout", () => {
           quantity: 1,
         },
       ],
-      adminNewOrderDelivery: null,
       confirmationDelivery: null,
       deliveryScheduledDelivery: null,
       shippedDelivery: null,

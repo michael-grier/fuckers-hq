@@ -44,10 +44,12 @@ export function RetryOrderEmailButton({
   deliveryId,
   orderId,
   kind,
+  size,
 }: {
   deliveryId?: string;
   orderId: string;
   kind: OrderEmailKind;
+  size?: React.ComponentProps<typeof ConfirmButton>["size"];
 }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +83,7 @@ export function RetryOrderEmailButton({
         confirmMessage={copy.confirm}
         disabled={isSubmitting}
         onConfirm={() => void onRetry()}
+        size={size}
         variant="outline"
       >
         {isSubmitting ? "Retrying…" : copy.idle}

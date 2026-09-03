@@ -178,13 +178,16 @@ Restore the product price and inventory after these checks.
 - [ ] Replay the paid Checkout event. The order still has one admin sale delivery and the provider
       receives no duplicate because the retry reuses `admin-new-order/<order-id>`.
 - [ ] Force the admin sale delivery to fail. The paid order, inventory allocation, customer
-      confirmation, and admin delivery row remain committed; the retry cron or protected manual
-      action can send that same row later.
+      confirmation, and admin delivery row remain committed; the retry cron can send that same row
+      later. The failure does not move the order into **Needs action**.
 - [ ] Manual only: run `./scripts/configure-stripe-small-supplier.sh` and confirm the live Stripe
       Dashboard has **Successful payments** turned off. A sandbox payment does not prove this
       setting because Stripe does not send its automatic customer emails in sandbox mode.
-- [ ] The order detail shows the confirmation and admin sale deliveries, each with its independent
-      attempt count and status.
+- [ ] The order detail groups customer-facing email statuses under **Supporting details**, retains
+      their independent retry actions, and does not show the admin sale notification.
+- [ ] On desktop, the order detail uses separate fulfillment, summary, items, and supporting-detail
+      bands. On mobile, those bands collapse into one continuous divided sheet without losing
+      labels, actions, or horizontally scrollable item data.
 
 Fulfillment for a shipping order:
 
@@ -206,8 +209,10 @@ Fulfillment for a local-delivery order (requires the delivery configuration from
       decisions: **Approve local delivery** and **Request shipping payment**.
 - [ ] Attempting the delivery-scheduling action directly is rejected until the address is
       approved.
-- [ ] Confirm **Approve local delivery**. The Needs action count decreases and the order appears in
-      `/admin/deliveries`, oldest first, alongside the configured delivery area.
+- [ ] Confirm **Approve local delivery**. The full review panel collapses to a compact green
+      approval notice without repeating the address. The notice contains the current delivery
+      action instead of adding a second action bar. The Needs action count decreases, and the order
+      appears in `/admin/deliveries`, oldest first, alongside the configured delivery area.
 - [ ] Scheduling the delivery moves the order to `delivery_scheduled` and delivers exactly one
       `delivery_scheduled` email.
 - [ ] Marking it delivered moves the order to `fulfilled` without sending another email.

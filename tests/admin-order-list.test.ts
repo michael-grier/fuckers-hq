@@ -19,7 +19,6 @@ function order(overrides: Partial<TestOrder> = {}): TestOrder {
     deliveryReviewStatus: null,
     refundStatus: "none",
     disputeStatus: "none",
-    adminNewOrderDeliveryStatus: "sent",
     confirmationDeliveryStatus: "sent",
     ...overrides,
   };
@@ -32,10 +31,6 @@ describe("orderNeedsAction", () => {
 
   test("flags paid orders whose confirmation email terminally failed", () => {
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "failed" }))).toBe(true);
-  });
-
-  test("flags paid orders whose admin sale notification terminally failed", () => {
-    expect(orderNeedsAction(order({ adminNewOrderDeliveryStatus: "failed" }))).toBe(true);
   });
 
   test("folds each unresolved local-delivery state into Needs action", () => {
@@ -70,7 +65,6 @@ describe("orderNeedsAction", () => {
   test("ignores retryable delivery states the cron still owns", () => {
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "retry" }))).toBe(false);
     expect(orderNeedsAction(order({ confirmationDeliveryStatus: "pending" }))).toBe(false);
-    expect(orderNeedsAction(order({ adminNewOrderDeliveryStatus: "retry" }))).toBe(false);
   });
 
   test("ignores unpaid orders regardless of inventory state", () => {

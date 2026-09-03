@@ -382,13 +382,39 @@ test.describe("paid-order webhook @commerce", () => {
     await openFullOrder(page, "Open full order");
     await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "Canvas Coach Jacket" })).toBeVisible();
-    const adminNotification = page.getByRole("region", { name: "Admin sale notification" });
-    const confirmationEmail = page.getByRole("region", { name: "Confirmation email" });
-    await expect(adminNotification).toBeVisible();
+    const confirmationEmail = page.getByRole("region", { name: "Order confirmation" });
+    await expect(page.getByRole("region", { name: "Admin sale notification" })).toBeHidden();
     await expect(confirmationEmail).toBeVisible();
     // Delivery is durable either way: sent, or parked for the retry cron.
-    await expect(adminNotification).toContainText(/Sent|Retry scheduled/);
     await expect(confirmationEmail).toContainText(/Sent|Retry scheduled/);
+
+    // The same semantic sections become one bordered sheet on mobile without widening the page.
+    const orderSummary = page.getByRole("region", { name: "Order summary" });
+    const orderSheet = orderSummary.locator("..");
+    const itemTable = page.getByRole("table", { name: "Persisted order item snapshots" });
+    const itemScroller = itemTable.locator("..");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeVisible();
+    await expect(orderSummary).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Supporting details" })).toBeVisible();
+    expect(await orderSheet.evaluate((element) => getComputedStyle(element).display)).toBe("block");
+    expect(
+      await itemScroller.evaluate((element) => element.scrollWidth > element.clientWidth),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+
+    await page.setViewportSize({ width: 1366, height: 900 });
+    expect(await orderSheet.evaluate((element) => getComputedStyle(element).display)).toBe(
+      "contents",
+    );
+    expect(
+      await itemScroller.evaluate((element) => element.scrollWidth > element.clientWidth),
+    ).toBe(false);
 
     // Replaying the identical signed bytes is acknowledged without a second order.
     expect(await postWebhook(page.request, event)).toBe(200);
@@ -580,12 +606,8 @@ test.describe("refund inventory @commerce", () => {
     await page.goto(`/admin/orders?q=${encodeURIComponent(email)}`);
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await openFullOrder(page, "Open full order");
-    const firstRefund = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Refund email #1" }),
-    });
-    const secondRefund = page.locator("section").filter({
-      has: page.getByRole("heading", { name: "Refund email #2" }),
-    });
+    const firstRefund = page.getByRole("region", { name: "Refund email #1" });
+    const secondRefund = page.getByRole("region", { name: "Refund email #2" });
     await expect(firstRefund.getByRole("heading", { name: "Refund email #1" })).toBeVisible();
     await expect(secondRefund.getByRole("heading", { name: "Refund email #2" })).toBeVisible();
     await expect(firstRefund.getByText("Refunded this time").locator("..")).toContainText("$5.00");
@@ -849,6 +871,7 @@ test.describe("fulfillment @commerce", () => {
     await expect(reviewOrder).toHaveCount(1);
     await reviewOrder.click();
     await openFullOrder(page, "Review full order");
+    const orderPath = new URL(page.url()).pathname;
     await page.getByRole("button", { name: "Approve local delivery" }).click();
     await page.getByRole("button", { name: "Yes, approve" }).click();
     await expect
@@ -856,7 +879,15 @@ test.describe("fulfillment @commerce", () => {
       .toBe("approved");
     // Reload only after persistence, rather than racing the server action's streamed response.
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Local delivery approved" })).toBeVisible();
+    const approvalNotice = page.getByRole("region", { name: "Local delivery approved" });
+    await expect(approvalNotice).toContainText(
+      "This order is ready to move through the delivery scheduling queue.",
+    );
+    await expect(approvalNotice.getByRole("heading", { name: "Customer address" })).toBeHidden();
+    await expect(
+      approvalNotice.getByRole("link", { name: /Check address in Google Maps/ }),
+    ).toBeHidden();
+    await expect(page.getByRole("region", { name: "Ready to schedule" })).toBeHidden();
 
     // Once approved, scheduling and delivering the order completes it.
     await page.goto("/admin/deliveries");
@@ -866,22 +897,20 @@ test.describe("fulfillment @commerce", () => {
     await expect
       .poll(async () => (await readOrderState())?.status, { timeout: 15_000 })
       .toBe("delivery_scheduled");
-    await page.reload();
+    await page.goto(orderPath);
+    const scheduledApprovalNotice = page.getByRole("region", {
+      name: "Local delivery approved",
+    });
     await expect(
-      page.getByRole("row").filter({ hasText: email }).getByRole("button", {
-        name: "Mark as delivered",
-      }),
+      scheduledApprovalNotice.getByRole("button", { name: "Mark as delivered" }),
     ).toBeVisible();
-    await page
-      .getByRole("row")
-      .filter({ hasText: email })
-      .getByRole("button", { name: "Mark as delivered" })
-      .click();
+    await expect(page.getByRole("region", { name: "Ready to complete" })).toBeHidden();
+    await scheduledApprovalNotice.getByRole("button", { name: "Mark as delivered" }).click();
     await page.getByRole("button", { name: "Yes, delivered" }).click();
     await expect
       .poll(async () => (await readOrderState())?.status, { timeout: 15_000 })
       .toBe("fulfilled");
-    await page.reload();
+    await page.goto("/admin/deliveries");
     await expect(page.getByRole("row").filter({ hasText: email })).toBeHidden();
   });
 });
