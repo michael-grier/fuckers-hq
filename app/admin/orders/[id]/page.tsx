@@ -387,6 +387,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
                   actualCostCents={order.shippingActualCostCents}
                   actualCostUnknown={order.shippingActualCostUnknown}
                   currency={order.currency}
+                  key={order.id}
                   orderId={order.id}
                   packedWeightGrams={order.packedWeightGrams}
                   packedWeightUnknown={order.packedWeightUnknown}

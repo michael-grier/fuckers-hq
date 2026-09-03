@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-
+import { orderInsertSchema } from "@/lib/validators/order";
 import {
   adminOrderShippingRecordSchema,
   toOrderShippingRecordValues,
@@ -8,6 +8,22 @@ import {
 const orderId = "823071ff-f180-43ed-82df-af334ccfe35a";
 
 describe("admin shipping record contract", () => {
+  test("accepts a new order while its shipping record is still pending", () => {
+    expect(
+      orderInsertSchema.safeParse({
+        orderNumber: "FHQ-20260903-PENDING1",
+        email: "rider@example.com",
+        stripeSessionId: "cs_test_pending_shipping_record",
+        refundStatus: "none",
+        disputeStatus: "none",
+        subtotalCents: 8_900,
+        totalCents: 8_900,
+        shippingAddress: null,
+        destinationProvince: null,
+      }).success,
+    ).toBe(true);
+  });
+
   test("converts carrier cost and packed weight to canonical integers", () => {
     const parsed = adminOrderShippingRecordSchema.parse({
       orderId,

@@ -247,9 +247,11 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
       }),
     ).resolves.toBe("not_shipping");
 
-    await expect(
-      database.query.orders.findFirst({ where: eq(orders.id, shippingOrderId) }),
-    ).resolves.toMatchObject({
+    const updatedOrder = await database.query.orders.findFirst({
+      where: eq(orders.id, shippingOrderId),
+    });
+
+    expect(updatedOrder).toMatchObject({
       shippingActualCostCents: 1_425,
       shippingActualCostUnknown: false,
       packedWeightGrams: null,
@@ -274,6 +276,69 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     await expect(findDeliveries(shippingOrderId)).resolves.toHaveLength(0);
   });
 
+  test.each([
+    {
+      name: "carrier cost recorded but weight pending",
+      values: { shippingActualCostCents: 1_250, packedWeightGrams: null },
+    },
+    {
+      name: "weight recorded but carrier cost pending",
+      values: { shippingActualCostCents: null, packedWeightGrams: 780 },
+    },
+  ] as const)("refuses to ship with $name", async ({ values }) => {
+    await database
+      .update(orders)
+      .set({
+        ...values,
+        shippingActualCostUnknown: false,
+        packedWeightUnknown: false,
+      })
+      .where(eq(orders.id, shippingOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
+    ).resolves.toBe(false);
+    const order = await database.query.orders.findFirst({
+      columns: { status: true },
+      where: eq(orders.id, shippingOrderId),
+    });
+    expect(order?.status).toBe("paid");
+    await expect(findDeliveries(shippingOrderId)).resolves.toHaveLength(0);
+  });
+
+  test.each([
+    {
+      name: "known carrier cost and unknown weight",
+      values: {
+        shippingActualCostCents: 1_250,
+        shippingActualCostUnknown: false,
+        packedWeightGrams: null,
+        packedWeightUnknown: true,
+      },
+    },
+    {
+      name: "unknown carrier cost and known weight",
+      values: {
+        shippingActualCostCents: null,
+        shippingActualCostUnknown: true,
+        packedWeightGrams: 780,
+        packedWeightUnknown: false,
+      },
+    },
+  ] as const)("ships with $name", async ({ values }) => {
+    await database.update(orders).set(values).where(eq(orders.id, shippingOrderId));
+
+    await expect(
+      repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
+    ).resolves.toBe(true);
+    const order = await database.query.orders.findFirst({
+      columns: { status: true },
+      where: eq(orders.id, shippingOrderId),
+    });
+    expect(order?.status).toBe("fulfilled");
+    await expect(findDeliveries(shippingOrderId)).resolves.toHaveLength(1);
+  });
+
   test("accepts explicit unknown decisions without converting them to zero", async () => {
     await database
       .update(orders)
@@ -288,9 +353,11 @@ describe.skipIf(!testDatabaseUrl)("admin fulfillment transitions with real Postg
     await expect(
       repository.applyFulfillmentTransition(shippingOrderId, "ship", new Date(), null),
     ).resolves.toBe(true);
-    await expect(
-      database.query.orders.findFirst({ where: eq(orders.id, shippingOrderId) }),
-    ).resolves.toMatchObject({
+    const fulfilledOrder = await database.query.orders.findFirst({
+      where: eq(orders.id, shippingOrderId),
+    });
+
+    expect(fulfilledOrder).toMatchObject({
       status: "fulfilled",
       shippingActualCostCents: null,
       shippingActualCostUnknown: true,
