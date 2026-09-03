@@ -408,6 +408,7 @@ test.describe("paid-order webhook @commerce", () => {
     const orderRow = page.getByRole("link", { name: /FHQ-/ });
     await expect(orderRow).toHaveCount(1);
     await orderRow.click();
+    await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeHidden();
     await openFullOrder(page, "Open full order");
     await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "Canvas Coach Jacket" })).toBeVisible();
@@ -416,6 +417,14 @@ test.describe("paid-order webhook @commerce", () => {
     await expect(confirmationEmail).toBeVisible();
     // Delivery is durable either way: sent, or parked for the retry cron.
     await expect(confirmationEmail).toContainText(/Sent|Retry scheduled/);
+    const shippingRationale = page.getByText(
+      /Recording the packed weight and actual carrier charge/,
+    );
+    await expect(shippingRationale).toBeHidden();
+    await page.getByText("Why track this?").click();
+    await expect(shippingRationale).toBeVisible();
+    await page.getByText("Why track this?").click();
+    await expect(shippingRationale).toBeHidden();
 
     // The same semantic sections become one bordered sheet on mobile without widening the page.
     const orderSummary = page.getByRole("region", { name: "Order summary" });

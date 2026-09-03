@@ -66,13 +66,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("shipping record editor", () => {
-  test("shows the saved parcel facts, flat-rate difference, and operator guidance", () => {
+  test("shows the saved parcel facts and keeps the operator guidance collapsed", () => {
     render(<ShippingRecordEditor {...defaultProps} />);
 
     expect(screen.getByText("Complete")).toBeDefined();
     expect(screen.getByText(/Customer charged \$15.00 for shipping/)).toBeDefined();
     expect(screen.getByText(/\$0.75 above carrier cost/)).toBeDefined();
-    expect(screen.getByText(/Why track this/)).toBeDefined();
+    const guidance = screen.getByText("Why track this?").closest("details");
+    expect(guidance?.open).toBe(false);
+    fireEvent.click(screen.getByText("Why track this?"));
+    expect(guidance?.open).toBe(true);
+    expect(screen.getByText(/if we are losing money and need to adjust our rates/)).toBeDefined();
     expect((screen.getByLabelText("Actual carrier cost") as HTMLInputElement).value).toBe("14.25");
     expect((screen.getByLabelText("Packed weight") as HTMLInputElement).value).toBe("780");
   });

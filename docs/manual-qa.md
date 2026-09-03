@@ -190,7 +190,8 @@ Restore the product price and inventory after these checks.
       labels, actions, or horizontally scrollable item data.
 - [ ] A shipping order's **Supporting details** includes one compact **Shipping record**. It shows
       the amount charged to the customer, accepts the complete carrier-label charge in CAD and the
-      fully packed weight in whole grams, and explains why both facts are worth recording.
+      fully packed weight in whole grams, and keeps the explanation behind **Why track this?** until
+      the admin opens it.
 - [ ] Save a carrier charge and packed weight. Reloading preserves both values and shows whether
       the flat customer charge was above, below, or equal to the carrier cost.
 - [ ] Clear each field in turn. The order cannot be marked shipped until each missing value is
@@ -203,6 +204,8 @@ Restore the product price and inventory after these checks.
 
 Fulfillment for a shipping order:
 
+- [ ] Selecting an unfulfilled shipping order in the Orders queue offers **Open full order**, not a
+      parallel **Mark as shipped** action that lacks the required shipping-record fields.
 - [ ] Marking the order shipped changes its status to `fulfilled`, records the optional carrier
       and tracking number together (a half-filled pair is rejected), and delivers exactly one
       `shipped` email.

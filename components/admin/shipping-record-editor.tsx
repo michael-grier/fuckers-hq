@@ -140,12 +140,16 @@ export function ShippingRecordEditor(props: ShippingRecordEditorProps) {
         Customer charged {formatMoney(props.shippingChargedCents, props.currency)} for shipping.
         {differenceCopy ? ` ${differenceCopy}` : ""}
       </p>
-      <p className="mt-3 text-muted-foreground text-sm leading-6">
-        <span className="font-semibold text-foreground">Why track this?</span> We charge flat
-        shipping rates. Recording the packed weight and actual carrier charge shows whether those
-        rates cover real shipments, especially decks sent longer distances. If either value is
-        unavailable, mark it unknown instead of guessing.
-      </p>
+      <details className="mt-2 text-sm">
+        <summary className="w-fit cursor-pointer font-medium text-muted-foreground underline underline-offset-4">
+          Why track this?
+        </summary>
+        <p className="mt-2 max-w-2xl text-muted-foreground leading-6">
+          We charge flat shipping rates. Recording the packed weight and actual carrier charge shows
+          whether those rates cover real shipments, or if we are losing money and need to adjust our
+          rates.
+        </p>
+      </details>
 
       <form className="mt-4 space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
         <input type="hidden" {...form.register("orderId")} />
@@ -154,7 +158,10 @@ export function ShippingRecordEditor(props: ShippingRecordEditorProps) {
             <label className="font-semibold text-sm" htmlFor="shipping-actual-cost">
               Actual carrier cost
             </label>
-            <p className="mt-1 text-muted-foreground text-xs" id="shipping-actual-cost-hint">
+            <p
+              className="mt-1 text-muted-foreground text-xs sm:min-h-8"
+              id="shipping-actual-cost-hint"
+            >
               Complete label charge in CAD, including carrier surcharges and tax. Exclude packaging.
             </p>
             <div className="relative mt-2">
@@ -199,7 +206,10 @@ export function ShippingRecordEditor(props: ShippingRecordEditorProps) {
             <label className="font-semibold text-sm" htmlFor="packed-weight-grams">
               Packed weight
             </label>
-            <p className="mt-1 text-muted-foreground text-xs" id="packed-weight-grams-hint">
+            <p
+              className="mt-1 text-muted-foreground text-xs sm:min-h-8"
+              id="packed-weight-grams-hint"
+            >
               Whole grams after the order is fully packed.
             </p>
             <div className="relative mt-2">
