@@ -388,6 +388,34 @@ test.describe("paid-order webhook @commerce", () => {
     // Delivery is durable either way: sent, or parked for the retry cron.
     await expect(confirmationEmail).toContainText(/Sent|Retry scheduled/);
 
+    // The same semantic sections become one bordered sheet on mobile without widening the page.
+    const orderSummary = page.getByRole("region", { name: "Order summary" });
+    const orderSheet = orderSummary.locator("..");
+    const itemTable = page.getByRole("table", { name: "Persisted order item snapshots" });
+    const itemScroller = itemTable.locator("..");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeVisible();
+    await expect(orderSummary).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Items" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Supporting details" })).toBeVisible();
+    expect(await orderSheet.evaluate((element) => getComputedStyle(element).display)).toBe("block");
+    expect(
+      await itemScroller.evaluate((element) => element.scrollWidth > element.clientWidth),
+    ).toBe(true);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      ),
+    ).toBe(false);
+
+    await page.setViewportSize({ width: 1366, height: 900 });
+    expect(await orderSheet.evaluate((element) => getComputedStyle(element).display)).toBe(
+      "contents",
+    );
+    expect(
+      await itemScroller.evaluate((element) => element.scrollWidth > element.clientWidth),
+    ).toBe(false);
+
     // Replaying the identical signed bytes is acknowledged without a second order.
     expect(await postWebhook(page.request, event)).toBe(200);
     expect(
