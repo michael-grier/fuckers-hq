@@ -22,7 +22,27 @@ export type OrderFulfillmentState = Pick<
   | "disputeStatus"
   | "fulfillmentMethod"
   | "deliveryReviewStatus"
+  | "shippingActualCostCents"
+  | "shippingActualCostUnknown"
+  | "packedWeightGrams"
+  | "packedWeightUnknown"
 >;
+
+/** A shipping record is complete when each fact has a value or an explicit unknown decision. */
+export function isShippingRecordComplete(
+  order: Pick<
+    Order,
+    | "shippingActualCostCents"
+    | "shippingActualCostUnknown"
+    | "packedWeightGrams"
+    | "packedWeightUnknown"
+  >,
+): boolean {
+  return (
+    (order.shippingActualCostCents !== null || order.shippingActualCostUnknown) &&
+    (order.packedWeightGrams !== null || order.packedWeightUnknown)
+  );
+}
 
 /** The tracking an operator recorded when marking an order as shipped. */
 export type OrderShipment = {
@@ -179,6 +199,13 @@ export async function applyOrderFulfillmentTransition(
   if (state.inventoryStatus === "exception") {
     throw new OrderFulfillmentError(
       "Resolve the inventory exception before fulfilling this order.",
+      "invalid_status",
+    );
+  }
+
+  if (transition === "ship" && !isShippingRecordComplete(state)) {
+    throw new OrderFulfillmentError(
+      "Record the carrier cost and packed weight, or mark unavailable values unknown, before shipping.",
       "invalid_status",
     );
   }

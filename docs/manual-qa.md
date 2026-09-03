@@ -188,6 +188,18 @@ Restore the product price and inventory after these checks.
 - [ ] On desktop, the order detail uses separate fulfillment, summary, items, and supporting-detail
       bands. On mobile, those bands collapse into one continuous divided sheet without losing
       labels, actions, or horizontally scrollable item data.
+- [ ] A shipping order's **Supporting details** includes one compact **Shipping record**. It shows
+      the amount charged to the customer, accepts the complete carrier-label charge in CAD and the
+      fully packed weight in whole grams, and explains why both facts are worth recording.
+- [ ] Save a carrier charge and packed weight. Reloading preserves both values and shows whether
+      the flat customer charge was above, below, or equal to the carrier cost.
+- [ ] Clear each field in turn. The order cannot be marked shipped until each missing value is
+      explicitly marked unknown; an unknown value is stored as unknown rather than zero.
+- [ ] Carrier cost includes label surcharges and tax but excludes packaging materials. Local
+      delivery orders do not show a shipping record.
+- [ ] Manual only after launch: on the first real shipped order, enter the final label charge and
+      packed weight, fulfill the order, then reload and confirm the saved comparison. Do not use a
+      production order merely to exercise this check before a real shipment exists.
 
 Fulfillment for a shipping order:
 

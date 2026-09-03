@@ -148,6 +148,13 @@
       "when": 1788374932860,
       "tag": "0020_admin-new-order-email",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788459681800,
+      "tag": "0021_thankful_falcon",
+      "breakpoints": true
     }
   ]
 }

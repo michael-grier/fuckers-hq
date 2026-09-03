@@ -94,6 +94,34 @@ async function openShipmentForm(page: Page): Promise<void> {
   }).toPass({ timeout: 30_000 });
 }
 
+/** Completes the shipping record through the admin form and confirms its durable values. */
+async function saveShippingRecord(page: Page): Promise<void> {
+  const orderPath = new URL(page.url()).pathname;
+  const orderId = orderPath.split("/").at(-1);
+
+  if (!orderId) {
+    throw new Error(`Order detail URL has no order id: ${orderPath}`);
+  }
+
+  const actualCost = page.getByRole("textbox", { name: "Actual carrier cost" });
+  const packedWeight = page.getByRole("textbox", { name: "Packed weight" });
+  await actualCost.fill("12.45");
+  await packedWeight.fill("780");
+  await page.getByRole("button", { name: "Save shipping record" }).click();
+
+  await expect
+    .poll(
+      () =>
+        getDb().query.orders.findFirst({
+          columns: { shippingActualCostCents: true, packedWeightGrams: true },
+          where: eq(orders.id, orderId),
+        }),
+      { timeout: 30_000 },
+    )
+    .toEqual({ shippingActualCostCents: 1_245, packedWeightGrams: 780 });
+  await expect(page.getByRole("status")).toHaveText("Shipping record saved.");
+}
+
 /** Ships the current order after the client form survives hydration. */
 async function shipOrder(page: Page, trackingNumber?: string): Promise<void> {
   const orderPath = new URL(page.url()).pathname;
@@ -105,10 +133,11 @@ async function shipOrder(page: Page, trackingNumber?: string): Promise<void> {
   }
 
   await page.waitForLoadState("networkidle");
+  await saveShippingRecord(page);
   await openShipmentForm(page);
 
   if (trackingNumber) {
-    await page.getByLabel("Carrier").selectOption("canada_post");
+    await page.getByRole("combobox", { name: "Carrier", exact: true }).selectOption("canada_post");
     await page.getByLabel("Tracking number").fill(trackingNumber);
   }
   await page.getByRole("button", { name: "Ship and notify" }).click();
@@ -815,8 +844,19 @@ test.describe("fulfillment @commerce", () => {
     await page.getByRole("link", { name: /FHQ-/ }).click();
     await openFullOrder(page, "Open full order");
 
+    await expect(page.getByRole("region", { name: "Shipping record" })).toContainText("Incomplete");
     await openShipmentForm(page);
-    await page.getByLabel("Carrier").selectOption("canada_post");
+    await page.getByRole("button", { name: "Ship and notify" }).click();
+    await expect(
+      page.getByText(
+        "Record the carrier cost and packed weight, or mark unavailable values unknown, before shipping.",
+      ),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await saveShippingRecord(page);
+
+    await openShipmentForm(page);
+    await page.getByRole("combobox", { name: "Carrier", exact: true }).selectOption("canada_post");
     await page.getByLabel("Tracking number").fill("CX473124828CA");
     await page.getByRole("button", { name: "Ship and notify" }).click();
     await expect(
@@ -826,7 +866,26 @@ test.describe("fulfillment @commerce", () => {
     ).toBeVisible();
     await expect(page.getByLabel("Tracking number")).toHaveAttribute("aria-invalid", "true");
 
-    await shipOrder(page, "CX473124829CA");
+    await openShipmentForm(page);
+    await page.getByRole("combobox", { name: "Carrier", exact: true }).selectOption("canada_post");
+    await page.getByLabel("Tracking number").fill("CX473124829CA");
+    await page.getByRole("button", { name: "Ship and notify" }).click();
+    await expect
+      .poll(
+        () =>
+          getDb().query.orders.findFirst({
+            columns: { status: true, shippingActualCostCents: true, packedWeightGrams: true },
+            where: eq(orders.email, email),
+          }),
+        { timeout: 30_000 },
+      )
+      .toEqual({
+        status: "fulfilled",
+        shippingActualCostCents: 1_245,
+        packedWeightGrams: 780,
+      });
+    await page.reload();
+    await expect(page.getByText("CX473124829CA")).toBeVisible();
     await expect(page.getByRole("button", { name: "Mark as shipped" })).toBeHidden();
   });
 
@@ -871,6 +930,7 @@ test.describe("fulfillment @commerce", () => {
     await expect(reviewOrder).toHaveCount(1);
     await reviewOrder.click();
     await openFullOrder(page, "Review full order");
+    await expect(page.getByRole("region", { name: "Shipping record" })).toBeHidden();
     const orderPath = new URL(page.url()).pathname;
     await page.getByRole("button", { name: "Approve local delivery" }).click();
     await page.getByRole("button", { name: "Yes, approve" }).click();

@@ -35,6 +35,7 @@ mock.module("@/lib/actions/orders", () => ({
   retryOrderInventoryAllocation: async () => ({ success: true, data: undefined }) as const,
   returnOrderInventoryToStock: async () => ({ success: true, data: undefined }) as const,
   scheduleOrderDelivery: async () => ({ success: true, data: undefined }) as const,
+  updateOrderShippingRecord: async () => ({ success: true, data: undefined }) as const,
 }));
 
 const { FulfillmentActionButton } = await import("@/components/admin/fulfillment-action-button");
@@ -146,6 +147,10 @@ describe("order preview shipment layout", () => {
       subtotalCents: 4900,
       taxCents: 0,
       shippingCents: 0,
+      shippingActualCostCents: null,
+      shippingActualCostUnknown: false,
+      packedWeightGrams: null,
+      packedWeightUnknown: false,
       totalCents: 4900,
       currency: "cad",
       shippingAddress: null,

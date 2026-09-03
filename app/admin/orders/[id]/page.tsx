@@ -7,6 +7,7 @@ import { FulfillmentActionButton } from "@/components/admin/fulfillment-action-b
 import { ResolveInventoryExceptionButton } from "@/components/admin/resolve-inventory-exception-button";
 import { RetryOrderEmailButton } from "@/components/admin/retry-order-email-button";
 import { ReturnOrderInventoryButton } from "@/components/admin/return-order-inventory-button";
+import { ShippingRecordEditor } from "@/components/admin/shipping-record-editor";
 import {
   DeliveryReviewStatusBadge,
   DisputeStatusBadge,
@@ -90,6 +91,7 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
   const tracking = resolveOrderTracking(order);
   const itemCount = order.items.reduce((total, item) => total + item.quantity, 0);
   const needsInventoryReturn = orderNeedsInventoryReturn(order);
+  const shippingChargedCents = order.shippingPaymentRequest?.totalCents ?? order.shippingCents;
 
   return (
     <div className="space-y-8">
@@ -380,64 +382,78 @@ export default async function AdminOrderPage({ params }: AdminOrderPageProps) {
           </div>
           <div className="grid xl:grid-cols-[1.25fr_0.75fr]">
             <div className="p-5">
-              <h3 className="font-semibold">Customer emails</h3>
-              <div className="mt-3 divide-y">
-                <EmailDeliveryRow
+              {!isDelivery ? (
+                <ShippingRecordEditor
+                  actualCostCents={order.shippingActualCostCents}
+                  actualCostUnknown={order.shippingActualCostUnknown}
                   currency={order.currency}
-                  delivery={order.confirmationDelivery}
-                  emptyMessage="No confirmation delivery record exists for this order."
-                  heading="Order confirmation"
-                  id="confirmation-delivery"
-                  kind="confirmation"
                   orderId={order.id}
+                  packedWeightGrams={order.packedWeightGrams}
+                  packedWeightUnknown={order.packedWeightUnknown}
+                  shippingChargedCents={shippingChargedCents}
                 />
+              ) : null}
 
-                {order.shippingPaymentRequest || order.shippingPaymentDelivery ? (
+              <div className={!isDelivery ? "pt-5" : undefined}>
+                <h3 className="font-semibold">Customer emails</h3>
+                <div className="mt-3 divide-y">
                   <EmailDeliveryRow
                     currency={order.currency}
-                    delivery={order.shippingPaymentDelivery}
-                    emptyMessage="No shipping payment request email is queued for this order."
-                    heading="Shipping payment request"
-                    id="shipping-payment-delivery"
-                    kind="shipping_payment_request"
+                    delivery={order.confirmationDelivery}
+                    emptyMessage="No confirmation delivery record exists for this order."
+                    heading="Order confirmation"
+                    id="confirmation-delivery"
+                    kind="confirmation"
                     orderId={order.id}
                   />
-                ) : null}
 
-                {order.refundDeliveries.map((delivery, index) => (
-                  <EmailDeliveryRow
-                    currency={order.currency}
-                    delivery={delivery}
-                    emptyMessage=""
-                    heading={`Refund email #${order.refundDeliveries.length - index}`}
-                    id={`refund-delivery-${delivery.id}`}
-                    key={delivery.id}
-                    kind="refund"
-                    orderId={order.id}
-                  />
-                ))}
+                  {order.shippingPaymentRequest || order.shippingPaymentDelivery ? (
+                    <EmailDeliveryRow
+                      currency={order.currency}
+                      delivery={order.shippingPaymentDelivery}
+                      emptyMessage="No shipping payment request email is queued for this order."
+                      heading="Shipping payment request"
+                      id="shipping-payment-delivery"
+                      kind="shipping_payment_request"
+                      orderId={order.id}
+                    />
+                  ) : null}
 
-                {isDelivery ? (
-                  <EmailDeliveryRow
-                    currency={order.currency}
-                    delivery={order.deliveryScheduledDelivery}
-                    emptyMessage="Not queued until delivery is scheduled."
-                    heading="Delivery confirmation"
-                    id="delivery-scheduled-delivery"
-                    kind="delivery_scheduled"
-                    orderId={order.id}
-                  />
-                ) : (
-                  <EmailDeliveryRow
-                    currency={order.currency}
-                    delivery={order.shippedDelivery}
-                    emptyMessage="Not queued until the order is marked as shipped."
-                    heading="Shipping confirmation"
-                    id="shipped-delivery"
-                    kind="shipped"
-                    orderId={order.id}
-                  />
-                )}
+                  {order.refundDeliveries.map((delivery, index) => (
+                    <EmailDeliveryRow
+                      currency={order.currency}
+                      delivery={delivery}
+                      emptyMessage=""
+                      heading={`Refund email #${order.refundDeliveries.length - index}`}
+                      id={`refund-delivery-${delivery.id}`}
+                      key={delivery.id}
+                      kind="refund"
+                      orderId={order.id}
+                    />
+                  ))}
+
+                  {isDelivery ? (
+                    <EmailDeliveryRow
+                      currency={order.currency}
+                      delivery={order.deliveryScheduledDelivery}
+                      emptyMessage="Not queued until delivery is scheduled."
+                      heading="Delivery confirmation"
+                      id="delivery-scheduled-delivery"
+                      kind="delivery_scheduled"
+                      orderId={order.id}
+                    />
+                  ) : (
+                    <EmailDeliveryRow
+                      currency={order.currency}
+                      delivery={order.shippedDelivery}
+                      emptyMessage="Not queued until the order is marked as shipped."
+                      heading="Shipping confirmation"
+                      id="shipped-delivery"
+                      kind="shipped"
+                      orderId={order.id}
+                    />
+                  )}
+                </div>
               </div>
             </div>
 

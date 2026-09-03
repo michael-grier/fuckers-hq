@@ -38,6 +38,10 @@ function makeState(overrides: Partial<OrderFulfillmentState> = {}): OrderFulfill
     disputeStatus: "none",
     fulfillmentMethod: "shipping",
     deliveryReviewStatus: null,
+    shippingActualCostCents: 1_200,
+    shippingActualCostUnknown: false,
+    packedWeightGrams: 500,
+    packedWeightUnknown: false,
     ...overrides,
   };
 }
@@ -302,6 +306,33 @@ describe("order fulfillment transitions", () => {
         "invalid_status",
       ),
     );
+  });
+
+  test("blocks shipping until both parcel facts have a value or an unknown decision", async () => {
+    const incomplete = makeBlockedRepository(
+      makeState({ shippingActualCostCents: null, packedWeightGrams: null }),
+    );
+
+    await expect(applyOrderFulfillmentTransition(orderId, "ship", incomplete)).rejects.toEqual(
+      new OrderFulfillmentError(
+        "Record the carrier cost and packed weight, or mark unavailable values unknown, before shipping.",
+        "invalid_status",
+      ),
+    );
+
+    const explicitlyUnknown = makeState({
+      shippingActualCostCents: null,
+      shippingActualCostUnknown: true,
+      packedWeightGrams: null,
+      packedWeightUnknown: true,
+    });
+    const completeRepository = makeRepository({
+      findOrderFulfillmentState: mock(async () => explicitlyUnknown),
+    });
+
+    await expect(
+      applyOrderFulfillmentTransition(orderId, "ship", completeRepository),
+    ).resolves.toEqual({ changed: true });
   });
 
   test("blocks delivery scheduling until the address is approved", async () => {
