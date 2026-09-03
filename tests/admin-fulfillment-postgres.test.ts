@@ -93,7 +93,12 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
     mock.module("@/lib/email/send-order-email", () => ({
       sendOrderEmail: (...args: Parameters<OrderEmailSender>) => retrySender(...args),
     }));
-    ({ retryOrderEmail } = await import("@/lib/actions/orders"));
+    // Component tests mock the public action module process-wide. A distinct Bun cache key keeps
+    // this integration import on the real server action while retaining the boundary mocks above.
+    const isolatedActionModuleSpecifier: string = "@/lib/actions/orders?admin-fulfillment-postgres";
+    ({ retryOrderEmail } = (await import(
+      isolatedActionModuleSpecifier
+    )) as typeof import("@/lib/actions/orders"));
   });
 
   beforeEach(async () => {
