@@ -36,8 +36,14 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
   let database: Database;
   let repository: OrderFulfillmentRepository & InventoryExceptionRepository;
   let emailRepository: OrderEmailDeliveryRepository;
+  let retryOrderEmail: typeof import("@/lib/actions/orders")["retryOrderEmail"];
   let saveOrderShippingRecord: typeof import("@/lib/orders/shipping-record-repository")["saveOrderShippingRecord"];
+  let retryAuthorization = async () => ({ userId: "user_test_admin" });
+  let retrySender: OrderEmailSender = async () => "email_test";
   let realDbClient: typeof import("@/lib/db/client");
+  let realNextCache: typeof import("next/cache");
+  let realRequireAdmin: typeof import("@/lib/auth/require-admin");
+  let realSendOrderEmail: typeof import("@/lib/email/send-order-email");
 
   beforeAll(async () => {
     if (!databaseUrl) {
@@ -74,6 +80,20 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
       "@/lib/email/order-email-delivery-repository"
     ));
     ({ saveOrderShippingRecord } = await import("@/lib/orders/shipping-record-repository"));
+
+    // The exported action keeps authorization and delivery dependencies at module scope. Replace
+    // those external boundaries so this suite can exercise its real wiring against the test schema.
+    realNextCache = { ...(await import("next/cache")) };
+    realRequireAdmin = { ...(await import("@/lib/auth/require-admin")) };
+    realSendOrderEmail = { ...(await import("@/lib/email/send-order-email")) };
+    mock.module("next/cache", () => ({ ...realNextCache, revalidatePath: () => {} }));
+    mock.module("@/lib/auth/require-admin", () => ({
+      requireAdmin: () => retryAuthorization(),
+    }));
+    mock.module("@/lib/email/send-order-email", () => ({
+      sendOrderEmail: (...args: Parameters<OrderEmailSender>) => retrySender(...args),
+    }));
+    ({ retryOrderEmail } = await import("@/lib/actions/orders"));
   });
 
   beforeEach(async () => {
@@ -120,6 +140,8 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
         currency: "cad",
       },
     ]);
+    retryAuthorization = async () => ({ userId: "user_test_admin" });
+    retrySender = async () => "email_test";
   });
 
   afterAll(async () => {
@@ -129,6 +151,9 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
 
     // Restore before the teardown below, so later test files see the real client even if a drop
     // or disconnect throws.
+    mock.module("next/cache", () => ({ ...realNextCache }));
+    mock.module("@/lib/auth/require-admin", () => ({ ...realRequireAdmin }));
+    mock.module("@/lib/email/send-order-email", () => ({ ...realSendOrderEmail }));
     mock.module("@/lib/db/client", () => ({ ...realDbClient }));
     await adminClient.unsafe(`drop schema if exists "${schemaName}" cascade`);
     await client.end({ timeout: 5 });
@@ -414,7 +439,7 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
     expect(await findDeliveries(deliveryOrderId)).toHaveLength(0);
   });
 
-  test("stops automatic confirmation retries at the limit and requires a forced retry", async () => {
+  test("stops automatic confirmation retries and requires an authorized action retry", async () => {
     const confirmationRef = { orderId: shippingOrderId, kind: "confirmation" as const };
     const idempotencyKey = makeOrderEmailIdempotencyKey(shippingOrderId, "confirmation");
     const firstAttemptAt = new Date("2030-01-01T00:00:00.000Z");
@@ -471,16 +496,27 @@ describe.skipIf(!databaseUrl)("admin fulfillment transitions with real Postgres"
       }),
     ).resolves.toEqual({ status: "skipped" });
 
-    const sendDelivery: OrderEmailSender = async (_ref, key) => {
+    retrySender = async (_ref, key) => {
       usedKeys.push(key);
       return "email_terminal_retry";
     };
+    retryAuthorization = async () => {
+      throw new Error("Not authorized");
+    };
     await expect(
-      attemptOrderEmailDelivery(confirmationRef, emailRepository, sendDelivery, {
-        force: true,
-        now: afterBackoff,
-      }),
-    ).resolves.toEqual({ status: "sent" });
+      retryOrderEmail({ orderId: shippingOrderId, kind: "confirmation" }),
+    ).rejects.toThrow("Not authorized");
+
+    const [stillTerminalDelivery] = await findDeliveries(shippingOrderId);
+    expect(stillTerminalDelivery).toMatchObject({
+      status: "failed",
+      attemptCount: ORDER_EMAIL_MAX_ATTEMPTS,
+    });
+
+    retryAuthorization = async () => ({ userId: "user_test_admin" });
+    await expect(
+      retryOrderEmail({ orderId: shippingOrderId, kind: "confirmation" }),
+    ).resolves.toEqual({ success: true, data: undefined });
 
     const [recoveredDelivery] = await findDeliveries(shippingOrderId);
     expect(recoveredDelivery).toMatchObject({

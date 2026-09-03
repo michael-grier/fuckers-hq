@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Frame, type Page, test } from "@playwright/test";
 
 import { addToCartFromPdp } from "../helpers/stripe";
 import { type StripeRelay, startStripeRelay } from "../helpers/stripe-cli";
@@ -22,15 +22,22 @@ async function fillHostedCheckout(page: Page, email: string, cardNumber: string)
   await page.locator("#cardCvc").fill("123");
 }
 
+/** Accepts only Stripe's HTTPS test issuer frame, never a URL that merely contains its name. */
+function isStripeThreeDSChallenge(frame: Frame) {
+  const frameUrl = frame.url();
+  if (!URL.canParse(frameUrl)) {
+    return false;
+  }
+
+  const url = new URL(frameUrl);
+  return url.protocol === "https:" && url.hostname === "testmode-acs.stripe.com";
+}
+
 /** Approves the test issuer's sandbox challenge inside Stripe Checkout. */
 async function authorizeThreeDSChallenge(page: Page) {
-  await expect
-    .poll(() => page.frames().some((frame) => frame.url().includes("testmode-acs.stripe.com")))
-    .toBe(true);
+  await expect.poll(() => page.frames().some(isStripeThreeDSChallenge)).toBe(true);
 
-  const challengeFrame = page
-    .frames()
-    .find((frame) => frame.url().includes("testmode-acs.stripe.com"));
+  const challengeFrame = page.frames().find(isStripeThreeDSChallenge);
   if (!challengeFrame) {
     throw new Error("Stripe's 3D Secure sandbox challenge did not open.");
   }
