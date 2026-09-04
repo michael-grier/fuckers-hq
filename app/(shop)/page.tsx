@@ -33,12 +33,12 @@ export default function HomePage() {
         className="relative flex h-[calc(100svh-var(--header-height))] min-h-[620px] items-end lg:-mt-[var(--header-height)] lg:h-svh"
       >
         <Image
-          alt="Skater grinding the lip of a graffiti-covered bowl while the crowd watches"
-          className="object-cover object-[28%_25%] md:object-[center_25%]"
+          alt="Skater ollieing beside an industrial road"
+          className="object-cover object-[55%_48%]"
           fill
           priority
           sizes="100vw"
-          src="/fuckers-hero.jpg"
+          src="/jared-ollie-hero.jpg"
         />
         <div
           aria-hidden="true"
