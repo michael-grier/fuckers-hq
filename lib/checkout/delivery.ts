@@ -2,7 +2,7 @@ import type { Env } from "@/lib/env";
 
 export const LOCAL_DELIVERY_MINIMUM_SUBTOTAL_CENTS = 3_000;
 
-/** The service area local delivery is offered in, e.g. "Rocky View County, Alberta". */
+/** The service area local delivery is offered in, e.g. "40 km of Calgary city centre". */
 export type DeliveryArea = {
   areaName: string;
   instructions: string | null;

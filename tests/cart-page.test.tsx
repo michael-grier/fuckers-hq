@@ -53,7 +53,7 @@ describe("cart page", () => {
   test("offers the delivery choice when a delivery area is configured", () => {
     const markup = renderToStaticMarkup(
       <CartPageContent
-        deliveryArea={{ areaName: "Rocky View County, Alberta", instructions: null }}
+        deliveryArea={{ areaName: "40 km of Calgary city centre", instructions: null }}
         lines={[deck]}
         onClear={() => undefined}
       />,
@@ -61,7 +61,7 @@ describe("cart page", () => {
 
     expect(markup).toContain("How do you want it?");
     expect(markup).toContain("Local delivery");
-    expect(markup).toContain("Rocky View County, Alberta");
+    expect(markup).toContain("40 km of Calgary city centre");
     expect(markup).toContain("sales tax is not currently charged");
     expect(markup).toContain("Not currently charged");
   });
