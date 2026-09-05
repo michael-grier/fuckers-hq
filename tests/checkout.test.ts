@@ -61,7 +61,7 @@ const deliverySettings = {
   ...settings,
   allowedCountries: [...settings.allowedCountries],
   deliveryArea: {
-    areaName: "Rocky View County, Alberta",
+    areaName: "40 km of Calgary city centre",
     instructions: "Ring the buzzer.",
   },
 };
@@ -463,7 +463,7 @@ describe("local delivery checkout", () => {
     const submitText = params.custom_text?.submit;
 
     expect(submitText && typeof submitText === "object" ? submitText.message : null).toContain(
-      "Rocky View County, Alberta",
+      "40 km of Calgary city centre",
     );
   });
 

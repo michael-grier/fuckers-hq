@@ -82,7 +82,7 @@ describe("cart sidebar", () => {
           lines={[deck]}
           onClear={() => undefined}
           deliveryArea={{
-            areaName: "Rocky View County, Alberta",
+            areaName: "40 km of Calgary city centre",
             instructions: "Ring the buzzer.",
           }}
         />
@@ -98,7 +98,7 @@ describe("cart sidebar", () => {
     expect(markup).toContain('type="radio"');
     // Zustand serves its empty initial cart to SSR, so the minimum helper names the area while the
     // longer warning and store-specific instructions wait for a browser selection.
-    expect(markup).toContain("Rocky View County, Alberta");
+    expect(markup).toContain("40 km of Calgary city centre");
     expect(markup).not.toContain("Ring the buzzer.");
     expect(markup).not.toContain("Address review required");
   });
