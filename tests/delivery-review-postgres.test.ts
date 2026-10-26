@@ -176,12 +176,14 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
       "pending",
       "orders_delivery_scheduling_requires_approval",
     ],
-  ] as const)("rejects %s", async (_name, fulfillmentMethod, status, reviewStatus, expectedConstraint) => {
-    const id = crypto.randomUUID();
-    let constraintError: unknown;
+  ] as const)(
+    "rejects %s",
+    async (_name, fulfillmentMethod, status, reviewStatus, expectedConstraint) => {
+      const id = crypto.randomUUID();
+      let constraintError: unknown;
 
-    try {
-      await client`
+      try {
+        await client`
           insert into orders (
             id, order_number, email, status, inventory_status, fulfillment_method,
             delivery_review_status, stripe_session_id, subtotal_cents, tax_cents,
@@ -191,15 +193,16 @@ describe.skipIf(!unpooledTestDatabaseUrl)("delivery review with real Postgres", 
             ${fulfillmentMethod}, ${reviewStatus}, ${`cs_${id}`}, 6000, 0, 0, 6000, 'cad'
           )
         `;
-    } catch (error) {
-      constraintError = error;
-    }
+      } catch (error) {
+        constraintError = error;
+      }
 
-    expect(constraintError).toMatchObject({
-      code: "23514",
-      constraint_name: expectedConstraint,
-    });
-  });
+      expect(constraintError).toMatchObject({
+        code: "23514",
+        constraint_name: expectedConstraint,
+      });
+    },
+  );
 
   test("concurrent shipping requests share one generation and queue one email", async () => {
     const now = new Date("2026-09-01T12:00:00.000Z");

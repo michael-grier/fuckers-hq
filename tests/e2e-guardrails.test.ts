@@ -14,14 +14,12 @@ function safeEnv(): NodeJS.ProcessEnv {
 }
 
 describe("assertE2eGuardrails", () => {
-  test.each([
-    "RESEND_API_KEY",
-    "SENTRY_DSN",
-    "NEXT_PUBLIC_SENTRY_DSN",
-    "SENTRY_AUTH_TOKEN",
-  ])("rejects inherited notification configuration in %s", (key) => {
-    expect(() => assertE2eGuardrails({ ...safeEnv(), [key]: "configured" })).toThrow(key);
-  });
+  test.each(["RESEND_API_KEY", "SENTRY_DSN", "NEXT_PUBLIC_SENTRY_DSN", "SENTRY_AUTH_TOKEN"])(
+    "rejects inherited notification configuration in %s",
+    (key) => {
+      expect(() => assertE2eGuardrails({ ...safeEnv(), [key]: "configured" })).toThrow(key);
+    },
+  );
 
   test("accepts a fully test-scoped environment", () => {
     expect(() => assertE2eGuardrails(safeEnv())).not.toThrow();
