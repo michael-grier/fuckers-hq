@@ -44,13 +44,12 @@ describe("sentry enablement gate", () => {
     expect(isSentryEnabled(dsn, "test", "production")).toBe(false);
   });
 
-  test.each([
-    undefined,
-    "development",
-    "preview",
-  ])("does not mistake a local or preview production build for a production deployment: %p", (deploymentEnv) => {
-    expect(isSentryEnabled(dsn, "production", deploymentEnv)).toBe(false);
-  });
+  test.each([undefined, "development", "preview"])(
+    "does not mistake a local or preview production build for a production deployment: %p",
+    (deploymentEnv) => {
+      expect(isSentryEnabled(dsn, "production", deploymentEnv)).toBe(false);
+    },
+  );
 
   test("stays off without a DSN", () => {
     expect(isSentryEnabled(undefined, "production", "production")).toBe(false);
