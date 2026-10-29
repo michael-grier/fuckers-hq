@@ -69,7 +69,7 @@ reviews:
         above. Ask for focused regression coverage for each affected behavior.
         Do not demand unrelated tests.
 
-    - path: "{lib/auth/**,lib/actions/**,lib/admin/**,app/admin/**,app/api/admin/**,middleware.ts}"
+    - path: "{lib/auth/**,lib/actions/**,lib/admin/**,app/admin/**,app/api/admin/**,proxy.ts}"
       instructions: |
         Treat authentication and authorization separately. Require server-side admin
         authorization for every protected read and write, including helpers called

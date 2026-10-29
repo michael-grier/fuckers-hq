@@ -1,16 +1,28 @@
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Required for readable browser stack traces in Sentry. The SDK only enables this itself on
-  // Turbopack builds, so a webpack build emits no client source maps and uploads only the handful
-  // Next.js produces regardless — leaving Sentry unable to symbolicate most client errors.
+  // Required for readable browser stack traces in Sentry. Set explicitly because the SDK only
+  // enables it on Turbopack builds, so a `--webpack` build would otherwise emit no client source
+  // maps and leave Sentry unable to symbolicate most client errors.
   //
   // Gated on the same variable as `sourcemaps.disable` below, because Next.js serves generated
   // `.map` files publicly and only Sentry's post-upload deletion removes them. Enabling this
-  // unconditionally would publish readable source from every build that cannot upload — preview
-  // deployments and local builds, which have no token.
+  // unconditionally would publish readable source from every build that cannot upload, such as
+  // preview deployments and local builds without a token.
   productionBrowserSourceMaps: Boolean(process.env.SENTRY_AUTH_TOKEN),
+  compiler: {
+    // Strips Sentry's debug logging and tracing code from every bundle. The SDK's own
+    // `webpack.treeshake` option sets these flags on webpack builds only, and tracing is off in
+    // every runtime config (`tracesSampleRate: 0`).
+    define: {
+      __SENTRY_DEBUG__: "false",
+      __SENTRY_TRACING__: "false",
+    },
+  },
+  // `next dev` otherwise rewrites AGENTS.md with a managed block whenever it detects a coding
+  // agent. AGENTS.md is maintained by hand and already points at the version-matched docs.
+  agentRules: false,
   poweredByHeader: false,
   async headers() {
     return [
@@ -56,12 +68,13 @@ export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,
+    // The SDK turns this on for Turbopack builds only when it enables source maps itself. Setting
+    // `productionBrowserSourceMaps` above skips that path, so without this, uploaded maps would
+    // stay publicly served.
+    deleteSourcemapsAfterUpload: true,
   },
+  // Deletion covers every map under `static`, but a `--webpack` build otherwise uploads only page
+  // and app chunks. Turbopack builds already upload all client chunks.
+  widenClientFileUpload: true,
   telemetry: false,
-  webpack: {
-    treeshake: {
-      removeDebugLogging: true,
-      removeTracing: true,
-    },
-  },
 });

@@ -9,6 +9,13 @@ test.describe("admin surfaces @admin", () => {
       await expect(nav.getByRole("link", { name: link })).toBeVisible();
     }
     await expect(page.getByRole("link", { name: "Inventory exceptions" })).toBeVisible();
+
+    // Clerk loads its account UI as a separate script, so a CSP or SDK change can drop the menu
+    // while every server-rendered admin page still works.
+    await page.getByRole("complementary").getByRole("button", { name: "Open user menu" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Account panel" }).getByRole("button", { name: "Sign out" }),
+    ).toBeVisible();
   });
 
   test("the orders list renders with workflow filters", async ({ page }) => {
