@@ -73,5 +73,8 @@ export default withSentryConfig(nextConfig, {
     // stay publicly served.
     deleteSourcemapsAfterUpload: true,
   },
+  // Deletion covers every map under `static`, but a `--webpack` build otherwise uploads only page
+  // and app chunks. Turbopack builds already upload all client chunks.
+  widenClientFileUpload: true,
   telemetry: false,
 });
