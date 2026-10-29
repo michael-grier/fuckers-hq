@@ -157,14 +157,17 @@ test.describe("admin product lifecycle @admin", () => {
     const saveBar = page.getByRole("region", { name: "Product creation controls" });
     await expect(saveBar).toHaveCount(0);
 
-    await page.getByLabel("Choose a product photo").setInputFiles({
-      name: "deck.jpg",
-      mimeType: "image/jpeg",
-      buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
-    });
+    // A file chosen before hydration is silently lost, so retry the action and its staged outcome.
+    await expect(async () => {
+      await page.getByLabel("Choose a product photo").setInputFiles({
+        name: "deck.jpg",
+        mimeType: "image/jpeg",
+        buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]),
+      });
+      await expect(page.getByLabel("Alt text for deck.jpg")).toBeVisible({ timeout: 5_000 });
+    }).toPass({ timeout: 30_000 });
 
     await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
-    await expect(page.getByLabel("Alt text for deck.jpg")).toBeVisible();
     await expect(saveBar).toBeVisible();
   });
 
