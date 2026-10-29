@@ -281,7 +281,9 @@ test.describe("admin product lifecycle @admin", () => {
     // The published product is live on the storefront, server-resolved from the database.
     await page.goto(`/products/${productSlug}`);
     await expect(page.getByRole("heading", { name: productName, level: 1 })).toBeVisible();
-    await expect(page.getByText("$79.00")).toBeVisible();
+    // Scoped to the visible main: while the page streams, a hidden copy of the same content can
+    // briefly sit beside it and trip strict mode.
+    await expect(page.getByRole("main").getByText("$79.00")).toBeVisible();
     await page.goBack();
 
     // Edit: renaming dirties the form, which mounts the sticky save bar.
