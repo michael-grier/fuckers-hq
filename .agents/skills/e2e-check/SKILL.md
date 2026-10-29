@@ -18,12 +18,14 @@ PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e
 PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e -- --grep @smoke
 PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e -- --project=admin
 PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e -- --project=commerce
-PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e:live
+PORT=3000 E2E_BASE_URL=http://localhost:3000 bun run test:e2e:live
 ```
 
 Substitute an unused port for `4317`. The tiers are, in order, the full deterministic suite,
 the quickest storefront and cart signal, Clerk-authenticated admin, synthetic commerce, and the
-opt-in external tier.
+opt-in external tier. The live tier is the exception to the port choice: it must run on the
+origin in `NEXT_PUBLIC_APP_URL`, because Stripe redirects there and the test bucket's CORS policy
+allows only that origin, so global setup refuses any other.
 
 Match the tier to the change: catalog/cart/UI → `@smoke`; admin or authz → `admin`;
 anything touching checkout, webhooks, orders, inventory, or emails → `commerce`. The live tier

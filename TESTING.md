@@ -100,10 +100,13 @@ PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e
 ```
 
 The default suite skips the opt-in hosted-payment and R2 tests. Run these only on explicit request,
-with sandbox payments and a dedicated test bucket, despite the script's `live` name:
+with sandbox payments and a dedicated test bucket, despite the script's `live` name. Unlike the
+other tiers, they must run on the origin in `NEXT_PUBLIC_APP_URL` (`http://localhost:3000` by
+default): Stripe redirects back there after payment, and the test bucket's CORS policy allows only
+that origin. Global setup refuses any other origin.
 
 ```bash
-PORT=4317 E2E_BASE_URL=http://localhost:4317 bun run test:e2e:live
+PORT=3000 E2E_BASE_URL=http://localhost:3000 bun run test:e2e:live
 ```
 
 See the [e2e skill](.agents/skills/e2e-check/SKILL.md) for prerequisites, failure artifacts, and

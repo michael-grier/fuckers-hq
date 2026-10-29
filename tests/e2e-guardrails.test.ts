@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { assertE2eGuardrails } from "@/e2e/setup/global-setup";
+import { assertE2eGuardrails, assertLiveTierOrigin } from "@/e2e/setup/global-setup";
 
 // A fully safe environment; each case below breaks exactly one property of it.
 function safeEnv(): NodeJS.ProcessEnv {
@@ -48,5 +48,25 @@ describe("assertE2eGuardrails", () => {
   test("rejects a database that does not match the opt-in", () => {
     const env = { ...safeEnv(), DATABASE_URL: "postgres://u:p@host/some-other-db" };
     expect(() => assertE2eGuardrails(env)).toThrow(/E2E_DATABASE_URL/);
+  });
+});
+
+describe("assertLiveTierOrigin", () => {
+  const appUrl = { NODE_ENV: "test", NEXT_PUBLIC_APP_URL: "http://localhost:3000" } as const;
+
+  test("rejects a live run on a port other than the app URL's", () => {
+    const env = { ...appUrl, E2E_STRIPE_LIVE: "1", E2E_BASE_URL: "http://localhost:4317" };
+    expect(() => assertLiveTierOrigin(env)).toThrow(/E2E_BASE_URL=http:\/\/localhost:3000/);
+  });
+
+  test("accepts a live run on the app URL's origin", () => {
+    const env = { ...appUrl, E2E_STRIPE_LIVE: "1", E2E_BASE_URL: "http://localhost:3000" };
+    expect(() => assertLiveTierOrigin(env)).not.toThrow();
+  });
+
+  test("leaves the deterministic tiers free to use any port", () => {
+    expect(() =>
+      assertLiveTierOrigin({ ...appUrl, E2E_BASE_URL: "http://localhost:4317" }),
+    ).not.toThrow();
   });
 });

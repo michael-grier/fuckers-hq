@@ -53,6 +53,28 @@ export function assertE2eGuardrails(env: NodeJS.ProcessEnv): void {
 }
 
 /**
+ * The live tier follows Stripe's real redirect back to `NEXT_PUBLIC_APP_URL` and uploads to an R2
+ * bucket whose CORS policy allows that same origin, so its browser must run there. On any other
+ * origin it fails late, as a refused redirect or a generic upload error. Exported for unit tests.
+ */
+export function assertLiveTierOrigin(env: NodeJS.ProcessEnv): void {
+  if (env.E2E_STRIPE_LIVE !== "1") {
+    return;
+  }
+
+  // Both defaults match the app's (lib/env.ts) and Playwright's (playwright.config.ts).
+  const appOrigin = new URL(env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").origin;
+  const baseOrigin = new URL(env.E2E_BASE_URL ?? "http://localhost:3000").origin;
+  if (baseOrigin !== appOrigin) {
+    throw new Error(
+      `Live tier: E2E_BASE_URL (${baseOrigin}) must match NEXT_PUBLIC_APP_URL (${appOrigin}), ` +
+        "where Stripe redirects after payment and the test bucket accepts uploads from. " +
+        `Re-run with E2E_BASE_URL=${appOrigin} and the matching PORT.`,
+    );
+  }
+}
+
+/**
  * Safety guardrails plus test-data seeding, run once before any spec. The guardrails are what
  * make this suite safe to run unattended: a misconfigured shell cannot point browser automation
  * at real money, real users, or a real catalog. Seeding runs afterward so specs always see the
@@ -63,6 +85,7 @@ export default function globalSetup(): void {
   nextEnv.loadEnvConfig(process.cwd());
 
   assertE2eGuardrails(process.env);
+  assertLiveTierOrigin(process.env);
 
   // Reset the catalog to a known state. Both seeds upsert by slug/SKU, so this also restores
   // inventory that earlier runs consumed.
