@@ -62,8 +62,9 @@ export function assertLiveTierOrigin(env: NodeJS.ProcessEnv): void {
     return;
   }
 
-  // Both defaults match the app's (lib/env.ts) and Playwright's (playwright.config.ts).
-  const appOrigin = new URL(env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000").origin;
+  // Both defaults match the app's (lib/env.ts) and Playwright's (playwright.config.ts). The app
+  // treats an empty NEXT_PUBLIC_APP_URL as unset, hence `||` rather than `??`.
+  const appOrigin = new URL(env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").origin;
   const baseOrigin = new URL(env.E2E_BASE_URL ?? "http://localhost:3000").origin;
   if (baseOrigin !== appOrigin) {
     throw new Error(

@@ -64,6 +64,13 @@ describe("assertLiveTierOrigin", () => {
     expect(() => assertLiveTierOrigin(env)).not.toThrow();
   });
 
+  test("treats an empty app URL as the app's localhost default", () => {
+    const env = { ...appUrl, NEXT_PUBLIC_APP_URL: "", E2E_STRIPE_LIVE: "1" };
+    expect(() =>
+      assertLiveTierOrigin({ ...env, E2E_BASE_URL: "http://localhost:3000" }),
+    ).not.toThrow();
+  });
+
   test("leaves the deterministic tiers free to use any port", () => {
     expect(() =>
       assertLiveTierOrigin({ ...appUrl, E2E_BASE_URL: "http://localhost:4317" }),
