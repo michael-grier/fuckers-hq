@@ -42,6 +42,10 @@ a test environment even if hosted on Vercel's Production deployment channel.
   recipient. A restricted test sender does not establish delivery to arbitrary recipients.
 - Confirm `NEXT_PUBLIC_APP_URL` matches the deployed origin. Verify social previews and product
   image URLs from that origin after deployment.
+- Serve production only from `fuckersskateboards.com`. The production Clerk instance rejects
+  every other origin, so the project's `www.fuckersskateboards.com` and `fuckers-hq.vercel.app`
+  domains 308-redirect there (Vercel project Domains settings). Point Stripe webhooks and any
+  other integration at that origin, never at an alias: providers do not follow redirects.
 - Redeploy after environment changes. Static pages capture values such as `SUPPORT_EMAIL` and
   delivery configuration at build time.
 
@@ -95,6 +99,11 @@ Check production Sentry reporting and source-map upload after deployment. Use a 
 without customer data; inspect readable stack traces and confirm payloads, addresses, payment
 information, and secrets are absent. Preview/local builds and automated tests deliberately suppress
 production reporting.
+
+Confirm the upload from the deploy log's Sentry report, not from public `.map` URLs. The project's
+Protected Sourcemaps setting (Deployment Protection) answers every `*.js.map` and `*.css.map`
+request from outside a Vercel session with `403`, including paths that never existed, so the status
+proves the maps are not public but not whether the build deleted them.
 
 Production rate limiting belongs at the Vercel Firewall so abusive requests are stopped before a
 serverless function, Neon, R2, or Stripe incurs work. Follow the
