@@ -43,7 +43,9 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // globals.css sets smooth scrolling for in-page anchors. This attribute asks Next.js to keep
+    // route changes instant, which it no longer does on its own from Next.js 16.
+    <html data-scroll-behavior="smooth" lang="en">
       <body className={spaceGrotesk.variable}>
         <ClerkProvider>
           <NuqsAdapter>{children}</NuqsAdapter>

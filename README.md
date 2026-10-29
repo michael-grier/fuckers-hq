@@ -27,7 +27,7 @@ refunds, and fulfillment updates.
 
 ## Stack
 
-Next.js 15, React 19, TypeScript, and Tailwind CSS; Neon Postgres with Drizzle ORM; Clerk, Stripe
+Next.js 16, React 19, TypeScript, and Tailwind CSS; Neon Postgres with Drizzle ORM; Clerk, Stripe
 Checkout, Cloudflare R2, Resend, and Sentry. Bun runs the local tooling, with Biome, Bun tests,
 and Playwright supporting automated checks. The app is hosted on Vercel.
 

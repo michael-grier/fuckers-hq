@@ -2,7 +2,7 @@
 
 ## Project
 
-This is the Fuckers HQ application, built with Next.js 15, React 19, TypeScript, Bun,
+This is the Fuckers HQ application, built with Next.js 16, React 19, TypeScript, Bun,
 Neon Postgres, Drizzle ORM, Clerk, Stripe Checkout, Cloudflare R2, Resend, and Sentry.
 
 Inspect the existing implementation, tests, schema, migrations, and nearby conventions before
@@ -36,6 +36,8 @@ dependencies or perform broad refactors without explaining why they are necessar
   `setup:worktree` and `teardown:worktree`; regenerate them with those commands instead of editing.
   Ask before changing any credential. Editing the committed `.env.example` is fine and is how
   env-contract changes are proposed.
+- For Next.js APIs, file conventions, and config, read the version-matched guides in
+  `node_modules/next/dist/docs/`. Next.js 16 changed behavior that training data may predate.
 - Let TypeScript infer wherever it can; annotate at boundaries so changes propagate instead of
   requiring edits everywhere. `any` is a last resort a boundary genuinely forces.
 - Keep validation, authorization, and persistence boundaries visible.
