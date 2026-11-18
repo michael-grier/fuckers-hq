@@ -73,7 +73,7 @@ describe("storefront navigation", () => {
     expect(videosMarkup).toContain("<h1");
     expect(videosMarkup).toContain(">Videos</h1>");
     expect(videosMarkup).toContain("The Fuckers Video");
-    expect(videosMarkup).toContain("Our first official full length video!");
+    expect(videosMarkup).toContain("Fuckers Skateboards first full length video");
     expect(videosMarkup).toContain("Reid Morris");
     expect(videosMarkup).toContain("Filmed by");
     expect(videosMarkup).toContain("Edited by");
