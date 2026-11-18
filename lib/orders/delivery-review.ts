@@ -176,7 +176,8 @@ export function buildShippingPaymentSessionParams(
 
   return {
     mode: "payment",
-    payment_method_types: ["card"],
+    // Card-only, like the order checkout (see buildStripeSessionParams).
+    allowed_payment_method_types: ["card"],
     client_reference_id: input.requestId,
     customer_email: input.customerEmail,
     line_items: [

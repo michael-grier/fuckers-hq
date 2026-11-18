@@ -70,7 +70,7 @@ describe("supplemental shipping Checkout", () => {
 
     expect(params).toMatchObject({
       mode: "payment",
-      payment_method_types: ["card"],
+      allowed_payment_method_types: ["card"],
       customer_email: "rider@example.com",
       automatic_tax: { enabled: true },
       shipping_address_collection: { allowed_countries: ["CA"] },

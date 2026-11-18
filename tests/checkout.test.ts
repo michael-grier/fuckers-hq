@@ -373,9 +373,9 @@ describe("hosted checkout orchestration", () => {
         deliverySettings,
       );
 
-      // An explicit list turns off dynamic payment methods, so enabling Affirm or Klarna in the
+      // The allow-list limits dynamic payment methods to cards, so enabling Affirm or Klarna in the
       // Stripe Dashboard cannot put them back in front of a buyer.
-      expect(params.payment_method_types).toEqual(["card"]);
+      expect(params.allowed_payment_method_types).toEqual(["card"]);
     }
   });
 
@@ -596,6 +596,21 @@ describe("local delivery checkout", () => {
     // A rolling release can pay a Session created by a newer deploy. Rejecting the unknown key
     // would strand a verified payment behind a permanent parse failure.
     expect(parsePersistedStripeSessionParams(fromNewerDeploy, deliveryReservation)).toBeDefined();
+  });
+
+  test("replays a request persisted before allowed_payment_method_types unchanged", () => {
+    const { allowed_payment_method_types: _replaced, ...current } = buildStripeSessionParams(
+      deliveryReservation,
+      deliverySettings,
+    );
+    const persistedBeforeEndive = { ...current, payment_method_types: ["card"] };
+
+    // Stripe answers a matching idempotent replay with the Session it already created, even on a
+    // newer API version, but rejects the same key with different parameters. Rewriting the legacy
+    // field would turn a recoverable replay into a permanent idempotency error.
+    expect(parsePersistedStripeSessionParams(persistedBeforeEndive, deliveryReservation)).toEqual(
+      persistedBeforeEndive as unknown as ReturnType<typeof buildStripeSessionParams>,
+    );
   });
 
   test("treats a session persisted before the fulfillment choice existed as shipping", () => {
