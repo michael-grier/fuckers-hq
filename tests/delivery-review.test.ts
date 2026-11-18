@@ -122,6 +122,34 @@ describe("supplemental shipping Checkout", () => {
     expect(sessions.create).not.toHaveBeenCalled();
   });
 
+  test("resumes an unsent legacy shipping-payment request", async () => {
+    const { allowed_payment_method_types: _replaced, ...current } =
+      makePrepared().stripeSessionParams;
+    const legacyParams = { ...current, payment_method_types: ["card"] };
+    const repository = makeRepository({
+      prepareShippingPayment: mock(async () => ({
+        ...makePrepared(),
+        stripeSessionParams: legacyParams,
+      })),
+    });
+    const sessions = {
+      create: mock(async () => ({ id: "cs_test_shipping", url: "https://checkout.stripe.test/1" })),
+    };
+
+    // Same pre-Endive replay as the order checkout: unchanged parameters, original API version.
+    await expect(
+      requestOrderShippingPayment(orderId, settings, { repository, sessions }),
+    ).resolves.toEqual({ checkoutUrl: "https://checkout.stripe.test/1", emailQueued: true });
+    expect(sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_method_types: ["card"] }),
+      { idempotencyKey: `order-shipping-payment/${requestId}/2`, apiVersion: "2025-10-29.clover" },
+    );
+    expect(sessions.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ allowed_payment_method_types: expect.anything() }),
+      expect.anything(),
+    );
+  });
+
   test("marks only definitive Stripe creation failures as replaceable", async () => {
     const repository = makeRepository();
     const error = { type: "StripeInvalidRequestError" };

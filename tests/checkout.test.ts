@@ -379,6 +379,57 @@ describe("hosted checkout orchestration", () => {
     }
   });
 
+  test("resumes an unsent legacy checkout request", async () => {
+    const reservation = {
+      pendingCheckoutToken: "checkout_abcDEF123456789",
+      reservationToken: "reservation_abcDEF123456",
+      stripeCreateIdempotencyKey: "checkout-session/reservation_abcDEF123456",
+      stripeSessionId: null,
+      expiresAt: new Date("2026-07-10T13:00:00.000Z"),
+      fulfillmentMethod: "shipping" as const,
+      lineItems: reservationLineItems,
+    };
+    const { allowed_payment_method_types: _replaced, ...current } = buildStripeSessionParams(
+      reservation,
+      { ...settings, allowedCountries: [...settings.allowedCountries] },
+    );
+    const legacyParams = { ...current, payment_method_types: ["card"] };
+    const calls: Array<{ params: unknown; options: unknown }> = [];
+
+    const result = await createHostedCheckout(
+      { requestId, items: [{ variantId, quantity: 1 }] },
+      { ...settings, allowedCountries: [...settings.allowedCountries] },
+      {
+        repository: makeRepository({
+          reserveCheckout: async () => ({
+            ...reservation,
+            stripeSessionParams: legacyParams as unknown as Record<string, unknown>,
+          }),
+        }),
+        sessions: {
+          create: async (params, options) => {
+            calls.push({ params, options });
+            return { id: "cs_test_legacy", url: "https://checkout.stripe.com/c/pay/legacy" };
+          },
+        },
+        createToken: () => "unused-token",
+      },
+    );
+
+    // A request persisted before the Endive upgrade replays unchanged on the API version it was
+    // built for, so Stripe creates the Session instead of rejecting the legacy field.
+    expect(result).toEqual({ url: "https://checkout.stripe.com/c/pay/legacy" });
+    expect(calls).toEqual([
+      {
+        params: legacyParams,
+        options: {
+          idempotencyKey: "checkout-session/reservation_abcDEF123456",
+          apiVersion: "2025-10-29.clover",
+        },
+      },
+    ]);
+  });
+
   test("releases confirmed Stripe rejections but preserves ambiguous failures", async () => {
     const releases: string[] = [];
     const repository = makeRepository({

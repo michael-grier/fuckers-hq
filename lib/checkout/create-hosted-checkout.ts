@@ -51,7 +51,7 @@ export type CheckoutRepository = {
 export type CheckoutSessionClient = {
   create: (
     params: Stripe.Checkout.SessionCreateParams,
-    options: { idempotencyKey: string },
+    options: { idempotencyKey: string; apiVersion?: string },
   ) => Promise<Pick<Stripe.Checkout.Session, "id" | "url">>;
 };
 
@@ -106,9 +106,10 @@ export async function createHostedCheckout(
   let session: Awaited<ReturnType<CheckoutSessionClient["create"]>>;
 
   try {
-    session = await dependencies.sessions.create(sessionParams, {
-      idempotencyKey: reservation.stripeCreateIdempotencyKey,
-    });
+    session = await dependencies.sessions.create(
+      sessionParams,
+      persistedSessionRequestOptions(sessionParams, reservation.stripeCreateIdempotencyKey),
+    );
   } catch (error) {
     const isDefinitiveFailure =
       dependencies.isDefinitiveSessionCreationFailure?.(error) ??
@@ -235,6 +236,25 @@ export function parsePersistedStripeSessionParams(
   }
 
   return parsed.data as unknown as Stripe.Checkout.SessionCreateParams;
+}
+
+/** The API version Stripe 19 sent with Checkout requests persisted before the Endive upgrade. */
+const PRE_ENDIVE_API_VERSION = "2025-10-29.clover";
+
+/**
+ * Stripe request options for creating a Session from a persisted request. A request persisted
+ * before the Endive upgrade still carries `payment_method_types`, which Endive rejects, so it is
+ * sent on the API version it was built for. Its parameters and idempotency key stay unchanged:
+ * Stripe returns the Session it already created, or creates one if the request never arrived.
+ * Remove once every request persisted before the upgrade has expired.
+ */
+export function persistedSessionRequestOptions(
+  params: Stripe.Checkout.SessionCreateParams,
+  idempotencyKey: string,
+): { idempotencyKey: string; apiVersion?: string } {
+  return "payment_method_types" in params
+    ? { idempotencyKey, apiVersion: PRE_ENDIVE_API_VERSION }
+    : { idempotencyKey };
 }
 
 export function isDefinitiveStripeSessionCreationFailure(error: unknown): boolean {
