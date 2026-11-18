@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { isSentryEnabled } from "@/lib/observability/sentry-enabled";
+import { sentryEnvironment } from "@/lib/observability/sentry-options";
 import {
   getServerExceptionTags,
   normalizeServerException,
@@ -54,5 +55,12 @@ describe("sentry enablement gate", () => {
   test("stays off without a DSN", () => {
     expect(isSentryEnabled(undefined, "production", "production")).toBe(false);
     expect(isSentryEnabled("", "production", "production")).toBe(false);
+  });
+});
+
+describe("sentry environment", () => {
+  test("keeps the Sentry 10 names that alert rules and saved searches filter on", () => {
+    expect(sentryEnvironment("production")).toBe("vercel-production");
+    expect(sentryEnvironment(undefined)).toBeUndefined();
   });
 });

@@ -1,6 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import type { NextConfig } from "next";
 
+import { sentryEnvironment } from "./lib/observability/sentry-options";
+
 const nextConfig: NextConfig = {
   // Required for readable browser stack traces in Sentry. Set explicitly because the SDK only
   // enables it on Turbopack builds, so a `--webpack` build would otherwise emit no client source
@@ -64,6 +66,8 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
 };
 
+const sentryDeployEnvironment = sentryEnvironment(process.env.VERCEL_ENV);
+
 export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
   sourcemaps: {
@@ -76,5 +80,15 @@ export default withSentryConfig(nextConfig, {
   // Deletion covers every map under `static`, but a `--webpack` build otherwise uploads only page
   // and app chunks. Turbopack builds already upload all client chunks.
   widenClientFileUpload: true,
+  // Replaces the deploy Sentry records automatically on Vercel, whose environment would otherwise
+  // lack the `vercel-` prefix the events keep.
+  release: sentryDeployEnvironment
+    ? {
+        deploy: {
+          env: sentryDeployEnvironment,
+          url: process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
+        },
+      }
+    : undefined,
   telemetry: false,
 });
