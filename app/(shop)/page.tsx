@@ -50,9 +50,7 @@ export default function HomePage() {
           <h1 className="mt-3 max-w-[20ch] font-grotesk font-semibold text-4xl leading-[1.05] tracking-tight md:text-6xl">
             Fuckers Skateboards
           </h1>
-          <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">
-            We work hard to support the Calgary skate community, support us by buying some gear!
-          </p>
+          <p className="mt-3 max-w-md text-[#eceff2]/85 text-lg">Not giving a fuck since 2021</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               className="rounded-full bg-accent px-6 py-3 font-semibold text-surface-chrome text-sm transition hover:brightness-105 md:hover:scale-[1.03]"

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function VideosPage() {
   return (
     <main className="min-h-screen py-10">
-      <PageHeader description="Watch us getting down in the streets." title="Videos" />
+      <PageHeader title="Videos" />
       <article className="mx-auto max-w-7xl px-6 pt-10">
         <h2 className="font-grotesk font-semibold text-3xl tracking-tight md:text-4xl">
           The Fuckers Video
@@ -24,7 +24,7 @@ export default function VideosPage() {
           title="The Fuckers Video"
         />
         <section className="mt-8 pt-8">
-          <p className="font-semibold text-lg">Our first official full length video!</p>
+          <p className="font-semibold text-lg">Fuckers Skateboards first full length video</p>
           <div className="mt-8 grid gap-8 md:grid-cols-[2fr_1fr]">
             <div>
               <h3 className="font-semibold text-muted-foreground text-xs uppercase tracking-[0.18em]">
