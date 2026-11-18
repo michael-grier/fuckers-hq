@@ -1,6 +1,9 @@
 import type Stripe from "stripe";
 import { z } from "zod";
-import { isDefinitiveStripeSessionCreationFailure } from "@/lib/checkout/create-hosted-checkout";
+import {
+  isDefinitiveStripeSessionCreationFailure,
+  persistedSessionRequestOptions,
+} from "@/lib/checkout/create-hosted-checkout";
 import type { AllowedShippingCountry } from "@/lib/checkout/shipping";
 import type { JsonRecord } from "@/lib/db/schema";
 import type { DestinationProvince } from "@/lib/orders/destination-province";
@@ -46,7 +49,7 @@ export type DeliveryReviewRepository = {
 export type ShippingPaymentSessionClient = {
   create: (
     params: Stripe.Checkout.SessionCreateParams,
-    options: { idempotencyKey: string },
+    options: { idempotencyKey: string; apiVersion?: string },
   ) => Promise<Pick<Stripe.Checkout.Session, "id" | "url">>;
 };
 
@@ -124,9 +127,10 @@ export async function requestOrderShippingPayment(
   let session: Awaited<ReturnType<ShippingPaymentSessionClient["create"]>>;
 
   try {
-    session = await dependencies.sessions.create(params, {
-      idempotencyKey: prepared.stripeCreateIdempotencyKey,
-    });
+    session = await dependencies.sessions.create(
+      params,
+      persistedSessionRequestOptions(params, prepared.stripeCreateIdempotencyKey),
+    );
   } catch (error) {
     const isDefinitiveFailure =
       dependencies.isDefinitiveSessionCreationFailure?.(error) ??
@@ -176,7 +180,8 @@ export function buildShippingPaymentSessionParams(
 
   return {
     mode: "payment",
-    payment_method_types: ["card"],
+    // Card-only, like the order checkout (see buildStripeSessionParams).
+    allowed_payment_method_types: ["card"],
     client_reference_id: input.requestId,
     customer_email: input.customerEmail,
     line_items: [

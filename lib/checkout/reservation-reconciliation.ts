@@ -3,6 +3,7 @@ import type Stripe from "stripe";
 import {
   isDefinitiveStripeSessionCreationFailure,
   parsePersistedStripeSessionParams,
+  persistedSessionRequestOptions,
 } from "@/lib/checkout/create-hosted-checkout";
 import type { FulfillmentMethod, JsonRecord } from "@/lib/db/schema";
 
@@ -54,7 +55,7 @@ export type ReservationReconciliationRepository = {
 export type ReconciliationSessionClient = {
   create: (
     params: Stripe.Checkout.SessionCreateParams,
-    options: { idempotencyKey: string },
+    options: { idempotencyKey: string; apiVersion?: string },
   ) => Promise<Stripe.Checkout.Session>;
   retrieve: (
     stripeSessionId: string,
@@ -217,9 +218,10 @@ async function recoverStripeSession(
   });
 
   try {
-    return await dependencies.sessions.create(params, {
-      idempotencyKey: claim.stripeCreateIdempotencyKey,
-    });
+    return await dependencies.sessions.create(
+      params,
+      persistedSessionRequestOptions(params, claim.stripeCreateIdempotencyKey),
+    );
   } catch (error) {
     // After 24 hours Stripe may prune the key, so a new rejection cannot disprove an older Session.
     if (

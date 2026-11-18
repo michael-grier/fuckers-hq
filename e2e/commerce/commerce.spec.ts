@@ -189,6 +189,8 @@ test.describe("checkout boundary @commerce", () => {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? "");
       const session = await stripe.checkout.sessions.retrieve(sessionId);
       expect(session.amount_subtotal).toBe(8_900);
+      // Checkout stays card-only even if pay-later methods are enabled in the Stripe Dashboard.
+      expect(session.payment_method_types).toEqual(["card"]);
 
       // Starting checkout reserved the unit without touching on-hand stock.
       await openWorkspace(page, "Street Deck 8.25");
@@ -350,6 +352,13 @@ test.describe("paid-order webhook @commerce", () => {
     if (!shippingSessionId) {
       throw new Error(`Shipping payment URL had no Session id: ${checkoutUrl}`);
     }
+
+    // The supplemental shipping charge is card-only too.
+    const { default: Stripe } = await import("stripe");
+    const shippingSession = await new Stripe(
+      process.env.STRIPE_SECRET_KEY ?? "",
+    ).checkout.sessions.retrieve(shippingSessionId);
+    expect(shippingSession.payment_method_types).toEqual(["card"]);
 
     const shippingTokens = await getShippingPaymentTokens(shippingSessionId);
     const shippingPayment = buildSignedShippingPaymentEvent({
