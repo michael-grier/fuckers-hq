@@ -27,6 +27,13 @@ reviews:
     auto_incremental_review: false
     auto_pause_after_reviewed_commits: 2
 
+  pre_merge_checks:
+    # Pull request descriptions here state the problem, the fix, and a `## Changes` list, and leave
+    # validation to CI. The built-in description check grades them against the full template, so it
+    # warned on every pull request without catching anything.
+    description:
+      mode: "off"
+
   path_filters:
     - "!bun.lock"
     # Generated metadata is noisy; the authored schema and SQL migrations remain reviewable.
