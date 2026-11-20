@@ -13,6 +13,8 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
+    // TypeScript 7 no longer loads every installed @types package, so list the runtimes in use.
+    "types": ["bun", "node"],
     "plugins": [
       {
         "name": "next"
