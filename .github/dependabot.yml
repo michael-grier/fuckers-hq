@@ -15,6 +15,11 @@ updates:
       sentry:
         patterns:
           - "@sentry/*"
+      # getSignedUrl from the presigner only accepts an S3Client from the same SDK release, so a
+      # version split between the two fails typecheck in lib/r2.ts.
+      aws-sdk:
+        patterns:
+          - "@aws-sdk/*"
 
   - package-ecosystem: github-actions
     directory: /
