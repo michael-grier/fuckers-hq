@@ -39,7 +39,7 @@
     "drizzle-orm": "^0.45.4",
     "drizzle-zod": "^0.8.3",
     "embla-carousel-react": "^8.6.0",
-    "lucide-react": "^0.550.0",
+    "lucide-react": "^1.77.0",
     "next": "^16.4.6",
     "nuqs": "^2.10.3",
     "postgres": "^3.4.9",

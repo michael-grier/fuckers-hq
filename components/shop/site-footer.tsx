@@ -1,8 +1,7 @@
-import { Instagram, Youtube } from "lucide-react";
 import type { Route } from "next";
 import Link from "next/link";
-
 import { BrandLogo } from "@/components/brand-logo";
+import { Instagram, Youtube } from "@/components/shop/social-icons";
 
 const socialLinks: ReadonlyArray<{
   href: string;
