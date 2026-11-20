@@ -54,7 +54,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.6.3",
+    "@biomejs/biome": "^2.6.8",
     "@clerk/backend": "3.26.4",
     "@clerk/testing": "^2.2.52",
     "@happy-dom/global-registrator": "^21.0.4",
