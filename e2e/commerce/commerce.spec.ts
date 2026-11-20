@@ -49,21 +49,21 @@ async function readOrderNeedsActionCount(page: Page) {
   return (await badge.count()) === 0 ? 0 : Number(await badge.textContent());
 }
 
-/** Opens the admin workspace for a product via the products list search. */
+/** Opens the admin workspace for a product found through the products list search. */
 async function openWorkspace(page: Page, productName: string): Promise<void> {
   await page.goto(`/admin/products?q=${encodeURIComponent(productName)}`);
-  const heading = page.getByRole("heading", { name: productName, level: 1 });
-  // A click before hydration is silently lost. Once navigation starts, retry only the outcome so
-  // a slow detail-page render does not look for the product link on the page it just left.
-  await expect(async () => {
-    if (!(await heading.isVisible())) {
-      const productLink = page.getByRole("link", { name: productName });
-      if (await productLink.isVisible()) {
-        await productLink.click();
-      }
-    }
-    await expect(heading).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 30_000 });
+  const href = await page
+    .getByRole("link", { name: productName, exact: true })
+    .getAttribute("href");
+
+  if (!href || !/^\/admin\/products\/[0-9a-f-]+$/.test(href)) {
+    throw new Error(`${productName} has an invalid workspace link: ${href}`);
+  }
+  // Clicking the link raced client navigation: in CI the page landed back on the list after the
+  // workspace heading appeared, so the variant lookups that follow found no rows. Loading the
+  // href directly, as openFullOrder does, leaves no client transition to race.
+  await page.goto(href);
+  await expect(page.getByRole("heading", { name: productName, level: 1 })).toBeVisible();
 }
 
 /** Opens the selected order through the peek link's rendered destination. */
