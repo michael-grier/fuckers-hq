@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { isSentryEnabled } from "@/lib/observability/sentry-enabled";
+import { sentryDataCollection, sentryEnvironment } from "@/lib/observability/sentry-options";
 import {
   getServerExceptionTags,
   normalizeServerException,
@@ -54,5 +55,25 @@ describe("sentry enablement gate", () => {
   test("stays off without a DSN", () => {
     expect(isSentryEnabled(undefined, "production", "production")).toBe(false);
     expect(isSentryEnabled("", "production", "production")).toBe(false);
+  });
+});
+
+describe("sentry data collection", () => {
+  // Sentry 11 collects each of these unless it is turned off, and here they would carry customer
+  // emails, addresses, and order payloads.
+  test("keeps customer data out of events", () => {
+    expect(sentryDataCollection).toMatchObject({
+      userInfo: false,
+      cookies: false,
+      httpBodies: [],
+      databaseQueryData: false,
+    });
+  });
+});
+
+describe("sentry environment", () => {
+  test("keeps the Sentry 10 names that alert rules and saved searches filter on", () => {
+    expect(sentryEnvironment("production")).toBe("vercel-production");
+    expect(sentryEnvironment(undefined)).toBeUndefined();
   });
 });

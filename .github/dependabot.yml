@@ -9,6 +9,12 @@ updates:
       time: "09:00"
       timezone: America/Edmonton
     open-pull-requests-limit: 5
+    groups:
+      # @sentry/nextjs requires the exact same @sentry/bun version (which `bun test` loads), so
+      # the two must move together.
+      sentry:
+        patterns:
+          - "@sentry/*"
 
   - package-ecosystem: github-actions
     directory: /
