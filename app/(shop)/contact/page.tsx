@@ -1,8 +1,7 @@
-import { Instagram, Youtube } from "lucide-react";
 import type { Metadata, Route } from "next";
 import Link from "next/link";
-
 import { PolicyPage, PolicyParagraph, PolicySection } from "@/components/shop/policy-page";
+import { Instagram, Youtube } from "@/components/shop/social-icons";
 import { env } from "@/lib/env";
 
 export const metadata: Metadata = {
