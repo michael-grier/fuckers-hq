@@ -70,7 +70,7 @@
     "drizzle-kit": "^0.31.11",
     "playwright": "^1.65.1",
     "tailwindcss": "^4.3.5",
-    "typescript": "^5.9.3"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "brace-expansion": "5.0.12",
